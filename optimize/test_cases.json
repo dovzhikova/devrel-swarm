@@ -1,0 +1,52 @@
+[
+  {
+    "id": "devrel_head_large",
+    "first_name": "Sarah",
+    "last_name": "Chen",
+    "title": "Head of Developer Relations",
+    "company_name": "Grafana Labs",
+    "research_hook": "Sarah recently spoke at KubeCon about scaling developer communities beyond 1M users. She emphasized the challenge of measuring community-driven adoption vs. top-down sales.",
+    "kb_context": "OpenClaw is a self-hosted, local-first personal AI assistant platform. Multi-channel (WhatsApp, Telegram, Discord, voice), multi-model (Anthropic, Google, OpenAI, local), multi-agent with cron automation. Available at openclaw.ai.",
+    "competitive_context": "Grafana currently uses manual processes for community triage and content creation. No known AI-assisted DevRel tooling in place."
+  },
+  {
+    "id": "devrel_vp_mid",
+    "first_name": "Marcus",
+    "last_name": "Williams",
+    "title": "VP Developer Experience",
+    "company_name": "Supabase",
+    "research_hook": "Marcus posted on X about hiring 3 DevRel engineers this quarter to keep up with docs and community support demand.",
+    "kb_context": "OpenClaw automate community management, social listening, content creation, and competitive intelligence. 10 specialized agents replace a full DevRel + Sales team.",
+    "competitive_context": "Supabase is scaling rapidly and struggling to keep docs current. They're spending heavily on DevRel headcount."
+  },
+  {
+    "id": "devrel_director_startup",
+    "first_name": "Aisha",
+    "last_name": "Patel",
+    "title": "Director of Developer Relations",
+    "company_name": "Neon",
+    "research_hook": "Aisha wrote a blog post about the ROI challenge of DevRel — how to prove developer advocacy drives revenue when the funnel is indirect.",
+    "kb_context": "OpenClaw automate community management, social listening, content creation, and competitive intelligence. The system tracks engagement metrics across GitHub, social media, and community forums.",
+    "competitive_context": "Neon competes with PlanetScale and CockroachDB. Their DevRel team is small (3 people) relative to competitors."
+  },
+  {
+    "id": "devrel_manager_enterprise",
+    "first_name": "Tom",
+    "last_name": "Nakamura",
+    "title": "Developer Relations Manager",
+    "company_name": "Datadog",
+    "research_hook": "Tom's team manages 200+ GitHub issues per week and recently complained on a podcast about the triage bottleneck slowing feature prioritization.",
+    "kb_context": "OpenClaw include Sage (community manager) which auto-triages GitHub issues with sentiment analysis, churn risk detection, and priority scoring. Handles 200+ issues/week automatically.",
+    "competitive_context": "Datadog has a large DevRel team but still struggles with volume. They use basic label automation but no AI-powered triage."
+  },
+  {
+    "id": "community_lead_no_hook",
+    "first_name": "Elena",
+    "last_name": "Kowalski",
+    "title": "Head of Community",
+    "company_name": "Vercel",
+    "research_hook": "",
+    "kb_context": "OpenClaw automate community management, social listening, content creation, and competitive intelligence. 10 specialized agents replace a full DevRel + Sales team.",
+    "competitive_context": "Vercel has a massive community but relies heavily on manual moderation and content curation."
+  }
+]

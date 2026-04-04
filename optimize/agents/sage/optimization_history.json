@@ -1,0 +1,26 @@
+[
+  {
+    "iteration": 1,
+    "change_description": "Added explicit guidance on churn detection to reduce false positives. The agent is currently flagging churn in 4 out of 5 test cases where it shouldn't (quality bug reports, feature requests, confused users, and security issues). Added a new section that clarifies churn signals must include BOTH frustration indicators AND abandonment intent, and explicitly lists what is NOT churn (single issues, constructive feedback, questions seeking help).",
+    "before": 81.8,
+    "after": 69.6,
+    "kept": false,
+    "timestamp": "2026-03-21T17:45:20.797772"
+  },
+  {
+    "iteration": 2,
+    "change_description": "The weakest criterion is churn_detection with consistent false positives across 4/5 test cases (scoring only 5/15 points each). The agent is over-detecting churn. I'm adding a specific 'Churn Detection Rules' section with clear negative examples and a requirement that churn flags must show BOTH frustration AND abandonment intent together in the same message. This replaces vague guidance with concrete decision logic.",
+    "before": 81.8,
+    "after": 76.4,
+    "kept": false,
+    "timestamp": "2026-03-21T17:46:43.349145"
+  },
+  {
+    "iteration": 3,
+    "change_description": "Manual: Retargeted from OpenClaw to OpenClaw. Added two-mode retention assessment (Mode A for real churn, Mode B vocabulary ban for non-churn — bans 'churn', 'switching', 'leaving', 'cancel', 'abandon', 'at risk' even in negations). Renamed churn_risk field to retention_concern in generation prompt to avoid substring false positives. Added explicit priority classification rules. Updated product area signals in scorer for agent system context. Removed 'at risk of leaving' priming from generation prompt.",
+    "before": 75.2,
+    "after": 88.5,
+    "kept": true,
+    "timestamp": "2026-03-22T00:15:00.000000"
+  }
+]

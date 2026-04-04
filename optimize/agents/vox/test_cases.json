@@ -1,0 +1,17 @@
+[
+  {
+    "id": "gateway_setup_video",
+    "task": "Create a video tutorial on setting up OpenClaw from scratch",
+    "input_content": "# Setting Up OpenClaw\n\n## Prerequisites\n- Python 3.12+\n- API keys: ANTHROPIC_API_KEY, GITHUB_TOKEN, FIRECRAWL_API_KEY, POSTHOG_API_KEY\n\n## Step 1: Clone the repo\n```bash\ngit clone https://github.com/your-org/devrel-swarm\ncd devrel-swarm\n```\n\n## Step 2: Configure environment\nCopy config/env.example to .env and add your API keys for Claude, GitHub, Firecrawl, PostHog, and OpenAI (for Vox TTS).\n\n## Step 3: Install dependencies\n```bash\npip install -r requirements.txt\n```\n\n## Step 4: Run the full weekly cycle\n```bash\npython -m agents.atlas --weekly-cycle\n```\nThis runs Monday through Friday: Sage triages, Iris synthesizes, Nova experiments, Kai writes content, and Atlas compiles OKRs."
+  },
+  {
+    "id": "skill_creation_video",
+    "task": "Create a video tutorial on building a custom MCP tool for a new API integration",
+    "input_content": "# Building a Custom MCP Tool\n\n## Step 1: Create the API client\n```bash\ntouch tools/my_api_client.py\n```\nFollow the pattern in tools/api_client.py: async httpx client, dataclass DTOs, proper close() method.\n\n## Step 2: Define the ToolDefinition\nAdd a ToolDefinition with name, description, input_schema (JSON Schema), and async handler in tools/mcp_server.py.\n\n## Step 3: Register in MCPServer\nAdd your tool to MCPServer._register_tools() so it appears in tools/list responses.\n\n## Step 4: Test the tool\n```bash\npython -m tools.mcp_server\n# Send JSON-RPC request via stdin:\n{\"jsonrpc\": \"2.0\", \"method\": \"tools/call\", \"params\": {\"name\": \"my_tool\", \"arguments\": {}}, \"id\": 1}\n```"
+  },
+  {
+    "id": "voice_setup_video",
+    "task": "Create a video tutorial on retargeting the agent system to a new DevTools product",
+    "input_content": "# Retargeting to a New Product\n\n## Step 1: Replace the knowledge base\nSwap all markdown files in knowledge_base/ with your target product's docs. Kai auto-discovers them via rglob('*.md').\n\n## Step 2: Update the API client\nReplace PostHogClient in tools/api_client.py with your product's API. Keep the same interface pattern: async methods returning dataclasses.\n\n## Step 3: Update GitHub tools\nChange OWNER/REPO constants in tools/github_tools.py to point at the target repo.\n\n## Step 4: Run a single agent to verify\n```bash\npython -m agents.atlas --agent kai --task \"Write a tutorial on getting started\"\n```"
+  }
+]

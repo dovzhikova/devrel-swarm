@@ -1,0 +1,64 @@
+[
+  {
+    "id": "reddit_comparison_thread",
+    "task": "Analyze this social mention for sentiment and engagement opportunity",
+    "mention": {
+      "platform": "reddit",
+      "subreddit": "devtools",
+      "title": "OpenClaw vs Orbit vs Common Room — which one for automating developer relations?",
+      "body": "We're a 15-person DevTools startup spending $600K/yr on a DevRel team. Tried Orbit but it's mostly community analytics, not actual outreach. Anyone used OpenClaw? How hard is it to set up the multi-agent system with your own knowledge base?",
+      "author": "curious_dev_42",
+      "engagement": 87,
+      "posted_at": "2026-03-19"
+    },
+    "expected_sentiment": "neutral",
+    "expected_engagement_opp": true,
+    "expected_risk": false
+  },
+  {
+    "id": "hn_negative_thread",
+    "task": "Analyze this social mention for reputation risk",
+    "mention": {
+      "platform": "hackernews",
+      "title": "OpenClaw — Overhyped and Underdelivering",
+      "body": "Tried OpenClaw for a week. The Atlas orchestrator hangs on complex tasks, the content agent produces generic blog posts, and the 'competitive intelligence' is basically just web scraping. Save yourself the trouble and hire a real DevRel person or use Common Room for community tracking.",
+      "author": "disillusioned_hacker",
+      "engagement": 234,
+      "posted_at": "2026-03-18"
+    },
+    "expected_sentiment": "negative",
+    "expected_engagement_opp": false,
+    "expected_risk": true
+  },
+  {
+    "id": "twitter_praise",
+    "task": "Analyze this social mention",
+    "mention": {
+      "platform": "twitter",
+      "title": "",
+      "body": "Just deployed @DevRelAIAgents with our docs as the knowledge base. 10 specialized agents running our entire DevRel pipeline — GitHub triage, social listening, content creation, competitive intel. Replaced a $500K/yr manual DevRel team in under a week.",
+      "author": "dev_influencer",
+      "engagement": 1245,
+      "posted_at": "2026-03-20"
+    },
+    "expected_sentiment": "positive",
+    "expected_engagement_opp": true,
+    "expected_risk": false
+  },
+  {
+    "id": "reddit_migration_question",
+    "task": "Analyze this social mention",
+    "mention": {
+      "platform": "reddit",
+      "subreddit": "SaaS",
+      "title": "Migrating from manual DevRel team to OpenClaw — anyone done this?",
+      "body": "Our Orbit setup only covers community analytics and we still need 3 full-time DevRel people for content, outreach, and competitive intel. Considering OpenClaw as a replacement. Main concern: can the hub-and-spoke architecture handle a repo with 500+ open issues? Any setup guides for retargeting to a custom product?",
+      "author": "devops_lead",
+      "engagement": 43,
+      "posted_at": "2026-03-17"
+    },
+    "expected_sentiment": "neutral",
+    "expected_engagement_opp": true,
+    "expected_risk": false
+  }
+]

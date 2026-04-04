@@ -1,0 +1,58 @@
+[
+  {
+    "iteration": 1,
+    "change_description": "Added explicit instruction to include cross-references with markdown links between related modules, classes, and functions. The cross_references criterion is consistently scoring 3/max across all test cases, indicating the agent isn't creating enough internal documentation links. This change adds a specific directive to use markdown link syntax and identify relationships.",
+    "before": 91.67,
+    "after": 97.33,
+    "kept": true,
+    "timestamp": "2026-03-21T15:39:50.405063"
+  },
+  {
+    "iteration": 2,
+    "change_description": "The architecture_overview test case shows cross_references scoring only 3/10, while other test cases score 10/10. Architecture docs need different cross-reference guidance than API docs - they should link to design patterns, component interactions, and system boundaries, not just individual symbols. Adding specific instruction to identify and link architectural relationships (data flow, dependencies, component interactions) in addition to code-level symbol references.",
+    "before": 97.33,
+    "after": 92.33,
+    "kept": false,
+    "timestamp": "2026-03-21T15:41:06.950327"
+  },
+  {
+    "iteration": 3,
+    "change_description": "The architecture_overview test case scores only 3/10 on cross_references while other test cases score 10/10. The issue is that architecture docs need broader contextual links beyond just code symbols. Adding a specific guideline to distinguish between API-level cross-references (symbol links) and architecture-level cross-references (component relationships, design decisions, system boundaries) without removing the existing successful symbol-linking behavior.",
+    "before": 97.33,
+    "after": 93.67,
+    "kept": false,
+    "timestamp": "2026-03-21T15:42:42.997916"
+  },
+  {
+    "iteration": 4,
+    "change_description": "The architecture_overview test case consistently scores 3/10 on cross_references while other test cases score 10/10. Previous attempts to add architecture-specific guidance failed. The issue is likely that the current cross-reference instruction focuses too narrowly on code symbols. Instead of adding separate architecture guidance, I'm expanding the existing cross-reference instruction to explicitly include higher-level relationships (components, patterns, subsystems) alongside symbol-level links. This preserves what's working while broadening the scope to cover architectural documentation needs.",
+    "before": 97.33,
+    "after": 92.67,
+    "kept": false,
+    "timestamp": "2026-03-21T15:44:29.879416"
+  },
+  {
+    "iteration": 5,
+    "change_description": "The api_reference test case scores only 3/10 on cross_references while other test cases score 10/10. The issue appears to be that API reference docs need more systematic cross-referencing than the current prompt encourages. Adding a specific instruction to create a 'Related' or 'See Also' section in API documentation that explicitly lists related functions, classes, and modules, ensuring cross-references are surfaced prominently rather than just mentioned inline.",
+    "before": 95.33,
+    "after": 95.33,
+    "kept": false,
+    "timestamp": "2026-03-21T17:15:43.155392"
+  },
+  {
+    "iteration": 6,
+    "change_description": "The api_reference test case scores only 3/10 on cross_references while other test cases score 10/10. The current instruction mentions 'commonly used with other APIs' but doesn't emphasize the systematic discovery of API relationships. Adding explicit guidance to identify and document parameter/return type relationships, dependencies, and alternative/complementary functions for each API entry, which are critical for API reference documentation.",
+    "before": 95.33,
+    "after": 90.67,
+    "kept": false,
+    "timestamp": "2026-03-21T17:17:21.345625"
+  },
+  {
+    "iteration": 7,
+    "change_description": "The api_reference test case scores only 3/10 on cross_references while other test cases score 10/10. Looking at the pattern, the cross-reference instruction currently focuses on 'when a function uses types from other modules' and 'commonly used with', which may be too conditional. API references need exhaustive cross-referencing of every relationship. I'm modifying the cross-reference guideline to explicitly require documenting ALL relationships for each API entry: parameters, return types, exceptions, related methods, and alternatives. This makes cross-referencing mandatory rather than conditional, which should improve systematic coverage in API documentation.",
+    "before": 95.33,
+    "after": 90.0,
+    "kept": false,
+    "timestamp": "2026-03-21T17:19:03.588645"
+  }
+]

@@ -1,0 +1,65 @@
+[
+  {
+    "id": "critical_bug_churning",
+    "issue": {
+      "number": 301,
+      "title": "Atlas weekly cycle silently drops agent results — 3rd time this month!!!",
+      "body": "I've reported this TWICE already and nothing has been done. SharedContext comes back empty for Iris and Nova AGAIN after a full weekly run. We're seriously considering switching back to Common Room + a manual DevRel hire. This is unacceptable for production use — we're paying for LLM calls that produce nothing.",
+      "author": "angry_enterprise_user",
+      "labels": ["bug"]
+    },
+    "expected_priority": "critical",
+    "expected_sentiment": "churning",
+    "expected_churn_risk": true
+  },
+  {
+    "id": "quality_bug_report",
+    "issue": {
+      "number": 302,
+      "title": "MCP server loses tool registration after exactly 50 JSON-RPC calls",
+      "body": "Environment: OpenClaw v0.4.2, Python 3.12.3, macOS Sonoma\nSteps to reproduce:\n1. Start MCP server via `python -m tools.mcp_server`\n2. Send 50+ tools/call requests in sequence\n3. After call #50, tools/list returns empty array\n\nWorkaround: Restart the MCP server process.\n\nI suspect the _registered_tools dict is being mutated during iteration in _handle_request(). Happy to help debug — I can provide full JSON-RPC logs.",
+      "author": "helpful_contributor",
+      "labels": ["bug"]
+    },
+    "expected_priority": "high",
+    "expected_sentiment": "neutral",
+    "expected_champion": true
+  },
+  {
+    "id": "feature_request_positive",
+    "issue": {
+      "number": 303,
+      "title": "Feature request: Slack integration for Echo agent",
+      "body": "Love OpenClaw! We retargeted it to our DevTools product and it's replaced two full-time DevRel hires. Would be amazing if Echo could monitor Slack communities in addition to Reddit, HN, and Twitter/X. Happy to help spec this out or even contribute a PR.",
+      "author": "product_fan",
+      "labels": ["feature_request"]
+    },
+    "expected_priority": "low",
+    "expected_sentiment": "positive",
+    "expected_champion": true
+  },
+  {
+    "id": "confused_new_user",
+    "issue": {
+      "number": 304,
+      "title": "How do I even start retargeting this to my product?",
+      "body": "I cloned the repo but I have no idea what to do next. The CLAUDE.md mentions swapping the knowledge base and updating api_client.py but there's no step-by-step guide. Do I need all the API keys (PostHog, Firecrawl, GitHub) just to test locally? The README doesn't explain the minimum viable setup.",
+      "author": "lost_newbie",
+      "labels": ["question"]
+    },
+    "expected_priority": "medium",
+    "expected_sentiment": "frustrated"
+  },
+  {
+    "id": "security_issue",
+    "issue": {
+      "number": 305,
+      "title": "ANTHROPIC_API_KEY exposed in Atlas SharedContext logs",
+      "body": "When running with Python logging at DEBUG level, the Atlas orchestrator logs the full SharedContext dict which includes raw LLM responses containing the API key used to make the call. This is a security risk if logs are shipped to a central logging service like Datadog or Grafana Cloud.",
+      "author": "security_researcher",
+      "labels": ["security"]
+    },
+    "expected_priority": "critical",
+    "expected_sentiment": "neutral"
+  }
+]

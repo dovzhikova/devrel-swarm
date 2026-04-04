@@ -1,0 +1,50 @@
+[
+  {
+    "iteration": 1,
+    "change_description": "Added explicit word count constraints for social posts (10-50 words) and emphasized brevity. The weakest criterion is 'word_count' for social posts (0/10), where the agent produced 128 words instead of 10-50. This modification adds a specific constraint to keep social posts ultra-concise and Twitter-friendly, matching the '<280 chars' requirement with an actual word target.",
+    "before": 87.8,
+    "after": 89.4,
+    "kept": true,
+    "timestamp": "2026-03-21T15:43:13.707745"
+  },
+  {
+    "iteration": 2,
+    "change_description": "The weakest criterion is 'developer_tone' for social posts (0/15). Social posts are currently failing to maintain the technical, developer-first voice that works well in longer content. Adding explicit guidance to preserve technical precision and developer language even in ultra-short formats, with examples of what to include (specific features, code terms, technical benefits) rather than generic marketing language.",
+    "before": 89.4,
+    "after": 92.0,
+    "kept": true,
+    "timestamp": "2026-03-21T15:46:26.702439"
+  },
+  {
+    "iteration": 3,
+    "change_description": "The weakest criterion is still 'word_count' for social posts (0/15 in test_case_id: social_post_launch, with 76 words instead of 10-50). Despite previous iterations adding word count guidance, the agent is still producing posts that are too long. Adding a hard constraint with a specific strategic approach: require social posts to be a SINGLE sentence that distills one core capability or update, followed optionally by a minimal CTA. This forces extreme brevity while maintaining technical substance.",
+    "before": 92.6,
+    "after": 88.6,
+    "kept": false,
+    "timestamp": "2026-03-21T17:02:29.800988"
+  },
+  {
+    "iteration": 4,
+    "change_description": "The weakest criterion is 'word_count' for social posts (0/15), where the agent produced 76 words instead of 10-50. Previous attempts to enforce brevity haven't worked because the guidance is buried in prose. Making this a hard, visual constraint by: (1) moving social post word count to a separate, prominent bullet with ALL CAPS emphasis, (2) adding a concrete formula (hook + value OR CTA, not both), and (3) providing a word-count example to anchor expectations. This makes the constraint impossible to miss during generation.",
+    "before": 92.6,
+    "after": 89.8,
+    "kept": false,
+    "timestamp": "2026-03-21T17:05:41.079149"
+  },
+  {
+    "iteration": 6,
+    "change_description": "The weakest criterion is 'word_count' for social posts (0/15), scoring 76 words instead of 10-50. Previous iterations tried adding constraints but didn't work because the agent is trying to pack too much into one post. The core issue: the current prompt asks for 'hook + value + CTA' which naturally inflates word count. Changing the social post guidance to require EITHER a feature announcement OR a use-case example OR a CTA - pick ONE focus per post. This forces the agent to choose a single angle rather than cramming multiple elements, naturally driving down word count while maintaining technical substance.",
+    "before": 92.6,
+    "after": 95.6,
+    "kept": true,
+    "timestamp": "2026-03-21T17:09:29.744140"
+  },
+  {
+    "iteration": 7,
+    "change_description": "The weakest criterion is 'developer_tone' for social posts (0/15 in test_case_id: social_post_launch). While the prompt instructs to 'maintain developer tone' and use 'technical terms', it doesn't give concrete guidance on what that means in the ultra-constrained social format. Adding specific examples of developer-focused language patterns (mentioning APIs, protocols, specific tech stack elements) and explicitly contrasting with marketing language to avoid. This gives the agent clear patterns to follow when writing 10-50 word posts.",
+    "before": 95.6,
+    "after": 88.6,
+    "kept": false,
+    "timestamp": "2026-03-21T17:12:55.712468"
+  }
+]

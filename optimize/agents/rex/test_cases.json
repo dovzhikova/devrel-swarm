@@ -1,0 +1,34 @@
+[
+  {
+    "id": "direct_competitor_analysis",
+    "task": "Analyze the competitive landscape for OpenClaw against Orbit and Common Room",
+    "competitors": ["Orbit", "Common Room"],
+    "kb_context": "OpenClaw is an open-source system of 10 specialized AI agents replacing a full DevRel + Sales team. Hub-and-spoke architecture with Atlas orchestrator. Uses Claude SDK for LLM calls, MCP for tool integration. Covers community management, social listening, feedback synthesis, growth experimentation, content creation, video production, docs generation, competitive intelligence, sales enablement, and campaign marketing. Key differentiators: full-pipeline automation (not just analytics), open-source extensibility, retargetable to any DevTools product.",
+    "web_intel": {
+      "Orbit": "Orbit focuses on community analytics and member scoring. Raised $24M Series A. Integrates with GitHub, Discord, Slack. 2K GitHub stars. Pricing starts at $200/mo. Tracks community metrics but does not generate content, run experiments, or produce sales materials. Recently added AI-powered insights.",
+      "Common Room": "Common Room raised $50M Series B. Community intelligence platform with signal detection across 30+ sources. Integrates with Salesforce. Pricing starts at $625/mo. Focuses on identifying high-value community members for sales handoff. Does not automate content creation, DevRel workflows, or documentation generation."
+    }
+  },
+  {
+    "id": "emerging_threat",
+    "task": "Assess the competitive threat from DevRev's new AI-powered DevRel automation features",
+    "competitors": ["DevRev"],
+    "kb_context": "OpenClaw differentiates on: full-pipeline DevRel + Sales automation, open-source, hub-and-spoke multi-agent architecture, MCP tool protocol for extensibility, retargetable to any DevTools product.",
+    "web_intel": {
+      "DevRev": "DevRev raised $100M Series A. Building AI-native platform for developer companies. Recently launched AI agents for support ticket routing and developer onboarding. 5K GitHub stars. Focus on customer support and product feedback loops. Enterprise pricing (sales-led). Does not cover content creation, social listening, competitive intelligence, or campaign marketing."
+    }
+  },
+  {
+    "id": "market_landscape",
+    "task": "Produce a weekly competitive intelligence report covering the DevRel automation space",
+    "competitors": ["Orbit", "Common Room", "DevRev", "Chatwoot", "Manual DevRel teams"],
+    "kb_context": "OpenClaw differentiates on: full-pipeline automation (10 agents covering community to sales), open-source under MIT license, retargetable architecture, MCP-based tooling, sub-$100/mo LLM costs vs $500K-$1M/yr for manual teams. Target: DevTools companies wanting automated developer relations without hiring a 5-person team.",
+    "web_intel": {
+      "Orbit": "Community analytics focus. New AI insights feature. Expanding enterprise tier.",
+      "Common Room": "Series B momentum. Salesforce integration deepening. Signal-based selling narrative.",
+      "DevRev": "AI agent expansion. Support + onboarding focus. $100M funding provides runway.",
+      "Chatwoot": "Open-source customer messaging. 20K GitHub stars. Adding AI agent features. Self-hosted option. Focus on support chat, not DevRel workflows.",
+      "Manual DevRel teams": "Average DevRel team is 3-5 people at $150-200K/person fully loaded. Typical annual budget $500K-$1M. Hiring takes 3-6 months. High turnover in DevRel roles (avg tenure 18 months)."
+    }
+  }
+]

@@ -1,0 +1,50 @@
+[
+  {
+    "id": "module_overview",
+    "task": "Generate documentation for the Atlas orchestrator module",
+    "modules": [
+      {
+        "path": "agents/atlas.py",
+        "symbols": [
+          {"name": "SharedContext", "kind": "class", "signature": "@dataclass\nclass SharedContext(week_of: str, sage_triage: dict[str, Any], iris_themes: dict[str, Any], nova_experiments: dict[str, Any], kai_content: dict[str, Any], okr_progress: dict[str, Any])", "docstring": "Cross-agent state passed through the weekly orchestration cycle. Each field is populated by its corresponding agent on its scheduled day."},
+          {"name": "Atlas", "kind": "class", "signature": "class Atlas", "docstring": "Hub-and-spoke orchestrator that delegates tasks to specialist agents and manages the weekly Mon-Fri cycle."},
+          {"name": "delegate", "kind": "method", "signature": "async def delegate(self, agent_name: str, task: str, context: SharedContext) -> DelegationResult", "docstring": "Delegate a task to a specialist agent with retry (MAX_RETRIES=2, exponential backoff + jitter)."},
+          {"name": "run_weekly_cycle", "kind": "method", "signature": "async def run_weekly_cycle(self) -> SharedContext", "docstring": "Execute the full Mon-Fri orchestration cycle: Sage triage, Iris synthesis, Nova experiments, Kai content, OKR compilation."}
+        ]
+      }
+    ]
+  },
+  {
+    "id": "api_reference",
+    "task": "Generate API reference for the MCP server and tool system",
+    "modules": [
+      {
+        "path": "tools/mcp_server.py",
+        "symbols": [
+          {"name": "ToolDefinition", "kind": "class", "signature": "class ToolDefinition(name: str, description: str, input_schema: dict, handler: Callable)", "docstring": "Defines an MCP tool with its metadata and async handler function. Use to_manifest() for MCP-compatible tool listing."},
+          {"name": "MCPServer", "kind": "class", "signature": "class MCPServer", "docstring": "MCP server implementing JSON-RPC over stdio transport. Registers 14 tools across PostHog, GitHub, and Search categories."},
+          {"name": "_register_tools", "kind": "method", "signature": "def _register_tools(self) -> None", "docstring": "Register all ToolDefinition instances for PostHog API, GitHub, and web search tools."},
+          {"name": "_handle_request", "kind": "method", "signature": "async def _handle_request(self, request: dict) -> dict", "docstring": "Route JSON-RPC requests (initialize, tools/list, tools/call) to the appropriate handler."}
+        ]
+      }
+    ]
+  },
+  {
+    "id": "architecture_overview",
+    "task": "Generate architecture overview for the OpenClaw system",
+    "modules": [
+      {
+        "path": "agents/atlas.py",
+        "symbols": [{"name": "Atlas", "kind": "class", "signature": "class Atlas", "docstring": "Hub-and-spoke orchestrator managing 9 specialist agents across DevRel and Sales pipelines."}]
+      },
+      {
+        "path": "agents/sage.py",
+        "symbols": [{"name": "Sage", "kind": "class", "signature": "class Sage", "docstring": "Community Manager agent. GitHub issue triage with priority scoring, sentiment analysis, and churn risk detection."}]
+      },
+      {
+        "path": "tools/mcp_server.py",
+        "symbols": [{"name": "MCPServer", "kind": "class", "signature": "class MCPServer", "docstring": "MCP server exposing PostHog, GitHub, and web search tools via JSON-RPC over stdio transport."}]
+      }
+    ]
+  }
+]

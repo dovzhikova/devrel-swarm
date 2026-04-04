@@ -1,0 +1,44 @@
+[
+  {
+    "id": "onboarding_experiment",
+    "task": "Design an A/B experiment to improve the repo-cloned-to-first-agent-run activation rate",
+    "context": {
+      "baseline_rate": 0.60,
+      "target_metric": "first_agent_run_completed_rate",
+      "current_pain_point": "Users clone the repo and install dependencies but don't successfully run their first agent within 24 hours due to API key configuration complexity"
+    }
+  },
+  {
+    "id": "funnel_analysis",
+    "task": "Analyze the OpenClaw activation funnel and identify the biggest drop-off",
+    "context": {
+      "funnel_stages": [
+        {"name": "signup", "count": 10000},
+        {"name": "repo_cloned", "count": 6800},
+        {"name": "first_agent_run", "count": 3400},
+        {"name": "knowledge_base_configured", "count": 1360},
+        {"name": "weekly_cycle_activated", "count": 408},
+        {"name": "team_onboarded", "count": 122}
+      ]
+    }
+  },
+  {
+    "id": "retention_cohort",
+    "task": "Design a cohort segmentation strategy to understand which user types have the best retention",
+    "context": {
+      "available_dimensions": ["primary_agent_used", "num_custom_agents", "knowledge_base_size", "team_size", "signup_source"],
+      "d7_retention": 0.45,
+      "d30_retention": 0.22
+    }
+  },
+  {
+    "id": "power_analysis_request",
+    "task": "Calculate sample size for testing a new interactive setup wizard that should improve knowledge base configuration rate from 25% to 30%",
+    "context": {
+      "baseline_rate": 0.25,
+      "expected_lift": 0.05,
+      "power": 0.8,
+      "significance": 0.05
+    }
+  }
+]

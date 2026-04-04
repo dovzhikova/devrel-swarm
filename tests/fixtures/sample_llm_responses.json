@@ -1,0 +1,44 @@
+{
+  "test_cases": [
+    {
+      "id": "valid_json_response",
+      "input": "{\"themes\": [{\"theme_id\": \"t1\", \"title\": \"SDK friction\"}]}",
+      "description": "Clean JSON without markdown fences"
+    },
+    {
+      "id": "json_with_backtick_fences",
+      "input": "```json\n{\"themes\": [{\"theme_id\": \"t2\", \"title\": \"Auth issues\"}]}\n```",
+      "description": "JSON wrapped in markdown code fences"
+    },
+    {
+      "id": "json_with_plain_fences",
+      "input": "```\n{\"status\": \"ok\"}\n```",
+      "description": "JSON wrapped in plain code fences (no language tag)"
+    },
+    {
+      "id": "empty_json_object",
+      "input": "{}",
+      "description": "Empty JSON object"
+    },
+    {
+      "id": "empty_json_array",
+      "input": "[]",
+      "description": "Empty JSON array"
+    },
+    {
+      "id": "nested_response",
+      "input": "{\"agent\": \"iris\", \"status\": \"synthesized\", \"themes\": [{\"theme_id\": \"t1\", \"title\": \"SDK init failures\", \"description\": \"Multiple users report crashes on startup\", \"frequency\": 5, \"severity\": 8.0, \"sources\": [\"github\", \"discourse\"], \"representative_quotes\": [\"Crash on init\", \"App freezes\"], \"product_areas\": [\"sdks\"], \"recommended_actions\": [\"Fix React Native init\"], \"journey_stage\": \"onboarding\"}]}",
+      "description": "Full nested agent response"
+    },
+    {
+      "id": "whitespace_padded",
+      "input": "\n\n  {\"key\": \"value\"}  \n\n",
+      "description": "JSON with leading/trailing whitespace"
+    },
+    {
+      "id": "multiline_fenced",
+      "input": "```json\n{\n  \"experiments\": [\n    {\n      \"name\": \"onboarding_flow_v2\",\n      \"hypothesis\": \"Simplified onboarding increases activation\"\n    }\n  ]\n}\n```",
+      "description": "Multi-line formatted JSON in fences"
+    }
+  ]
+}

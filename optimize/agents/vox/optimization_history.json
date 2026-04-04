@@ -1,0 +1,34 @@
+[
+  {
+    "iteration": 1,
+    "change_description": "Added explicit guidance for browser actions to ensure comprehensive action coverage in every step. The 'has_actions' criteria scored 14/15 in one test case, indicating occasional gaps. The modification adds a requirement to include at least one specific browser action per step and provides examples of action types to ensure completeness.",
+    "before": 99.67,
+    "after": 100.0,
+    "kept": true,
+    "timestamp": "2026-03-21T17:38:20.548614"
+  },
+  {
+    "iteration": 2,
+    "change_description": "All criteria are scoring perfectly at 100/100. Since there are no weaknesses to address, I'm proposing a refinement to enhance script quality by adding guidance on overlay text usage. This will ensure overlay text is strategically used for maximum educational impact (showing code snippets, commands, or key concepts) rather than just duplicating narration, making videos more effective for developer audiences.",
+    "before": 100.0,
+    "after": 100.0,
+    "kept": false,
+    "timestamp": "2026-03-21T17:39:37.430851"
+  },
+  {
+    "iteration": 3,
+    "change_description": "Since all criteria are scoring perfectly at 100/100, I'm proposing a strategic enhancement to prevent future regressions. The modification adds explicit guidance on step granularity and pacing to ensure videos remain structured and digestible. This addresses a potential risk: as content complexity increases, steps might become too dense or too fragmented. By specifying optimal step characteristics (focused on single concepts, 30-90 seconds of content), we maintain consistency and quality as the agent handles more varied tutorial types.",
+    "before": 100.0,
+    "after": 100.0,
+    "kept": false,
+    "timestamp": "2026-03-21T17:41:10.791521"
+  },
+  {
+    "iteration": 4,
+    "change_description": "Since all criteria are scoring perfectly at 100/100, the prompt is performing optimally. Rather than making changes that could introduce regressions (as seen in iterations 2 and 3), I recommend keeping the current prompt unchanged. The explicit browser action guidance from iteration 1 has successfully maintained perfect scores, and further modifications risk disrupting this balance without measurable benefit.",
+    "before": 100.0,
+    "after": 100.0,
+    "kept": false,
+    "timestamp": "2026-03-21T17:42:13.780140"
+  }
+]

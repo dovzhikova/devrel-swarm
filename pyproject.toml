@@ -1,0 +1,111 @@
+[build-system]
+requires = ["setuptools>=65.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "devrel-swarm"
+version = "0.1.0"
+description = "An AI agent system for developer advocacy, community management, and growth strategy"
+readme = "README.md"
+requires-python = ">=3.12"
+authors = [
+    {name = "Daria Dovzhikova"}
+]
+license = {text = "MIT"}
+
+dependencies = [
+    "httpx>=0.25.0",
+    "anthropic>=0.28.0",
+    "pyyaml>=6.0",
+    "scipy>=1.13.0",
+    "python-dotenv>=1.0.0",
+    "PyGithub>=2.1.1",
+    "requests>=2.31.0",
+    "aiohttp>=3.9.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4.0",
+    "pytest-asyncio>=0.21.0",
+    "pytest-cov>=4.1.0",
+    "respx>=0.20.2",
+    "ruff>=0.1.0",
+    "black>=23.0.0",
+    "mypy>=1.5.0",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["agents*", "tools*"]
+
+[tool.pytest.ini_options]
+minversion = "7.0"
+addopts = "-v --cov=agents --cov=tools --cov-report=term-missing"
+testpaths = ["tests"]
+asyncio_mode = "auto"
+markers = [
+    "asyncio: marks tests as async (deselect with '-m \"not asyncio\"')",
+]
+
+[tool.coverage.run]
+branch = true
+source = ["agents", "tools"]
+omit = [
+    "*/tests/*",
+    "*/test_*.py",
+]
+
+[tool.coverage.report]
+fail_under = 80
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle errors
+    "W",    # pycodestyle warnings
+    "F",    # pyflakes
+    "I",    # isort
+    "C",    # flake8-comprehensions
+    "B",    # flake8-bugbear
+]
+ignore = [
+    "E501",  # line too long (handled by black)
+]
+
+[tool.black]
+line-length = 100
+target-version = ["py312"]
+include = '\.pyi?$'
+extend-exclude = '''
+/(
+  # directories
+  \.eggs
+  | \.git
+  | \.hg
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | build
+  | dist
+)/
+'''
+
+[tool.mypy]
+python_version = "3.12"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+check_untyped_defs = true
+ignore_missing_imports = true
+
+[tool.isort]
+profile = "black"
+line_length = 100
+multi_line_mode = 3
+include_trailing_comma = true
+force_grid_wrap = 0
+use_parentheses = true

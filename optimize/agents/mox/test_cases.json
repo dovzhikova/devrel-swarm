@@ -1,0 +1,42 @@
+[
+  {
+    "id": "blog_post_devrel_agents",
+    "task": "Write an SEO blog post about how AI agents can replace a DevRel team",
+    "content_type": "blog",
+    "product_name": "OpenClaw",
+    "kb_context": "OpenClaw is a self-hosted AI assistant you run on your own devices. Multi-channel, multi-model, multi-agent with cron automation, skills system, and plugin architecture. Available at openclaw.ai.",
+    "competitive_context": "Manual DevRel teams cost $500K-$1M/year. Tools like Orbit and Common Room provide analytics but not execution."
+  },
+  {
+    "id": "landing_page_copy",
+    "task": "Write landing page copy for OpenClaw",
+    "content_type": "landing_page",
+    "product_name": "OpenClaw",
+    "kb_context": "10 agents replace a full DevRel + Sales team. Hub-and-spoke architecture with Atlas orchestrator. Weekly automated cycle: triage Monday, synthesize Tuesday, experiment Wednesday, create Thursday, report Friday.",
+    "competitive_context": "No direct competitor offers end-to-end automated DevRel. Closest alternatives are point solutions: Orbit for community, Buffer for social, Mailchimp for email."
+  },
+  {
+    "id": "social_batch_twitter",
+    "task": "Create a batch of 5 Twitter/X posts promoting OpenClaw",
+    "content_type": "social",
+    "product_name": "OpenClaw",
+    "kb_context": "10 AI agents that automate DevRel. Open-source. Works with any DevTools product. Agents: Sage (community), Echo (social), Iris (feedback), Nova (growth), Kai (content), Vox (video), Dex (docs), Rex (competitive), Pax (sales), Mox (campaigns).",
+    "competitive_context": "DevRel teams are expensive and hard to scale. Most companies can't afford 10 specialists."
+  },
+  {
+    "id": "press_release",
+    "task": "Write a press release announcing OpenClaw v1.0 launch",
+    "content_type": "press_release",
+    "product_name": "OpenClaw",
+    "kb_context": "First open-source system of 10 specialized AI agents that replaces a full DevRel + Sales team. Uses Claude for LLM, MCP for tool protocol. Demonstrated on PostHog (open-source product analytics).",
+    "competitive_context": "No existing product automates the full DevRel lifecycle. This is a new category."
+  },
+  {
+    "id": "campaign_brief",
+    "task": "Create a product launch campaign brief for OpenClaw targeting DevTools founders",
+    "content_type": "campaign_brief",
+    "product_name": "OpenClaw",
+    "kb_context": "Target audience: DevTools companies with 20-200 employees who can't afford a full DevRel team. Value prop: 10 agents for the price of one contractor. Weekly automated DevRel cycle.",
+    "competitive_context": "DevTools companies typically spend 30-40% of budget on developer engagement. Most rely on founders doing DevRel part-time."
+  }
+]

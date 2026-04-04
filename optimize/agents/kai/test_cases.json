@@ -1,0 +1,32 @@
+[
+  {
+    "id": "tutorial_voice_setup",
+    "task": "Write a step-by-step tutorial on adding a new specialist agent to the OpenClaw system",
+    "content_type": "tutorial",
+    "kb_context": "New agents are added by creating a Python module in agents/ with an async execute(task, context) method. Register the agent in Atlas.__init__() and the _agents dict. Add it to the weekly cycle in Atlas.run_weekly_cycle(). Update SharedContext with the new agent's output field. Agents receive the full SharedContext dataclass so downstream agents can consume upstream insights. The system uses Claude SDK for LLM calls and MCP for tool integration."
+  },
+  {
+    "id": "blog_post_comparison",
+    "task": "Write a blog post comparing OpenClaw to hiring a manual DevRel team",
+    "content_type": "blog_post",
+    "kb_context": "OpenClaw is open-source, replaces a full DevRel + Sales team with 10 specialized AI agents. A manual DevRel team costs $500K-$1M/yr for 3-5 people. Competitors include Orbit (community analytics only), Common Room (community intelligence, no content generation), and DevRev (support-focused). OpenClaw differentiates on full-pipeline coverage (community to sales), open-source extensibility, and hub-and-spoke orchestration with weekly automated cycles."
+  },
+  {
+    "id": "changelog_skills_v2",
+    "task": "Write a changelog announcement for the new MCP tool registry with dynamic tool discovery",
+    "content_type": "changelog",
+    "kb_context": "MCP tool registry v2 introduces: dynamic tool discovery (agents query available tools at runtime instead of static registration), tool versioning via ToolDefinition.version field, tool dependency declarations, and a health check endpoint per tool. Breaking change: ToolDefinition now requires a version string and tools must implement an async health_check() method. MCPServer._register_tools() now supports lazy loading."
+  },
+  {
+    "id": "social_post_launch",
+    "task": "Write a Twitter/X post announcing OpenClaw v2.0 launch",
+    "content_type": "social",
+    "kb_context": "OpenClaw v2.0 features: 3x faster orchestration via parallel agent execution, new Mox campaign marketing agent, MCP tool registry v2 with dynamic discovery, PostHog + GitHub + Firecrawl integrations. Available now on GitHub under MIT license."
+  },
+  {
+    "id": "tutorial_custom_skill",
+    "task": "Write a tutorial on creating a custom MCP tool that integrates with a new analytics API",
+    "content_type": "tutorial",
+    "kb_context": "MCP tools are defined using the ToolDefinition class with name, description, input_schema, and handler fields. Register tools in MCPServer._register_tools() as ToolDefinition instances. The server uses JSON-RPC over stdio transport. Handlers are async functions receiving **kwargs. Follow the pattern in tools/api_client.py: use httpx.AsyncClient, return dataclasses, implement proper close() cleanup. Add the tool to mcp_server.py and it auto-appears in tools/list responses."
+  }
+]

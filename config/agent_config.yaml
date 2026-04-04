@@ -1,0 +1,115 @@
+# Set these to match your product, or use PRODUCT_NAME / PRODUCT_URL env vars
+product_name: "OpenClaw"
+product_url: "https://openclaw.ai"
+budget_limit_usd: 10.0  # Weekly LLM spend limit; auto-downgrades to Haiku at 95%
+
+agents:
+  atlas:
+    name: Atlas
+    role: Orchestrator
+    description: Coordinates the weekly workflow and delegates tasks
+    enabled: true
+
+  sage:
+    name: Sage
+    role: Community Manager
+    description: Analyzes GitHub issues and community sentiment
+    enabled: true
+    tools:
+      - github_search
+      - sentiment_analyzer
+      - issue_categorizer
+
+  nova:
+    name: Nova
+    role: Growth Strategist
+    description: Analyzes metrics and designs experiments
+    enabled: true
+    tools:
+      - analytics_client
+      - experiment_designer
+      - funnel_analyzer
+
+  kai:
+    name: Kai
+    role: Content Creator
+    description: Creates tutorials, blog posts, and changelog announcements
+    enabled: true
+    tools:
+      - content_generator
+      - knowledge_base_search
+      - doc_writer
+
+  iris:
+    name: Iris
+    role: Feedback Synthesizer
+    description: Extracts themes from feedback channels and maps developer journeys
+    enabled: true
+    tools:
+      - theme_extractor
+      - journey_mapper
+      - pain_point_ranker
+
+orchestration:
+  schedule:
+    type: cron
+    expression: "0 9 * * 1"  # Every Monday at 9 AM
+    timezone: UTC
+
+  workflow_order:
+    - sage        # Monday: triage issues and sentiment
+    - iris        # Tuesday: synthesize feedback themes
+    - nova        # Wednesday: design experiments
+    - kai         # Thursday: create content
+
+  max_concurrent_tasks: 3
+  task_timeout_seconds: 300
+
+retry_settings:
+  max_retries: 3
+  initial_delay_seconds: 5
+  backoff_multiplier: 2.0
+  max_delay_seconds: 60
+
+knowledge_base:
+  path: ./knowledge_base
+  categories:
+    - patterns
+    - solutions
+    - faqs
+  update_frequency: weekly
+
+api_clients:
+  posthog:
+    base_url: https://api.posthog.com
+    timeout_seconds: 30
+
+  github:
+    base_url: https://api.github.com
+    timeout_seconds: 30
+
+  anthropic:
+    base_url: https://api.anthropic.com
+    timeout_seconds: 60
+
+  instantly:
+    base_url: https://api.instantly.ai
+    rate_limit_rpm: 50
+    bulk_batch_size: 1000
+    reply_check_enabled: true
+
+  apollo:
+    base_url: https://api.apollo.io
+    rate_limit_rpm: 50
+
+logging:
+  level: INFO
+  format: "[%(asctime)s] %(name)s - %(levelname)s - %(message)s"
+  file: ./logs/agent.log
+  max_size_mb: 100
+  backup_count: 5
+
+monitoring:
+  enabled: true
+  metrics_collection: true
+  error_tracking: true

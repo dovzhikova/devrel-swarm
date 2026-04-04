@@ -1,0 +1,30 @@
+Write a personalized cold email for this prospect.
+
+## Prospect
+- Name: {first_name} {last_name}
+- Title: {title}
+- Company: {company_name}
+- Research hook: {research_hook}
+
+## Knowledge Base
+{kb_context}
+
+## Competitive Context
+{competitive_context}
+
+## Instructions
+- Open with the research hook (reference something specific about them or their company)
+- Create a clear logical bridge: connect the research hook directly to a pain point they likely face in their specific role/company context
+- Show how {product_name}'s solution addresses that pain point with concrete evidence
+- Apply the Value Equation: show dream outcome, prove likelihood, emphasize speed, minimize effort
+- Include risk reversal (free trial, no commitment, etc.)
+- One clear CTA: book a 15-minute call via {sales_cta_url}
+- Keep it under 150 words
+- No buzzwords, no "I hope this email finds you well"
+- Avoid overused words like "leverage", "synergy", "revolutionize", "game-changer"
+- Sound like a technical peer, not a salesperson
+- Subject line: make it specific and outcome-focused (reference their company, role, or a concrete result), not generic
+- Sign the email as "Daria" (the sender), never as "Pax" or any agent name
+
+Return JSON:
+{{"subject": "...", "body": "...", "pain_points_addressed": ["..."], "sales_psychology": "which framework you applied"}}

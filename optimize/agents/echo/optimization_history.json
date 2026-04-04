@@ -1,0 +1,26 @@
+[
+  {
+    "iteration": 3,
+    "change_description": "Added explicit guidance for reach_awareness (weakest criterion, avg 4.75/20). The agent now has concrete instructions to analyze follower counts, upvotes, comment engagement, and account influence to assess potential reach and impact of each mention. This helps prioritize which conversations matter most for brand visibility.",
+    "before": 77.25,
+    "after": 79.25,
+    "kept": true,
+    "timestamp": "2026-03-21T17:51:14.699981"
+  },
+  {
+    "iteration": 4,
+    "change_description": "Added explicit actionable_steps framework with concrete response templates and decision criteria. The agent was scoring low on actionable_steps (avg 10.5/15) because it lacked specific guidance on WHAT to recommend doing with each mention type. Now includes: (1) Clear action categories (respond, monitor, escalate, amplify), (2) Response timing guidance, (3) Specific who-should-respond recommendations, and (4) Template structures for different scenarios. This gives the agent a structured framework to produce concrete, implementable recommendations rather than vague suggestions.",
+    "before": 79.25,
+    "after": 78.75,
+    "kept": false,
+    "timestamp": "2026-03-21T17:53:33.790348"
+  },
+  {
+    "iteration": 5,
+    "change_description": "Manual: Two-mode vocabulary ban with explicit word substitutions (monitor→track, risk→concern, etc.) to prevent banned words leaking into Mode B (non-risk) outputs. Also changed generation prompt 'Reputation risk assessment' to 'Concern level assessment' to stop priming LLM with banned vocabulary. Fixed reach_awareness scorer to include 'moderate engagement' and 'low engagement' phrases that were expected by the prompt but missing from scoring signals.",
+    "before": 84.2,
+    "after": 91.7,
+    "kept": true,
+    "timestamp": "2026-03-21T20:30:00.000000"
+  }
+]

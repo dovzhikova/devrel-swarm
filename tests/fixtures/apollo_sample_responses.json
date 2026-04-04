@@ -1,0 +1,103 @@
+{
+  "people_search": {
+    "people": [
+      {
+        "id": "apl_001",
+        "first_name": "Jane",
+        "last_name": "Smith",
+        "email": "jane@acme.com",
+        "title": "VP Engineering",
+        "organization": {
+          "name": "Acme Corp",
+          "primary_domain": "acme.com"
+        },
+        "organization_name": "Acme Corp",
+        "linkedin_url": "https://linkedin.com/in/janesmith",
+        "sanitized_phone": "+1234567890"
+      },
+      {
+        "id": "apl_002",
+        "first_name": "John",
+        "last_name": "Doe",
+        "email": "john@beta.io",
+        "title": "CTO",
+        "organization": {
+          "name": "Beta Inc",
+          "primary_domain": "beta.io"
+        },
+        "organization_name": "Beta Inc",
+        "linkedin_url": "https://linkedin.com/in/johndoe"
+      }
+    ],
+    "pagination": {
+      "total_entries": 150,
+      "page": 1,
+      "per_page": 25
+    }
+  },
+  "people_search_empty": {
+    "people": [],
+    "pagination": {
+      "total_entries": 0,
+      "page": 1,
+      "per_page": 25
+    }
+  },
+  "org_search": {
+    "organizations": [
+      {
+        "id": "org_001",
+        "name": "Acme Corp",
+        "primary_domain": "acme.com",
+        "industry": "Software",
+        "estimated_num_employees": 500,
+        "technologies": [{"name": "React"}, {"name": "PostgreSQL"}],
+        "latest_funding_stage": "Series B",
+        "total_funding": 45000000,
+        "short_description": "Developer tools company",
+        "linkedin_url": "https://linkedin.com/company/acme"
+      }
+    ],
+    "pagination": {
+      "total_entries": 30,
+      "page": 1,
+      "per_page": 25
+    }
+  },
+  "person_enrichment": {
+    "person": {
+      "id": "apl_003",
+      "first_name": "Alice",
+      "last_name": "Chen",
+      "email": "alice@gamma.dev",
+      "title": "Staff Engineer",
+      "organization": {
+        "name": "Gamma Dev",
+        "primary_domain": "gamma.dev"
+      },
+      "organization_name": "Gamma Dev",
+      "linkedin_url": "https://linkedin.com/in/alicechen",
+      "sanitized_phone": "+9876543210"
+    }
+  },
+  "person_enrichment_not_found": {
+    "person": null
+  },
+  "org_enrichment": {
+    "organization": {
+      "id": "org_002",
+      "name": "Delta Systems",
+      "primary_domain": "delta.systems",
+      "industry": "Cloud Infrastructure",
+      "estimated_num_employees": 1200,
+      "technologies": [{"name": "Kubernetes"}, {"name": "Go"}, {"name": "Terraform"}],
+      "latest_funding_stage": "Series C",
+      "total_funding": 120000000,
+      "short_description": "Cloud infrastructure provider",
+      "linkedin_url": "https://linkedin.com/company/delta-systems"
+    }
+  },
+  "org_enrichment_not_found": {
+    "organization": null
+  }
+}

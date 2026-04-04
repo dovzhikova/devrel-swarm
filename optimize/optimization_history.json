@@ -1,0 +1,29 @@
+[
+  {
+    "iteration": 1,
+    "target": "email",
+    "change_description": "Added explicit instruction to use exactly ONE CTA statement at the end of the email to address the 'clear_cta' scoring issues in test cases devrel_vp_mid and devrel_manager_enterprise, which both noted 'Too many CTA signals \u2014 feels pushy'. This targets the lowest-scoring criterion (5/10) while maintaining all other requirements.",
+    "before_score": 92.0,
+    "after_score": 87.8,
+    "kept": false,
+    "timestamp": "2026-03-21T15:05:14.851299"
+  },
+  {
+    "iteration": 2,
+    "target": "email",
+    "change_description": "Added explicit instruction to avoid the word 'leverage' and other common buzzwords, targeting the 'no_banned_phrases' criterion which scored 7/10 in test case community_lead_no_hook. Also added guidance to strengthen subject lines by making them more specific and outcome-focused, addressing the 'subject_quality' criterion which scored 5-8/10 across multiple test cases. This dual improvement targets the two most frequently penalized areas without disrupting the successful CTA structure.",
+    "before_score": 92.0,
+    "after_score": 93.8,
+    "kept": true,
+    "timestamp": "2026-03-21T15:06:24.553125"
+  },
+  {
+    "iteration": 3,
+    "target": "email",
+    "change_description": "Adding explicit guidance to strengthen personalization by connecting the research hook to specific pain points. The 'personalization' criterion scored only 6/10 in two test cases (devrel_head_large and devrel_vp_mid), making it the most frequently low-scoring criterion. The new instruction emphasizes creating a logical bridge from the research hook to the pain point, ensuring the email feels tailored rather than templated.",
+    "before_score": 93.8,
+    "after_score": 94.6,
+    "kept": true,
+    "timestamp": "2026-03-21T15:07:40.426055"
+  }
+]

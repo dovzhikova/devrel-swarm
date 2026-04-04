@@ -1,0 +1,34 @@
+[
+  {
+    "id": "mixed_feedback_batch",
+    "task": "Synthesize feedback themes from these GitHub issues",
+    "signals": [
+      {"title": "Atlas orchestrator hangs when Sage times out on large repos", "body": "I pointed Sage at a repo with 2000+ issues and Atlas just hung forever. No timeout, no retry. Had to kill the process manually. This is the second time I'm reporting this.", "author": "frustrated_dev", "labels": ["bug"]},
+      {"title": "Add support for Slack as a monitoring channel for Echo", "body": "Echo only monitors Reddit, HN, and Twitter/X. Would love to add Slack community channels as a signal source.", "author": "slack_fan", "labels": ["feature_request"]},
+      {"title": "Docs are outdated for MCP tool registration", "body": "The MCP server docs reference a register_tool() method that was renamed to _register_tools(). Spent 2 hours debugging why my custom tool didn't appear.", "author": "new_user_42", "labels": ["docs"]},
+      {"title": "Atlas hangs on Monday cycle when GitHub API rate-limited", "body": "Same hang as #87. Sage gets rate-limited, Atlas has no timeout. Running against a popular repo with 500+ weekly issues.", "author": "apple_dev", "labels": ["bug"]},
+      {"title": "How to add a custom agent to the weekly cycle?", "body": "I can't find any documentation on creating a new specialist agent and registering it with Atlas. The README mentions it's possible but there's no guide.", "author": "plugin_builder", "labels": ["question"]},
+      {"title": "SharedContext grows unbounded with 50+ weekly cycles", "body": "After running the system for 50 weeks, the SharedContext JSON dump is 200MB. Memory usage spikes to 8GB on Friday compilation. We're evaluating for our DevRel team of 6.", "author": "enterprise_eval", "labels": ["performance"]},
+      {"title": "Love the new prompt optimization scoring!", "body": "Just tested the iteration loop where Nova suggests prompt tweaks and Iris re-scores. Works beautifully. Agent accuracy went from 72 to 89. Great work team!", "author": "happy_user", "labels": ["praise"]},
+      {"title": "Knowledge base indexing fails silently on non-UTF8 files", "body": "When Kai tries to index a knowledge base with binary files mixed in, nothing happens. No error, no warning. Just skips files without telling you which ones.", "author": "confused_dev", "labels": ["bug"]}
+    ]
+  },
+  {
+    "id": "onboarding_friction",
+    "task": "Analyze onboarding-related feedback",
+    "signals": [
+      {"title": "First-time setup requires 6 API keys before anything works", "body": "The getting started guide asks for ANTHROPIC_API_KEY, OPENAI_API_KEY, GITHUB_TOKEN, POSTHOG_API_KEY, FIRECRAWL_API_KEY, and POSTHOG_PROJECT_ID before you can even run one agent. Can we get a minimal quickstart with just the Anthropic key?", "author": "impatient_dev", "labels": ["docs"]},
+      {"title": "Confused by agent vs tool vs MCP server terminology", "body": "What's the difference between an agent, a tool, and an MCP server? Sage is an agent that uses github_tools which is exposed through mcp_server? The docs use these concepts loosely.", "author": "terminology_confused", "labels": ["docs"]},
+      {"title": "Weekly cycle fails on Windows due to path handling", "body": "knowledge_base rglob fails on Windows because of backslash paths. Had to switch to WSL to run Atlas.", "author": "windows_user", "labels": ["bug"]}
+    ]
+  },
+  {
+    "id": "scaling_concerns",
+    "task": "Synthesize scaling and enterprise feedback",
+    "signals": [
+      {"title": "Need multi-product support in single Atlas instance", "body": "We want to run OpenClaw for 3 different products (PostHog, our internal SDK, and our open-source CLI). Currently everything assumes one product per deployment.", "author": "enterprise_arch", "labels": ["feature_request"]},
+      {"title": "Memory leak in long-running Celery worker for scheduled cycles", "body": "When running Atlas as a background service, memory grows continuously. Have to restart every 4 days. Running full 10-agent weekly cycles.", "author": "ops_engineer", "labels": ["bug"]},
+      {"title": "No audit trail for agent decisions", "body": "For our DevRel manager review process we need an audit log of what each agent decided and why. Currently SharedContext only stores final outputs, not reasoning traces.", "author": "compliance_lead", "labels": ["feature_request"]}
+    ]
+  }
+]

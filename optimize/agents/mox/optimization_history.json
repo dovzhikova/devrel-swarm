@@ -1,0 +1,18 @@
+[
+  {
+    "iteration": 1,
+    "change_description": "Added explicit guidance for press releases to include value equation framing even in formal contexts. The press_release test case scored 0/10 on value_equation. Press releases need special instruction because they have formal constraints but should still communicate value through the (Dream Outcome x Perceived Likelihood) / (Time Delay x Effort) framework, just in journalistic language rather than marketing copy.",
+    "before": 89.2,
+    "after": 86.4,
+    "kept": false,
+    "timestamp": "2026-03-21T15:47:10.986921"
+  },
+  {
+    "iteration": 2,
+    "change_description": "The press_release test case scores 0/10 on both 'has_cta' and 'value_equation'. Press releases are a unique format that traditionally avoid direct CTAs and marketing language, but modern press releases for developer tools should still include a soft call-to-action (like availability info, where to learn more) and communicate value through concrete outcomes and metrics rather than the Hormozi formula. Adding explicit guidance that press releases should include: (1) availability/access information as a soft CTA, and (2) quantifiable outcomes and technical proof points that demonstrate value without using the marketing value equation framework.",
+    "before": 89.2,
+    "after": 80.4,
+    "kept": false,
+    "timestamp": "2026-03-21T15:52:34.724059"
+  }
+]
