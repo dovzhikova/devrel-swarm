@@ -381,7 +381,7 @@ Return ONLY valid JSON, no markdown fences."""
                 groups.append([t])
 
         merged: list[FeedbackTheme] = []
-        for _key, group in groups.items():
+        for group in groups:
             if len(group) == 1:
                 merged.append(group[0])
                 continue

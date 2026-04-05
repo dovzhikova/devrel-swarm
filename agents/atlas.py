@@ -8,6 +8,7 @@ cross-agent context sharing, and weekly OKR tracking.
 import asyncio
 import json
 import logging
+import random
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
@@ -164,7 +165,7 @@ class SharedContext:
         try:
             data = json.loads(files[0].read_text())
             for key, value in data.items():
-                if hasattr(ctx, key):
+                if hasattr(ctx, key) and key != "previous_weeks":
                     setattr(ctx, key, value)
         except (json.JSONDecodeError, OSError) as e:
             logger.warning(f"Failed to load context from {files[0]}: {e}")
@@ -229,6 +230,7 @@ class Atlas:
 
     MAX_RETRIES = 2
     BASE_DELAY = 2.0  # seconds
+    AGENT_TIMEOUT = 300.0  # 5 minutes per agent execution
 
     def __init__(
         self,
@@ -373,7 +375,10 @@ class Atlas:
         for attempt in range(1, self.MAX_RETRIES + 2):
             try:
                 logger.info(f"Delegating to {agent_name} (attempt {attempt}): {task[:80]}...")
-                result = await agent.execute(task=task, context=merged_context)
+                result = await asyncio.wait_for(
+                    agent.execute(task=task, context=merged_context),
+                    timeout=self.AGENT_TIMEOUT,
+                )
                 logger.info(
                     "delegation_success",
                     extra={"agent": agent_name, "task": task[:80], "attempts": attempt},
@@ -385,6 +390,9 @@ class Atlas:
                     output=result,
                     attempts=attempt,
                 )
+            except asyncio.TimeoutError:
+                last_error = f"Agent {agent_name} timed out after {self.AGENT_TIMEOUT}s"
+                logger.warning(last_error)
             except Exception as e:
                 last_error = str(e)
                 logger.warning(
@@ -399,8 +407,6 @@ class Atlas:
                 if attempt <= self.MAX_RETRIES:
                     delay = self.BASE_DELAY * (2 ** (attempt - 1))
                     # Add jitter: 50-150% of calculated delay
-                    import random
-
                     jittered_delay = delay * (0.5 + random.random())
                     await asyncio.sleep(jittered_delay)
 

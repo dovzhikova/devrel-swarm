@@ -199,7 +199,7 @@ Champion signals:
                 for t in triaged
             ],
             "churn_risks": churn_risks,
-            "champions": [],
+            "champions": self._identify_champions(triaged),
             "sentiment_breakdown": sentiment_breakdown,
             "category_breakdown": category_breakdown,
             "product_area_breakdown": product_area_breakdown,
@@ -284,6 +284,29 @@ Champion signals:
             if any(kw in text for kw in keywords):
                 return area
         return "orchestration"  # default
+
+    @staticmethod
+    def _identify_champions(triaged: list[TriagedIssue]) -> list[str]:
+        """Identify community champions from triaged issues.
+
+        Champions are users with positive sentiment, helpful contributions,
+        or multiple quality issue reports.
+        """
+        author_signals: dict[str, int] = {}
+        for issue in triaged:
+            author = issue.author
+            score = 0
+            if issue.sentiment == SentimentScore.POSITIVE:
+                score += 2
+            if issue.champion_signal:
+                score += 3
+            if issue.category in ("feature_request", "question"):
+                score += 1  # Engaged users file features/questions
+            if score > 0:
+                author_signals[author] = author_signals.get(author, 0) + score
+
+        # Champions = authors with score >= 3
+        return [author for author, score in author_signals.items() if score >= 3]
 
     def _score_priority(self, title: str, body: str, sentiment: SentimentScore) -> IssuePriority:
         """Score issue priority based on content and sentiment."""

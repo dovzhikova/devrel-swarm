@@ -13,6 +13,7 @@ Rate limits: Emails endpoint 20 req/min; others higher.
 """
 
 import asyncio
+import os
 import logging
 from dataclasses import dataclass, field
 from typing import Any
@@ -183,7 +184,7 @@ class InstantlyClient:
                     "0": True, "1": True, "2": True,
                     "3": True, "4": True, "5": False, "6": False,
                 },
-                "timezone": "Asia/Jerusalem",
+                "timezone": os.getenv("CAMPAIGN_TIMEZONE", "America/New_York"),
                 "timing": {"from": "09:00", "to": "17:00"},
             }],
         }

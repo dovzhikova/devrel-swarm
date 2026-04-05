@@ -189,8 +189,8 @@ class Watchdog:
         instantly_key = os.environ.get("INSTANTLY_API_KEY", "")
         if instantly_key:
             probes["instantly"] = (
-                f"https://api.instantly.ai/api/v2/campaigns?api_key={instantly_key}&limit=1",
-                {},
+                "https://api.instantly.ai/api/v2/campaigns?limit=1",
+                {"Authorization": f"Bearer {instantly_key}"},
             )
 
         status: dict[str, str] = {}

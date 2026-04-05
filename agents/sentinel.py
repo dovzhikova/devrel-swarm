@@ -134,6 +134,11 @@ Be strict. Generic AI slop scores 3-4 regardless of technical accuracy."""
             "mox_campaigns": "marketing",
             "pax_sales": "sales",
             "rex_competitive": "competitive_intel",
+            "echo_social": "social_listening",
+            "dex_docs": "documentation",
+            "vox_video": "video_script",
+            "sage_triage": "community_triage",
+            "iris_themes": "feedback_synthesis",
         }
 
         for field_name, content_type in content_fields.items():

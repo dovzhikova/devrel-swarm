@@ -114,7 +114,7 @@ class Echo:
     """
 
     BRAND_ALIASES: dict[str, list[str]] = {
-        "devrel ai agents": ["devrel ai agents", "devrel-ai-agents", "devrel ai"],
+        "openclaw": ["openclaw", "open-claw", "open claw"],
     }
 
     def __init__(

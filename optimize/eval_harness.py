@@ -37,8 +37,9 @@ PROMPT_FILE = OPTIMIZE_DIR / "email_prompt.txt"
 SYSTEM_FILE = OPTIMIZE_DIR / "system_prompt.txt"
 TEST_CASES_FILE = OPTIMIZE_DIR / "test_cases.json"
 
-PRODUCT_NAME = os.getenv("PRODUCT_NAME", "My DevTools Product")
+PRODUCT_NAME = os.getenv("PRODUCT_NAME", "OpenClaw")
 SALES_CTA_URL = os.getenv("SALES_CTA_URL", "https://example.com/book")
+SALES_REP_NAME = os.getenv("SALES_REP_NAME", "").lower()
 
 
 @dataclass
@@ -99,17 +100,22 @@ def score_email(test_case: dict, email_data: dict | None) -> EmailScore:
         score.criteria["calendly_link"] = 0
         score.notes.append("Missing Calendly link")
 
-    # 4. Signed as Daria, not Pax/agent (10 pts)
+    # 4. Signed as the sales rep, not Pax/agent (10 pts)
     body_lower = body.lower()
-    if "daria" in body_lower:
-        if "pax" in body_lower:
+    agent_names = {"pax", "mox", "kai", "rex", "sage", "echo", "iris", "nova", "vox", "dex", "sentinel", "atlas"}
+    has_agent_name = any(name in body_lower for name in agent_names)
+    if SALES_REP_NAME and SALES_REP_NAME in body_lower:
+        if has_agent_name:
             score.criteria["signature"] = 3
-            score.notes.append("Contains both Daria and Pax")
+            score.notes.append("Contains both rep name and agent name")
         else:
             score.criteria["signature"] = 10
+    elif not SALES_REP_NAME:
+        # No rep name configured — just check no agent names leak
+        score.criteria["signature"] = 10 if not has_agent_name else 3
     else:
         score.criteria["signature"] = 0
-        score.notes.append("Not signed as Daria")
+        score.notes.append(f"Not signed as {SALES_REP_NAME}")
 
     # 5. Personalization — uses prospect's name or company (10 pts)
     first_name = test_case["first_name"].lower()

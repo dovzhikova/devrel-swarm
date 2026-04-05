@@ -7,6 +7,7 @@ and models LTV — all with statistical rigor.
 
 import logging
 import math
+import os
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Optional
@@ -247,8 +248,8 @@ where MDE = minimum detectable effect, p = baseline conversion rate"""
             minimum_detectable_effect=minimum_detectable_effect,
         )
 
-        # Estimate duration based on typical OpenClaw signup volume
-        daily_signups = 500  # assumption for estimation
+        # Estimate duration based on daily traffic volume
+        daily_signups = int(os.environ.get("DAILY_SIGNUPS_ESTIMATE", "500"))
         duration_days = math.ceil((sample_size * 2) / daily_signups)
 
         return ExperimentDesign(
