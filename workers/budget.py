@@ -7,8 +7,9 @@ v1: block_on_exceed=True enforces monthly_cap_cents set at provision time.
 from __future__ import annotations
 
 import logging
+import re
 from dataclasses import dataclass
-from typing import Any
+from typing import Protocol
 
 logger = logging.getLogger(__name__)
 
@@ -23,11 +24,33 @@ _PRICING: dict[str, dict[str, float]] = {
         "input": 3.0, "output": 15.0,
         "cache_write": 3.75, "cache_read": 0.30,
     },
-    "claude-haiku-4-5-20251001": {
+    "claude-haiku-4-5": {
         "input": 1.0, "output": 5.0,
         "cache_write": 1.25, "cache_read": 0.10,
     },
 }
+
+_MODEL_DATE_SUFFIX = re.compile(r"-\d{8}$")
+
+
+def _normalize_model(model: str) -> str:
+    """Strip trailing -YYYYMMDD date suffix so dated SDK responses match pricing keys."""
+    return _MODEL_DATE_SUFFIX.sub("", model)
+
+
+class CostStorage(Protocol):
+    async def monthly_spend_cents(self) -> float: ...
+    async def record_cost(
+        self,
+        job_id: str | None,
+        agent: str,
+        model: str,
+        input_tokens: int,
+        output_tokens: int,
+        cache_creation_input_tokens: int,
+        cache_read_input_tokens: int,
+        cost_cents: float,
+    ) -> None: ...
 
 
 @dataclass
@@ -40,10 +63,9 @@ class CostRecord:
 
     @property
     def cost_cents(self) -> float:
-        prices = _PRICING.get(self.model)
+        prices = _PRICING.get(_normalize_model(self.model))
         if prices is None:
-            logger.warning("unknown model for pricing: %s — treating as sonnet", self.model)
-            prices = _PRICING["claude-sonnet-4-6"]
+            raise ValueError(f"unknown model for pricing: {self.model}")
         dollars = (
             self.input_tokens * prices["input"] / 1_000_000
             + self.output_tokens * prices["output"] / 1_000_000
@@ -60,11 +82,15 @@ class BudgetExceeded(RuntimeError):
 class BudgetGate:
     def __init__(
         self,
-        storage: Any,
+        storage: CostStorage,
         job_id: str | None,
         block_on_exceed: bool = False,
         monthly_cap_cents: int = 0,
     ) -> None:
+        if block_on_exceed and monthly_cap_cents <= 0:
+            raise ValueError(
+                "block_on_exceed=True requires monthly_cap_cents > 0"
+            )
         self._storage = storage
         self._job_id = job_id
         self._block = block_on_exceed

@@ -60,3 +60,32 @@ async def test_gate_blocks_when_over_cap():
         agent="kai",
     )
     assert allowed is False
+
+
+def test_cost_record_normalizes_dated_model_id():
+    """Dated Anthropic model IDs should normalize to the undated pricing key."""
+    rec = CostRecord(
+        model="claude-sonnet-4-6-20260301",  # dated variant
+        input_tokens=1000, output_tokens=500,
+        cache_creation_input_tokens=0, cache_read_input_tokens=0,
+    )
+    assert abs(rec.cost_cents - 1.05) < 0.01
+
+
+def test_cost_record_raises_on_unknown_model():
+    import pytest as _pytest
+    rec = CostRecord(
+        model="claude-nonexistent-99",
+        input_tokens=100, output_tokens=100,
+        cache_creation_input_tokens=0, cache_read_input_tokens=0,
+    )
+    with _pytest.raises(ValueError, match="unknown model"):
+        _ = rec.cost_cents
+
+
+def test_gate_rejects_enforce_without_cap():
+    import pytest as _pytest
+    from unittest.mock import AsyncMock
+    storage = AsyncMock()
+    with _pytest.raises(ValueError, match="monthly_cap_cents"):
+        BudgetGate(storage=storage, job_id="j1", block_on_exceed=True)
