@@ -39,13 +39,16 @@ include = ["agents*", "tools*"]
 
 [tool.pytest.ini_options]
 minversion = "7.0"
-addopts = "-v --cov=agents --cov=tools --cov-report=term-missing"
+addopts = "-v"
 testpaths = ["tests"]
 asyncio_mode = "auto"
 markers = [
     "asyncio: marks tests as async (deselect with '-m \"not asyncio\"')",
 ]
 
+# Coverage configuration retained for CI (`pytest --cov=agents --cov=tools
+# --cov-report=term-missing`). Not enforced on local dev runs so individual
+# test files and subagent task loops don't fail on coverage floors.
 [tool.coverage.run]
 branch = true
 source = ["agents", "tools"]
