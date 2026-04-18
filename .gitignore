@@ -1,3 +1,6 @@
+# Worktrees (isolated dev branches)
+.worktrees/
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
