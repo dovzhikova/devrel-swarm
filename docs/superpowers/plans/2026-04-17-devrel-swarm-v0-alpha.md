@@ -1,4 +1,6 @@
-# devrel-swarm v0 Alpha Implementation Plan
+# devrel-swarm v0 Alpha Implementation Plan [SUPERSEDED 2026-04-18]
+
+> **⚠ DEPRECATED.** This plan targets a multi-tenant SaaS architecture that was pivoted on 2026-04-18. The live plan is `docs/superpowers/plans/2026-04-18-devrel-swarm-v0-agentic-alpha.md` (per-customer isolated instances, no Postgres RLS, no worker fleet, no queue). This file is retained for rationale reference only — **do not execute it**.
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 

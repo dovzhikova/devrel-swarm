@@ -1,9 +1,31 @@
 # devrel-swarm → SaaS Product Design
 
-**Date:** 2026-04-17
+**Date:** 2026-04-17 · **Revised:** 2026-04-18
 **Author:** Daria Dovzhikova (+ Claude)
-**Status:** Approved design, pending implementation plan
+**Status:** Revision 2 approved; implementation plan at `docs/superpowers/plans/2026-04-18-devrel-swarm-v0-agentic-alpha.md`
 **Codename:** TBD (working title: "the DevRel engine")
+
+---
+
+## Revision 2 (2026-04-18) — architectural pivot
+
+After initial approval, the architecture was simplified from classical multi-tenant SaaS to **per-customer isolated instances orchestrated by a central control app**. Rationale: the existing `devrel-swarm` codebase was designed to be cloned + retargeted (see `CLAUDE.md` — product is switched via `product_name` config + KB swap). The original design fought that shape; Revision 2 leans into it.
+
+**What changed:**
+- **§2 Architecture:** no multi-tenant Postgres + RLS + Inngest worker fleet. Instead: each customer gets their own Fly Machine running the full repo, SQLite for persistence, HTTP-bridged MCP server for API access. The "control plane" is a thin Next.js app that provisions instances, proxies chat to their MCP server, reads dashboard data via HTTP, and writes prompt edits to their `optimize/` directory.
+- **§6 Build sequence:** v0 alpha becomes ~2 weeks (down from 3). No Atlas 4-file refactor required; no Postgres schema migration; no queue layer.
+- **Interface:** hybrid — dashboard for routine ops (view runs, deliverables, costs, click publish), chat (Claude Agent SDK → instance MCP tools) for configuration, optimization, and ad-hoc tasks.
+
+**What did NOT change:**
+- Target ICP (solo founders + seed-to-Series-A DevTool startups)
+- Hero loop (DevRel engine: content + community)
+- Agent roster (8 kept + Publisher/Seed/Mimic/Meter as MVP)
+- Optimization plan (still applies, now runs per-instance)
+- Pricing ($99/$299/$799 + annual) — model stays pooled-keys at the tier level (you still front Anthropic spend, instance is the fulfillment mechanism)
+
+The sections below retain original language where still valid. Where a section is superseded, the revision note calls it out inline.
+
+---
 
 ---
 
@@ -33,7 +55,65 @@
 
 ## 2. Architecture & tenancy
 
-### System topology
+> **Revision 2 supersedes the topology diagram and tenancy section below.** See `## 2b` below for the current design; the original content is preserved for rationale reference.
+
+### 2b. Revised architecture (2026-04-18)
+
+```
+┌─ Central Next.js app (Vercel) — one deploy, you own ───────────┐
+│  • Auth (NextAuth GitHub)                                       │
+│  • Stripe billing (v1; v0 is internal-use only)                 │
+│  • Provisioning: Fly Machines API → clone repo + push image     │
+│  • Instance registry (tiny Postgres: users, instances)          │
+│  • Dashboard (per-instance) reads via HTTP bridge               │
+│  • Chat interface: Claude Agent SDK calls instance's MCP tools  │
+│  • Prompt editor: HTTP PUT → instance's optimize/ dir           │
+└──────┬──────────────────────────────────────────────────────────┘
+       │ HTTPS + per-instance API token
+       ▼
+┌─ Customer A instance (Fly Machine) ┐  ┌─ Customer B instance ┐
+│  • Full devrel-swarm repo (cloned)  │  │ • Full repo clone    │
+│  • Their KB + prompts + voice       │  │ • Their everything   │
+│  • SQLite on persistent volume      │  │ • SQLite             │
+│  • HTTP bridge (FastAPI) → MCP tools│  │ • Same               │
+│  • Cron (existing scheduler.py)     │  │ • Same               │
+│  • Atlas + 12 agents (unchanged)    │  │ • Same               │
+└─────────────────────────────────────┘  └──────────────────────┘
+```
+
+**Key properties:**
+- Isolation is **free** — container per customer, no RLS to get right
+- Existing repo **deploys as-is** — no `SharedContext` per-tenant refactor, no Atlas file split required for v0
+- MCP server already exposes 14 tools; new HTTP bridge wraps those + adds deliverables/run/cost endpoints
+- `optimize/{agent}/system_prompt.txt` is already the prompt override mechanism; prompt editor writes to it
+- `tools/scheduler.py` already handles per-instance cron
+- Central app Postgres is tiny: `users`, `instances (id, fly_app_url, api_token_encrypted, customer_id, status, provisioned_at)`, `chat_threads`, `chat_messages` (for chat history persistence)
+
+**Provisioning flow:**
+1. Customer signs up (GitHub OAuth) → onboarding wizard
+2. Provisioning agent (runs in central app's Inngest or direct async task):
+   - Creates Fly app under customer's slug
+   - Generates API token, encrypts, stores in central Postgres
+   - Builds + pushes devrel-swarm image with customer's base config baked in
+   - Injects per-instance secrets via Fly secrets API (Anthropic key from pooled budget, customer OAuth tokens)
+   - Runs initial KB harvest via HTTP bridge call
+   - Installs cron for weekly cycle at customer's chosen cadence
+3. Customer lands on dashboard, sees live instance
+
+**Cost enforcement:**
+BudgetGate still applies, but now lives *inside each customer's instance* and reads from the instance's SQLite cost_events. Central app polls instances for current month spend to surface in the dashboard + enforce plan caps at the subscription layer (e.g. refuse to provision a second instance if one is over quota, show upgrade banner at 80%).
+
+**Trade-offs vs. original multi-tenant design:**
+- Cost: ~$3–5/customer/month idle Fly compute (vs. shared pool) — acceptable at $99+ pricing
+- Upgrade rollout: `fly deploy` to N instances (scripted); harder than a single SaaS deploy
+- Cross-customer observability: requires central polling/aggregation, not a single DB query
+- Meta-learning (autoresearch across customers): siloed — each instance's optimizer runs on its own data
+
+---
+
+### 2a. Original architecture (superseded — kept for reference)
+
+#### System topology
 
 ```
 ┌─────────────────────┐   Stripe webhooks    ┌──────────────┐
@@ -309,7 +389,23 @@ Every table below has `tenant_id uuid not null` + RLS policy.
 
 ## 6. Build sequence
 
-### v0 — Private alpha (weeks 1–3)
+> **Revision 2 note:** v0 collapsed from 3 weeks to ~2 weeks. Sections below are from the original plan; the live roadmap is in `docs/superpowers/plans/2026-04-18-devrel-swarm-v0-agentic-alpha.md`. v1/v1.1/v2/v3 phasing below remains valid at the feature-set level — only v0's mechanics changed.
+
+### v0 — Private alpha (weeks 1–2) — REVISED
+
+**Goal (unchanged):** Daria runs OpenClaw's DevRel loop through the product, end-to-end.
+
+**Mechanics (revised):**
+- Package devrel-swarm as a deployable instance: add SQLite storage, HTTP bridge around MCP server, auth-token middleware, Dockerfile with persistent volume
+- Build thin central Next.js app: auth, instance registry, dashboard (HTTP-reads), chat (Claude Agent SDK → instance MCP), prompt editor (HTTP-writes to `optimize/`)
+- Provisioning: Fly Machines API client + "Add instance" flow
+- Manual v0 option: paste Fly app URL + API token (for first OpenClaw instance before full provisioning agent lands)
+
+**Gate to v1 (unchanged):** one full weekly cycle runs end-to-end without manual intervention; cost tracking matches Anthropic invoice within 5%.
+
+---
+
+### v0 — Private alpha (weeks 1–3) — ORIGINAL (superseded)
 
 **Goal:** Run OpenClaw's DevRel loop through the product, end-to-end. Single tenant, no billing.
 
