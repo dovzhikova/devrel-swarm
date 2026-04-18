@@ -2,8 +2,9 @@
 
 import json
 import logging
+from collections.abc import Awaitable
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Callable
 
 from anthropic import AsyncAnthropic
 
@@ -207,6 +208,7 @@ class LLMClient:
         self._current_agent: str = ""
         self._budget_exhausted = False
         self._client = AsyncAnthropic(api_key=api_key or "dummy")
+        self._cost_sink: Callable[[str, str, dict[str, Any]], Awaitable[None]] | None = None
 
     def _resolve_model(self, model_override: str | None) -> str:
         """Resolve the model to use for a call.
@@ -266,6 +268,17 @@ class LLMClient:
             model=resolved_model,
         )
         self._check_budget()
+        await self._emit_cost(
+            model=resolved_model,
+            input_tokens=response.usage.input_tokens,
+            output_tokens=response.usage.output_tokens,
+            cache_creation_input_tokens=getattr(
+                response.usage, "cache_creation_input_tokens", 0
+            ) or 0,
+            cache_read_input_tokens=getattr(
+                response.usage, "cache_read_input_tokens", 0
+            ) or 0,
+        )
         logger.info(
             "llm_call",
             extra={
@@ -282,6 +295,40 @@ class LLMClient:
     def set_agent(self, agent_name: str) -> None:
         """Set the current agent name for per-agent cost tracking."""
         self._current_agent = agent_name
+
+    def set_cost_sink(
+        self,
+        sink: Callable[[str, str, dict[str, Any]], Awaitable[None]] | None,
+    ) -> None:
+        """Register async callback ``(agent, model, usage_dict) -> None``.
+
+        Called once per successful Anthropic API response so downstream
+        code (BudgetGate) can persist a cost event. ``None`` clears the
+        sink.
+        """
+        self._cost_sink = sink
+
+    async def _emit_cost(
+        self,
+        model: str,
+        input_tokens: int,
+        output_tokens: int,
+        cache_creation_input_tokens: int = 0,
+        cache_read_input_tokens: int = 0,
+    ) -> None:
+        """Invoke the cost sink, if one is registered. No-op otherwise."""
+        if self._cost_sink is None:
+            return
+        await self._cost_sink(
+            self._current_agent or "unknown",
+            model,
+            {
+                "input_tokens": input_tokens,
+                "output_tokens": output_tokens,
+                "cache_creation_input_tokens": cache_creation_input_tokens,
+                "cache_read_input_tokens": cache_read_input_tokens,
+            },
+        )
 
     async def critique(
         self, draft: str, content_type: str = "content",
