@@ -2,9 +2,9 @@
 
 import json
 import logging
-from collections.abc import Awaitable
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
-from typing import Any, Callable
+from typing import Any
 
 from anthropic import AsyncAnthropic
 
@@ -316,19 +316,32 @@ class LLMClient:
         cache_creation_input_tokens: int = 0,
         cache_read_input_tokens: int = 0,
     ) -> None:
-        """Invoke the cost sink, if one is registered. No-op otherwise."""
+        """Invoke the cost sink, if one is registered. No-op otherwise.
+
+        Exceptions from the sink are logged and swallowed — sinks are
+        observability infrastructure and must never break a successful
+        generation.
+        """
         if self._cost_sink is None:
             return
-        await self._cost_sink(
-            self._current_agent or "unknown",
-            model,
-            {
-                "input_tokens": input_tokens,
-                "output_tokens": output_tokens,
-                "cache_creation_input_tokens": cache_creation_input_tokens,
-                "cache_read_input_tokens": cache_read_input_tokens,
-            },
-        )
+        agent = self._current_agent or "unknown"
+        try:
+            await self._cost_sink(
+                agent,
+                model,
+                {
+                    "input_tokens": input_tokens,
+                    "output_tokens": output_tokens,
+                    "cache_creation_input_tokens": cache_creation_input_tokens,
+                    "cache_read_input_tokens": cache_read_input_tokens,
+                },
+            )
+        except Exception:
+            logger.warning(
+                "cost_sink_failed",
+                exc_info=True,
+                extra={"agent": agent, "model": model},
+            )
 
     async def critique(
         self, draft: str, content_type: str = "content",
