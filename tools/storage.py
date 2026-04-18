@@ -159,7 +159,9 @@ class InstanceStorage:
         return [dict(r) for r in rows]
 
     # -- Checkpoints --------------------------------------------------------
-    async def save_checkpoint(self, job_id: str, stage: str, payload: dict) -> None:
+    async def save_checkpoint(
+        self, job_id: str, stage: str, payload: dict[str, Any]
+    ) -> None:
         conn = self._require()
         await conn.execute(
             "INSERT INTO job_checkpoints (id, job_id, stage, payload_json) "
