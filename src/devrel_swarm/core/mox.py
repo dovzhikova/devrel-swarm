@@ -14,6 +14,7 @@ from typing import Any, Optional
 
 from devrel_swarm.core.base import get_kb_search, load_agent_prompt, strip_markdown_fences
 from devrel_swarm.core.llm import LLMClient
+from devrel_swarm.quality import generate_with_pipeline
 from devrel_swarm.tools.api_client import PostHogClient
 from devrel_swarm.tools.code_validator import CodeValidator
 from devrel_swarm.tools.instantly_client import CampaignAnalytics, InstantlyClient
@@ -422,21 +423,27 @@ Each email should sell one next step. 3-5 emails in the sequence."""
 
         if self.llm_client:
             try:
-                raw, trace = await self.llm_client.generate_with_revision(
+                # Map Mox's parsed content_type to the pipeline's vocabulary.
+                # blog_post / landing_page exist verbatim in DEFAULT_TARGETS;
+                # social falls back to blog_post readability targets.
+                pipeline_content_type = {
+                    "blog": "blog_post",
+                    "landing_page": "landing_page",
+                    "social": "blog_post",
+                }.get(content_type, "blog_post")
+                raw, strengths, issues = await generate_with_pipeline(
+                    llm_client=self.llm_client,
                     system_prompt=self.SYSTEM_PROMPT.format(
                         product_name=self.product_name,
                     ),
                     user_prompt=prompt,
-                    temperature=0.5,
-                    max_tokens=6144,
-                    max_rounds=2,
-                    min_score=7,
-                    content_type="marketing",
+                    content_type=pipeline_content_type,
+                    logger=logger,
                 )
                 base_result["content"] = raw
                 base_result["revision"] = {
-                    "rounds": trace.revision_rounds,
-                    "final_score": trace.final_score,
+                    "strengths": strengths,
+                    "issues": issues,
                 }
 
                 # Validate code blocks in blog posts
