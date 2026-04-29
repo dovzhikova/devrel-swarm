@@ -85,21 +85,27 @@ Expected: `exit=0`. If anything fails, stop and surface the error — do not pro
 Run:
 ```bash
 python -m pytest tests/ -q --no-header --tb=no --no-cov 2>&1 | tee /tmp/pytest.before.txt | tail -5
+grep "^FAILED" /tmp/pytest.before.txt | sort > /tmp/pytest.failures.before.txt
+wc -l /tmp/pytest.failures.before.txt
 ```
-Expected: a final line like `NN passed in X.Ys` (some `xfailed`/`skipped`/`warnings` are OK; failures are not).
 
-Record the exact passing count as **BASELINE_PASS_COUNT** for use in Task 7. If any tests fail at this point, **stop and report** — Phase 1 must not regress; fix or document the pre-existing failures with the user before proceeding.
+**Documented baseline (locked 2026-04-29):** `566 passed, 22 failed`. The 22 failing tests are pre-existing drift between code and tests on `main`, unrelated to Phase 1. They will not be fixed by this phase. The verification gate in Task 6 is parity against this exact set, not "zero failures."
+
+If your numbers differ from `566 passed, 22 failed` at this step, **stop and report** — something has changed on `main` since the baseline was locked, and the gate needs re-grounding before proceeding.
 
 - [ ] **Step 3: Capture the existing import map (for diff after rewrite)**
 
 Run:
 ```bash
-grep -rEn "^(from|import) (agents|tools)(\.|\b)" --include='*.py' \
+grep -rEn "^(from|import) (agents|tools)\." --include='*.py' \
   agents tools tests run_100_leads.py run_sales_pipeline.py \
   > /tmp/imports.before.txt
+grep -rEn "^(from|import) (agents|tools)$" --include='*.py' \
+  agents tools tests run_100_leads.py run_sales_pipeline.py \
+  >> /tmp/imports.before.txt 2>/dev/null || true
 wc -l /tmp/imports.before.txt
 ```
-Expected: a non-zero count (likely 100-200+ lines). This is the population we will rewrite in Task 4.
+Expected: 135 lines (the locked baseline as of 2026-04-29). If your count drifts significantly, the population to rewrite has changed since the plan was written — surface and re-baseline.
 
 ---
 
@@ -407,16 +413,17 @@ Expected: `exit=0`. If install fails:
 Run:
 ```bash
 python -m pytest tests/ -q --no-header --tb=short --no-cov 2>&1 | tee /tmp/pytest.after.txt | tail -10
+grep "^FAILED" /tmp/pytest.after.txt | sort > /tmp/pytest.failures.after.txt
 ```
-Expected: the summary line shows the **same passing count** as `BASELINE_PASS_COUNT` from Task 1 Step 2 (and zero failures).
+Expected: the summary line shows **`566 passed, 22 failed`** — the exact baseline from Task 1 Step 2.
 
-- [ ] **Step 3: Diff the before/after pytest summaries**
+- [ ] **Step 3: Diff the failing-test sets to confirm the same 22 fail**
 
 Run:
 ```bash
-diff <(tail -3 /tmp/pytest.before.txt) <(tail -3 /tmp/pytest.after.txt)
+diff /tmp/pytest.failures.before.txt /tmp/pytest.failures.after.txt
 ```
-Expected: empty diff (or only the timing number differs). If failure counts differ, **stop and investigate** — Phase 1 must be a no-op for behaviour. Common causes:
+Expected: **empty diff**. The same 22 tests must fail with the same node IDs after the move. If the diff has any line, **stop and investigate** — either a previously-failing test is now passing (good but unexpected; investigate), or a previously-passing test is now failing (regression — must fix before commit). Common causes when imports got missed:
 - Missed import rewrite — `git grep -nE "^(from|import) (agents|tools)\." -- '*.py'` should be empty.
 - A test that did `monkeypatch.setattr("agents.X.Y", ...)` — string-based patches need updating to `devrel_swarm.core.X.Y`.
 - `conftest.py` manipulating `sys.path` — inspect `tests/conftest.py` and update any `sys.path.insert(0, "agents")` style entries.
