@@ -10,6 +10,7 @@ import typer
 
 from devrel_swarm import __version__
 from devrel_swarm.cli.init import init_command
+from devrel_swarm.cli.doctor import doctor_command
 
 
 app = typer.Typer(
@@ -41,6 +42,7 @@ def main(
 
 
 app.command(name="init")(init_command)
+app.command(name="doctor")(doctor_command)
 
 
 if __name__ == "__main__":
