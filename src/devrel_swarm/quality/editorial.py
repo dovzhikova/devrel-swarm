@@ -23,6 +23,7 @@ and a JSON-serializable revision_trace.
 
 from __future__ import annotations
 
+import logging
 import time
 from dataclasses import asdict, dataclass, field
 from typing import Any
@@ -33,6 +34,8 @@ from devrel_swarm.quality.readability import check_against_target, compute_reada
 from devrel_swarm.quality.slop import find_slop, force_rewrite, llm_lint, parse_blocklist
 from devrel_swarm.quality.style import get_targets, load_style
 from devrel_swarm.quality.voice import load_voice
+
+logger = logging.getLogger(__name__)
 
 
 class AbortLoud(Exception):
@@ -228,6 +231,9 @@ async def run_pipeline(
         else ""
     )
 
+    # Fail-fast on unknown content_type before any LLM spend.
+    get_targets(content_type, style_md)
+
     stages: list[StageResult] = []
 
     # Stages 2-4: editorial loops.
@@ -310,6 +316,12 @@ async def run_pipeline(
         # often fails MSL but the persona pass is what gates "ship vs flag".
         # Only persona2 failure flips the flagged bit.
         if persona2.issues:
+            logger.warning(
+                "editorial pipeline shipping with flagged=True for content_type=%s "
+                "(persona score %s)",
+                content_type,
+                persona2.score,
+            )
             flagged = True
 
     revision_trace = {
