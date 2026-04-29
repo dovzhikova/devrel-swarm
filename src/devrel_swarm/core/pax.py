@@ -15,6 +15,7 @@ from typing import TYPE_CHECKING, Any, Optional
 
 from devrel_swarm.core.base import get_kb_search
 from devrel_swarm.core.llm import LLMClient
+from devrel_swarm.quality import generate_with_pipeline
 from devrel_swarm.tools.api_client import PostHogClient
 from devrel_swarm.tools.instantly_client import InstantlyClient, InstantlyLead
 
@@ -1086,21 +1087,30 @@ Return a JSON object with the generated asset content."""
 
         if self.llm_client:
             try:
-                raw, trace = await self.llm_client.generate_with_revision(
+                # Map Pax's asset_type to the pipeline's content_type vocabulary.
+                # battle_card matches verbatim; the rest fall back to cold_email
+                # readability targets (one_pager → landing_page density).
+                pipeline_content_type = {
+                    "battle_card": "battle_card",
+                    "one_pager": "landing_page",
+                    "outreach": "cold_email",
+                    "nurture": "cold_email",
+                    "objection": "cold_email",
+                    "general": "cold_email",
+                }.get(asset_type, "cold_email")
+                raw, strengths, issues = await generate_with_pipeline(
+                    llm_client=self.llm_client,
                     system_prompt=self.SYSTEM_PROMPT.format(
                         product_name=self.product_name,
                     ),
                     user_prompt=prompt,
-                    temperature=0.5,
-                    max_tokens=4096,
-                    max_rounds=2,
-                    min_score=7,
-                    content_type="sales",
+                    content_type=pipeline_content_type,
+                    logger=logger,
                 )
                 base_result["content"] = raw
                 base_result["revision"] = {
-                    "rounds": trace.revision_rounds,
-                    "final_score": trace.final_score,
+                    "strengths": strengths,
+                    "issues": issues,
                 }
             except Exception as exc:
                 logger.warning(f"LLM generation failed: {exc}")
