@@ -43,6 +43,9 @@ dev = [
     "mypy>=1.5.0",
 ]
 
+[project.scripts]
+devrel = "devrel_swarm.cli:app"
+
 [tool.setuptools.packages.find]
 where = ["src"]
 include = ["devrel_swarm*"]
