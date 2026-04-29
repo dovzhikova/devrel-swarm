@@ -11,6 +11,7 @@ import typer
 from devrel_swarm import __version__
 from devrel_swarm.cli.init import init_command
 from devrel_swarm.cli.doctor import doctor_command
+from devrel_swarm.cli.content import content_app
 
 
 app = typer.Typer(
@@ -43,6 +44,7 @@ def main(
 
 app.command(name="init")(init_command)
 app.command(name="doctor")(doctor_command)
+app.add_typer(content_app, name="content")
 
 
 if __name__ == "__main__":
