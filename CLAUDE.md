@@ -135,6 +135,15 @@ src/devrel_swarm/tools/
   apollo_client.py  — Apollo.io client. Organization enrichment, contact search/match.
   mcp_server.py     — MCP server. 14 tools via JSON-RPC over stdio transport.
 
+src/devrel_swarm/cli/      Typer app + per-command modules. Phase 2 ships
+                           init.py + doctor.py; Phase 4 expands.
+src/devrel_swarm/project/  Project bootstrap. paths.py walks cwd to find
+                           .devrel/. config.py loads config.toml. state.py
+                           manages SQLite state DB. init.py scaffolds
+                           .devrel/ idempotently. templates/ holds the
+                           starter content for voice.md, style.md,
+                           slop-blocklist.md, config.toml, .gitignore.
+
 knowledge_base/   — Curated product docs (auto-harvestable via kb_harvester)
 optimize/         — Per-agent prompt files. Drop optimize/{agent}/system_prompt.txt to override.
 tests/            — Test suite (pytest + pytest-asyncio + respx)
@@ -258,6 +267,13 @@ Copy `config/env.example` to `.env` and fill in values.
 ```bash
 # Install
 pip install -r requirements.txt
+
+# Bootstrap a project (Phase 2)
+devrel init --name openclaw --url https://openclaw.ai --github-repo openclaw/openclaw
+
+# Run project health checks
+devrel doctor
+devrel doctor --json
 
 # Run full weekly cycle
 python -m devrel_swarm.core.atlas --weekly-cycle
