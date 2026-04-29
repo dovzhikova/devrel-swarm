@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from agents.mox import (
+from devrel_swarm.core.mox import (
     BlogPost,
     CampaignBrief,
     LandingPageCopy,

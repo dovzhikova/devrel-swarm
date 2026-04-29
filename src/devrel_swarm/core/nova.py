@@ -12,7 +12,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Optional
 
-from tools.api_client import PostHogClient
+from devrel_swarm.tools.api_client import PostHogClient
 
 logger = logging.getLogger(__name__)
 

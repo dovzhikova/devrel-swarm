@@ -33,19 +33,19 @@ DEFAULT_SCHEDULE: list[dict[str, str]] = [
     {
         "name": "weekly_cycle",
         "cron": "0 9 * * 1",  # Monday 9am
-        "command": "python -m agents.atlas --weekly-cycle",
+        "command": "python -m devrel_swarm.core.atlas --weekly-cycle",
         "description": "Full weekly pipeline",
     },
     {
         "name": "daily_digest",
         "cron": "0 13 * * 1-5",  # Mon-Fri 1pm
-        "command": "python -m tools.scheduler --action digest --mode daily",
+        "command": "python -m devrel_swarm.tools.scheduler --action digest --mode daily",
         "description": "Daily content digest email + telegram",
     },
     {
         "name": "weekly_report",
         "cron": "0 17 * * 5",  # Friday 5pm
-        "command": "python -m tools.scheduler --action digest --mode weekly",
+        "command": "python -m devrel_swarm.tools.scheduler --action digest --mode weekly",
         "description": "Weekly report email + telegram",
     },
 ]
@@ -171,7 +171,7 @@ async def run_digest(mode: str = "daily") -> None:
 
     load_dotenv()
 
-    from tools.notifications import NotificationConfig, NotificationService
+    from devrel_swarm.tools.notifications import NotificationConfig, NotificationService
 
     config = NotificationConfig(
         telegram_bot_token=os.environ.get("TELEGRAM_BOT_TOKEN", ""),
@@ -184,7 +184,7 @@ async def run_digest(mode: str = "daily") -> None:
         ),
     )
 
-    from agents.atlas import SharedContext
+    from devrel_swarm.core.atlas import SharedContext
 
     archive_dir = Path(os.environ.get("CONTEXT_ARCHIVE", "context_archive"))
     ctx = SharedContext.load(archive_dir)

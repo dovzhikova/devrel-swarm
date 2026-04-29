@@ -11,8 +11,8 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, Optional
 
-from tools.api_client import PostHogClient
-from tools.github_tools import GitHubIssue, GitHubTools
+from devrel_swarm.tools.api_client import PostHogClient
+from devrel_swarm.tools.github_tools import GitHubIssue, GitHubTools
 
 logger = logging.getLogger(__name__)
 

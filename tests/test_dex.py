@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from agents.dex import (
+from devrel_swarm.core.dex import (
     Dex,
     ParsedModule,
     ParsedSymbol,
@@ -430,7 +430,7 @@ class TestDexExecute:
 
 class TestDexAtlasIntegration:
     def test_atlas_has_dex_agent(self, posthog_client, knowledge_base_path):
-        from agents.atlas import Atlas
+        from devrel_swarm.core.atlas import Atlas
 
         atlas = Atlas(
             api_client=posthog_client,
@@ -440,14 +440,14 @@ class TestDexAtlasIntegration:
         assert hasattr(atlas, "dex")
 
     def test_shared_context_has_dex_field(self):
-        from agents.atlas import SharedContext
+        from devrel_swarm.core.atlas import SharedContext
 
         ctx = SharedContext()
         assert hasattr(ctx, "dex_docs")
         assert ctx.dex_docs == {}
 
     def test_shared_context_to_dict_includes_dex(self):
-        from agents.atlas import SharedContext
+        from devrel_swarm.core.atlas import SharedContext
 
         ctx = SharedContext(dex_docs={"total_files": 10})
         d = ctx.to_dict()

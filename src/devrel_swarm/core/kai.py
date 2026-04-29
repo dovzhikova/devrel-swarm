@@ -10,11 +10,11 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Optional
 
-from agents.base import get_kb_search, load_agent_prompt
-from agents.llm import LLMClient
-from tools.api_client import PostHogClient
-from tools.code_validator import CodeValidator
-from tools.search_tools import SearchTools
+from devrel_swarm.core.base import get_kb_search, load_agent_prompt
+from devrel_swarm.core.llm import LLMClient
+from devrel_swarm.tools.api_client import PostHogClient
+from devrel_swarm.tools.code_validator import CodeValidator
+from devrel_swarm.tools.search_tools import SearchTools
 
 logger = logging.getLogger(__name__)
 

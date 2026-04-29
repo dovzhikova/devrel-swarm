@@ -63,7 +63,7 @@ Return JSON:
 async def eval_agent_scores(agent_name: str) -> dict:
     """Run eval for one agent and return scores."""
     from optimize.agent_eval import eval_agent, generate_for_agent, SCORERS, AGENTS_DIR
-    from agents.llm import LLMClient
+    from devrel_swarm.core.llm import LLMClient
 
     api_key = os.environ.get("ANTHROPIC_API_KEY", "")
     llm = LLMClient(api_key=api_key)
@@ -90,8 +90,8 @@ async def eval_agent_scores(agent_name: str) -> dict:
 
 async def propose_modification(agent_name: str, current_scores: dict, history: list) -> dict | None:
     """Ask LLM to propose a prompt modification."""
-    from agents.llm import LLMClient
-    from agents.base import strip_markdown_fences
+    from devrel_swarm.core.llm import LLMClient
+    from devrel_swarm.core.base import strip_markdown_fences
 
     api_key = os.environ.get("ANTHROPIC_API_KEY", "")
     llm = LLMClient(api_key=api_key)

@@ -4,8 +4,8 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from agents.kai import ContentPiece, Kai
-from tools.search_tools import SearchTools
+from devrel_swarm.core.kai import ContentPiece, Kai
+from devrel_swarm.tools.search_tools import SearchTools
 
 
 @pytest.fixture

@@ -4,10 +4,10 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from agents.atlas import Atlas, DelegationResult, SharedContext
-from agents.mox import Mox
-from agents.pax import Pax
-from agents.rex import Rex
+from devrel_swarm.core.atlas import Atlas, DelegationResult, SharedContext
+from devrel_swarm.core.mox import Mox
+from devrel_swarm.core.pax import Pax
+from devrel_swarm.core.rex import Rex
 
 
 class TestSharedContext:

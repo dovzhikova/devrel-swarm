@@ -14,9 +14,9 @@ import sys
 from dataclasses import asdict
 from typing import Any, Callable, Coroutine, Optional
 
-from tools.api_client import InsightQuery, PostHogClient
-from tools.github_tools import GitHubTools
-from tools.search_tools import SearchTools
+from devrel_swarm.tools.api_client import InsightQuery, PostHogClient
+from devrel_swarm.tools.github_tools import GitHubTools
+from devrel_swarm.tools.search_tools import SearchTools
 
 logger = logging.getLogger(__name__)
 

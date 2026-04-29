@@ -12,8 +12,9 @@ COPY requirements.txt pyproject.toml ./
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Application code
-COPY agents/ agents/
-COPY tools/ tools/
+COPY src/ src/
+COPY pyproject.toml ./
+RUN pip install -e .
 COPY config/ config/
 COPY knowledge_base/ knowledge_base/
 COPY optimize/ optimize/
@@ -23,4 +24,4 @@ RUN mkdir -p deliverables context_archive
 
 # Default: run the full weekly cycle
 ENV PYTHONUNBUFFERED=1
-CMD ["python", "-m", "agents.atlas", "--weekly-cycle"]
+CMD ["python", "-m", "devrel_swarm.core.atlas", "--weekly-cycle"]

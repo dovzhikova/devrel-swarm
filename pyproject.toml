@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "devrel-swarm"
-version = "0.1.0"
+version = "0.2.0"
 description = "An AI agent system for developer advocacy, community management, and growth strategy"
 readme = "README.md"
 requires-python = ">=3.12"
@@ -41,12 +41,12 @@ dev = [
 ]
 
 [tool.setuptools.packages.find]
-where = ["."]
-include = ["agents*", "tools*"]
+where = ["src"]
+include = ["devrel_swarm*"]
 
 [tool.pytest.ini_options]
 minversion = "7.0"
-addopts = "-v --cov=agents --cov=tools --cov-report=term-missing"
+addopts = "-v --cov=devrel_swarm --cov-report=term-missing"
 testpaths = ["tests"]
 asyncio_mode = "auto"
 markers = [
@@ -55,7 +55,7 @@ markers = [
 
 [tool.coverage.run]
 branch = true
-source = ["agents", "tools"]
+source = ["devrel_swarm"]
 omit = [
     "*/tests/*",
     "*/test_*.py",

@@ -13,14 +13,14 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Optional
 
-from agents.base import get_kb_search
-from agents.llm import LLMClient
-from tools.api_client import PostHogClient
-from tools.instantly_client import InstantlyClient, InstantlyLead
+from devrel_swarm.core.base import get_kb_search
+from devrel_swarm.core.llm import LLMClient
+from devrel_swarm.tools.api_client import PostHogClient
+from devrel_swarm.tools.instantly_client import InstantlyClient, InstantlyLead
 
 if TYPE_CHECKING:
-    from tools.apollo_client import ApolloClient, ApolloContact
-    from tools.search_tools import SearchTools
+    from devrel_swarm.tools.apollo_client import ApolloClient, ApolloContact
+    from devrel_swarm.tools.search_tools import SearchTools
 
 logger = logging.getLogger(__name__)
 
@@ -419,7 +419,7 @@ Return JSON:
         context: dict[str, Any] | None = None,
     ) -> list[dict]:
         """Draft follow-up emails for interested/objection replies."""
-        from agents.base import strip_markdown_fences
+        from devrel_swarm.core.base import strip_markdown_fences
 
         drafts: list[dict] = []
         actionable = [r for r in replies if r.get("category") in self.FOLLOWUP_CATEGORIES]
@@ -557,7 +557,7 @@ Return JSON:
         competitive_context: str,
     ) -> dict[str, Any] | None:
         """Generate a personalized email for one contact. Returns parsed JSON or None."""
-        from agents.base import strip_markdown_fences
+        from devrel_swarm.core.base import strip_markdown_fences
 
         if not self.llm_client:
             return None
@@ -594,7 +594,7 @@ Return JSON:
     ) -> dict[str, Any]:
         """Full prospect -> research -> personalize -> upload flow."""
         import asyncio
-        from agents.base import strip_markdown_fences
+        from devrel_swarm.core.base import strip_markdown_fences
 
         # Step 1: Extract ICP criteria via LLM
         criteria: dict[str, Any] = {}
@@ -819,7 +819,7 @@ Return JSON:
         self, task: str, asset_type: str, base_result: dict[str, Any],
     ) -> dict[str, Any]:
         """Handle the instantly_campaign execute path."""
-        from agents.base import strip_markdown_fences
+        from devrel_swarm.core.base import strip_markdown_fences
 
         prompt_text = (
             f"Create a cold email outreach campaign for {self.product_name}. "
@@ -851,7 +851,7 @@ Return JSON:
 
     async def _classify_email(self, email: Any) -> dict:
         """Classify a single email reply using LLM."""
-        from agents.base import strip_markdown_fences
+        from devrel_swarm.core.base import strip_markdown_fences
 
         base = {
             "reply_id": email.id, "email_id": email.id,
@@ -899,7 +899,7 @@ Return JSON:
         criteria: dict[str, Any] = {}
         if self.llm_client:
             try:
-                from agents.base import strip_markdown_fences
+                from devrel_swarm.core.base import strip_markdown_fences
                 raw = await self.llm_client.generate(
                     system_prompt="Extract ICP criteria from the task for an Apollo.io people search.",
                     user_prompt=(
@@ -962,7 +962,7 @@ Return JSON:
     ) -> dict[str, Any]:
         """Handle the enrich_upload execute path."""
         raw_contacts = (context or {}).get("apollo_contacts", [])
-        from tools.apollo_client import ApolloContact as AC
+        from devrel_swarm.tools.apollo_client import ApolloContact as AC
         contacts = [
             AC(
                 id=c.get("id", ""),

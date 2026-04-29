@@ -1,9 +1,9 @@
-"""Tests for tools/github_tools.py using respx to mock httpx calls."""
+"""Tests for src/devrel_swarm/tools/github_tools.py using respx to mock httpx calls."""
 
 import httpx
 import respx
 
-from tools.github_tools import (
+from devrel_swarm.tools.github_tools import (
     GITHUB_API,
     ContributorProfile,
     GitHubIssue,

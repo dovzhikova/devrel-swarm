@@ -1,5 +1,7 @@
 # CLAUDE.md — Project Handoff for Claude Code
 
+> **Note:** This repository moved to a `src/devrel_swarm/` layout in Phase 1 of the CLI direction. See `docs/superpowers/specs/2026-04-29-devrel-swarm-cli-design.md`.
+
 ## Identity
 
 This is a **multi-agent developer advocacy and sales system**. 12 specialized AI agents replace a full DevRel + Sales team — community management, social listening, feedback synthesis, growth experimentation, content creation, video production, documentation generation, competitive intelligence, sales enablement, campaign marketing, system health monitoring, and brand consistency auditing — for any open-source DevTools product.
@@ -72,7 +74,7 @@ Echo (social)  ──┼→ Rex (competitive) ─→ Pax (sales) → Mox (campai
 ## File Map
 
 ```
-agents/
+src/devrel_swarm/core/
   atlas.py      — Orchestrator. SharedContext + WeeklyMemory dataclasses,
                    DelegationResult, retry with exponential backoff + jitter,
                    run_weekly_cycle() with parallelized stages,
@@ -110,11 +112,11 @@ agents/
   llm.py        — LLM client. generate(), generate_with_revision() (critique-revise loop),
                    critique(), CritiqueResult, RevisionTrace. TokenUsage with per_agent
                    breakdown. set_agent() for cost attribution.
-  config.py     — YAML config loader. AgentConfig with product_name/product_url fields.
+  agent_config.py — YAML config loader. AgentConfig with product_name/product_url fields.
   types.py      — Shared TypedDict definitions for agent results.
   video/        — Vox sub-modules (script parser, TTS, recorder, overlays, assembler).
 
-tools/
+src/devrel_swarm/tools/
   api_client.py     — Async PostHog API v2 client. Typed DTOs, retry-enabled.
   github_tools.py   — Async GitHub client. Issues, comments, profiles, labels.
   search_tools.py   — Web search (Firecrawl + Brave fallback), official docs via GitMCP.
@@ -258,25 +260,25 @@ Copy `config/env.example` to `.env` and fill in values.
 pip install -r requirements.txt
 
 # Run full weekly cycle
-python -m agents.atlas --weekly-cycle
+python -m devrel_swarm.core.atlas --weekly-cycle
 
 # Run single agent task
-python -m agents.atlas --agent kai --task "Write a tutorial on feature flags"
-python -m agents.atlas --agent watchdog --task "Check system health"
-python -m agents.atlas --agent sentinel --task "Audit content quality"
+python -m devrel_swarm.core.atlas --agent kai --task "Write a tutorial on feature flags"
+python -m devrel_swarm.core.atlas --agent watchdog --task "Check system health"
+python -m devrel_swarm.core.atlas --agent sentinel --task "Audit content quality"
 
 # Knowledge base harvesting
-python -m tools.kb_harvester --url "https://example.com/docs" --category docs
-python -m tools.kb_harvester  # Harvest all configured sources
+python -m devrel_swarm.tools.kb_harvester --url "https://example.com/docs" --category docs
+python -m devrel_swarm.tools.kb_harvester  # Harvest all configured sources
 
 # Scheduling
-python -m tools.scheduler --action install   # Install cron jobs
-python -m tools.scheduler --action list      # Show schedule
-python -m tools.scheduler --action remove    # Remove cron jobs
-python -m tools.scheduler --action digest --mode weekly  # Send digest
+python -m devrel_swarm.tools.scheduler --action install   # Install cron jobs
+python -m devrel_swarm.tools.scheduler --action list      # Show schedule
+python -m devrel_swarm.tools.scheduler --action remove    # Remove cron jobs
+python -m devrel_swarm.tools.scheduler --action digest --mode weekly  # Send digest
 
 # Start MCP server (stdio transport)
-python -m tools.mcp_server
+python -m devrel_swarm.tools.mcp_server
 
 # Run tests
 pytest tests/ -v
@@ -304,24 +306,24 @@ pytest tests/ -v
 To point this system at a different open-source DevTools product:
 
 1. **Set `product_name`** in `config/agent_config.yaml` — auto-flows to Rex, Pax, Mox
-2. **Harvest KB** — `python -m tools.kb_harvester --url "https://newproduct.com/docs"`
-3. **Update `tools/github_tools.py`** — Change `OWNER/REPO` constants
+2. **Harvest KB** — `python -m devrel_swarm.tools.kb_harvester --url "https://newproduct.com/docs"`
+3. **Update `src/devrel_swarm/tools/github_tools.py`** — Change `OWNER/REPO` constants
 4. **Optionally customize prompts** — Drop into `optimize/{agent}/system_prompt.txt`
-5. **Run** — `python -m agents.atlas --weekly-cycle`
+5. **Run** — `python -m devrel_swarm.core.atlas --weekly-cycle`
 
 ---
 
 ## Quick Reference for Common Tasks
 
 **Add a new agent:**
-1. Create `agents/new_agent.py` with `execute(task, context)` async method
+1. Create `src/devrel_swarm/core/new_agent.py` with `execute(task, context)` async method
 2. Register in `Atlas.__init__()` and `Atlas._agents` dict
 3. Add to weekly cycle in `Atlas.run_weekly_cycle()`
 4. Update SharedContext with new agent's output field
-5. Export from `agents/__init__.py`
+5. Export from `src/devrel_swarm/core/__init__.py`
 
 **Add an integration:**
-1. Create `tools/new_tool.py` with async client class
+1. Create `src/devrel_swarm/tools/new_tool.py` with async client class
 2. Wire into Atlas via `_publish_and_notify()` or a dedicated stage
 3. Add env vars to `config/env.example`
 4. Graceful degradation: check env vars before using
@@ -331,11 +333,11 @@ To point this system at a different open-source DevTools product:
 2. Agent auto-loads it via `load_agent_prompt()` — no code changes needed
 
 **Add knowledge base content:**
-1. `python -m tools.kb_harvester --url "URL" --category CATEGORY`
+1. `python -m devrel_swarm.tools.kb_harvester --url "URL" --category CATEGORY`
 2. Or manually create `.md` file in `knowledge_base/{category}/`
 3. TF-IDF index rebuilds automatically on next agent run
 
 **Run a single agent in isolation:**
 ```bash
-python -m agents.atlas --agent sage --task "Triage issues labeled 'bug' from last 3 days"
+python -m devrel_swarm.core.atlas --agent sage --task "Triage issues labeled 'bug' from last 3 days"
 ```

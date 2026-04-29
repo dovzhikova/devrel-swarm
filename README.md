@@ -36,7 +36,7 @@ Friday      Sentinel audits all content → brand voice, ICP alignment, messagin
 One command runs the full pipeline:
 
 ```bash
-python -m agents.atlas --weekly-cycle
+python -m devrel_swarm.core.atlas --weekly-cycle
 ```
 
 ---
@@ -116,13 +116,13 @@ The system maintains memory across weekly cycles:
 
 | Integration | Module | Purpose |
 |-------------|--------|---------|
-| **Google Sheets** | `tools/sheets.py` | Content calendar — auto-publishes drafts for editorial review |
-| **Telegram** | `tools/notifications.py` | Real-time alerts on pipeline completion |
-| **Email** | `tools/notifications.py` | HTML daily/weekly digest reports |
-| **Instantly** | `tools/instantly_client.py` | Cold email campaigns with parallel lead upload |
-| **Apollo** | `tools/apollo_client.py` | Lead enrichment with firmographic data |
-| **Firecrawl/Brave** | `tools/search_tools.py` | Web search with dual-provider fallback |
-| **MCP** | `tools/mcp_server.py` | 14 tools for Claude Desktop, Cursor, Windsurf |
+| **Google Sheets** | `src/devrel_swarm/tools/sheets.py` | Content calendar — auto-publishes drafts for editorial review |
+| **Telegram** | `src/devrel_swarm/tools/notifications.py` | Real-time alerts on pipeline completion |
+| **Email** | `src/devrel_swarm/tools/notifications.py` | HTML daily/weekly digest reports |
+| **Instantly** | `src/devrel_swarm/tools/instantly_client.py` | Cold email campaigns with parallel lead upload |
+| **Apollo** | `src/devrel_swarm/tools/apollo_client.py` | Lead enrichment with firmographic data |
+| **Firecrawl/Brave** | `src/devrel_swarm/tools/search_tools.py` | Web search with dual-provider fallback |
+| **MCP** | `src/devrel_swarm/tools/mcp_server.py` | 14 tools for Claude Desktop, Cursor, Windsurf |
 
 All integrations degrade gracefully — if env vars aren't set, the step is skipped.
 
@@ -142,21 +142,21 @@ cp config/env.example .env
 # Notifications: TELEGRAM_BOT_TOKEN, EMAIL_SENDER, SHEETS_SPREADSHEET_ID
 
 # Run the full weekly pipeline
-python -m agents.atlas --weekly-cycle
+python -m devrel_swarm.core.atlas --weekly-cycle
 
 # Run a single agent
-python -m agents.atlas --agent kai --task "Write a tutorial on feature flags"
-python -m agents.atlas --agent sentinel --task "Audit this week's content"
-python -m agents.atlas --agent watchdog --task "Check system health"
+python -m devrel_swarm.core.atlas --agent kai --task "Write a tutorial on feature flags"
+python -m devrel_swarm.core.atlas --agent sentinel --task "Audit this week's content"
+python -m devrel_swarm.core.atlas --agent watchdog --task "Check system health"
 
 # Auto-populate knowledge base from public content
-python -m tools.kb_harvester --url "https://example.com/docs" --category docs
+python -m devrel_swarm.tools.kb_harvester --url "https://example.com/docs" --category docs
 
 # Install cron schedule
-python -m tools.scheduler --action install
+python -m devrel_swarm.tools.scheduler --action install
 
 # Send digest manually
-python -m tools.scheduler --action digest --mode weekly
+python -m devrel_swarm.tools.scheduler --action digest --mode weekly
 
 # Run tests
 pytest tests/ -v
@@ -181,7 +181,7 @@ pytest tests/ -v
 ## Project Structure
 
 ```
-agents/
+src/devrel_swarm/core/
   atlas.py           Orchestrator — delegation, retry, SharedContext, OKR tracking,
                      cross-run memory, publish & notify
   watchdog.py        System Health — pre-flight checks, budget monitoring, integration status
@@ -198,10 +198,10 @@ agents/
   sentinel.py        Brand Auditor — voice, ICP, messaging, quality scoring
   base.py            Shared utilities — TF-IDF KB search, prompt file loading
   llm.py             LLM client — generate, critique, revision loop, per-agent cost tracking
-  config.py          YAML config loader with product_name centralization
+  agent_config.py    YAML config loader with product_name centralization
   video/             Vox sub-modules (script parser, TTS, recorder, overlays, assembler)
 
-tools/
+src/devrel_swarm/tools/
   api_client.py      Async PostHog API v2 client with typed DTOs
   github_tools.py    Async GitHub client (issues, comments, profiles, labels)
   search_tools.py    Web search (Firecrawl + Brave), official docs via GitMCP
@@ -229,10 +229,10 @@ context_archive/     Weekly SharedContext JSON snapshots
 The system is product-agnostic. To point it at a different product:
 
 1. **Set `product_name`** in `config/agent_config.yaml` — flows to Rex, Pax, Mox automatically
-2. **Harvest new KB** — `python -m tools.kb_harvester --url "https://newproduct.com/docs" --category docs`
-3. **Update `tools/github_tools.py`** — Change the `OWNER/REPO` constants
+2. **Harvest new KB** — `python -m devrel_swarm.tools.kb_harvester --url "https://newproduct.com/docs" --category docs`
+3. **Update `src/devrel_swarm/tools/github_tools.py`** — Change the `OWNER/REPO` constants
 4. **Optionally customize prompts** — Drop files into `optimize/{agent}/system_prompt.txt`
-5. **Run** — `python -m agents.atlas --weekly-cycle`
+5. **Run** — `python -m devrel_swarm.core.atlas --weekly-cycle`
 
 Works with: Supabase, Cal.com, Trigger.dev, Langfuse, Neon, Tinybird, or any product with a GitHub repo and docs.
 

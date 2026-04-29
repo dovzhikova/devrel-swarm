@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from agents.echo import (
+from devrel_swarm.core.echo import (
     ENGAGEMENT_SIGNALS,
     RISK_SIGNALS,
     Echo,
@@ -12,7 +12,7 @@ from agents.echo import (
     SocialListeningReport,
     SocialMention,
 )
-from tools.search_tools import SearchResult
+from devrel_swarm.tools.search_tools import SearchResult
 
 
 @pytest.fixture

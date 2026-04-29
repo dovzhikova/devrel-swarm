@@ -5,11 +5,11 @@ import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 from pathlib import Path
 
-from agents.video import ScriptParser, TutorialStep, VideoTutorial
-from agents.video.tts_engine import TTSEngine
-from agents.video.browser_recorder import BrowserRecorder, BrowserAction
-from agents.video.overlay_renderer import OverlayRenderer, OverlayConfig
-from agents.video.assembler import VideoAssembler
+from devrel_swarm.core.video import ScriptParser, TutorialStep, VideoTutorial
+from devrel_swarm.core.video.tts_engine import TTSEngine
+from devrel_swarm.core.video.browser_recorder import BrowserRecorder, BrowserAction
+from devrel_swarm.core.video.overlay_renderer import OverlayRenderer, OverlayConfig
+from devrel_swarm.core.video.assembler import VideoAssembler
 
 
 class TestTutorialStep:
@@ -316,7 +316,7 @@ class TestVideoAssembler:
 # Vox agent integration tests
 # ---------------------------------------------------------------------------
 
-from agents.vox import Vox
+from devrel_swarm.core.vox import Vox
 
 
 class TestVoxAgent:
@@ -415,19 +415,19 @@ class TestAtlasIntegration:
     """Test Vox integration with Atlas orchestrator."""
 
     def test_shared_context_has_vox_field(self):
-        from agents.atlas import SharedContext
+        from devrel_swarm.core.atlas import SharedContext
         ctx = SharedContext()
         assert hasattr(ctx, "vox_video")
         assert ctx.vox_video == {}
 
     def test_shared_context_to_dict_includes_vox(self):
-        from agents.atlas import SharedContext
+        from devrel_swarm.core.atlas import SharedContext
         ctx = SharedContext()
         d = ctx.to_dict()
         assert "vox_video" in d
 
     def test_atlas_has_vox_agent(self):
-        from agents.atlas import Atlas
+        from devrel_swarm.core.atlas import Atlas
         client = MagicMock()
         atlas = Atlas(
             api_client=client,
@@ -440,7 +440,7 @@ class TestAtlasIntegration:
 # Desktop recorder tests
 # ---------------------------------------------------------------------------
 
-from agents.video.desktop_recorder import DesktopRecorder, DesktopAction, _get_ffmpeg_input_format
+from devrel_swarm.core.video.desktop_recorder import DesktopRecorder, DesktopAction, _get_ffmpeg_input_format
 
 
 class TestDesktopAction:

@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from agents.rex import (
+from devrel_swarm.core.rex import (
     CompetitorProfile,
     CompetitiveReport,
     MarketPosition,
@@ -12,7 +12,7 @@ from agents.rex import (
     Rex,
     Threat,
 )
-from tools.search_tools import SearchResult, SearchTools
+from devrel_swarm.tools.search_tools import SearchResult, SearchTools
 
 
 @pytest.fixture

@@ -13,10 +13,10 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Optional
 
-from agents.base import strip_markdown_fences
-from agents.llm import LLMClient
-from tools.api_client import PostHogClient
-from tools.search_tools import SearchTools
+from devrel_swarm.core.base import strip_markdown_fences
+from devrel_swarm.core.llm import LLMClient
+from devrel_swarm.tools.api_client import PostHogClient
+from devrel_swarm.tools.search_tools import SearchTools
 
 logger = logging.getLogger(__name__)
 

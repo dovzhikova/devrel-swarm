@@ -1,6 +1,6 @@
 """Tests for PostHog API client module."""
 
-from tools.api_client import InsightQuery, PostHogClient
+from devrel_swarm.tools.api_client import InsightQuery, PostHogClient
 
 
 class TestInsightQuerySerialization:

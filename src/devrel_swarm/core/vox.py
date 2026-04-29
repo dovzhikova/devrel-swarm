@@ -11,9 +11,9 @@ import shutil
 from pathlib import Path
 from typing import Any, Optional
 
-from tools.api_client import PostHogClient
-from tools.search_tools import SearchTools
-from agents.video.script_parser import ScriptParser, TutorialStep, VideoTutorial
+from devrel_swarm.tools.api_client import PostHogClient
+from devrel_swarm.tools.search_tools import SearchTools
+from devrel_swarm.core.video.script_parser import ScriptParser, TutorialStep, VideoTutorial
 
 logger = logging.getLogger(__name__)
 
@@ -172,11 +172,11 @@ Keep narration concise and developer-focused. Show, don't tell."""
 
     async def _run_full_pipeline(self, tutorial: VideoTutorial) -> Path:
         """Run the full TTS + recording + overlay + assembly pipeline."""
-        from agents.video.tts_engine import TTSEngine
-        from agents.video.browser_recorder import BrowserRecorder
-        from agents.video.desktop_recorder import DesktopRecorder
-        from agents.video.overlay_renderer import OverlayRenderer
-        from agents.video.assembler import VideoAssembler
+        from devrel_swarm.core.video.tts_engine import TTSEngine
+        from devrel_swarm.core.video.browser_recorder import BrowserRecorder
+        from devrel_swarm.core.video.desktop_recorder import DesktopRecorder
+        from devrel_swarm.core.video.overlay_renderer import OverlayRenderer
+        from devrel_swarm.core.video.assembler import VideoAssembler
 
         tts_dir = self.output_dir / "tts"
         recording_dir = self.output_dir / "recordings"

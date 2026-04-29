@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from agents.pax import (
+from devrel_swarm.core.pax import (
     BattleCard,
     NurtureSequence,
     OutreachEmail,
@@ -13,8 +13,8 @@ from agents.pax import (
     PersonalizedOutreach,
     SalesAsset,
 )
-from tools.apollo_client import ApolloContact
-from tools.search_tools import SearchResult
+from devrel_swarm.tools.apollo_client import ApolloContact
+from devrel_swarm.tools.search_tools import SearchResult
 
 
 @pytest.fixture
@@ -472,7 +472,7 @@ class TestGeneratePersonalizedEmail:
 @pytest.fixture
 def mock_apollo_client():
     """Fixture providing mocked Apollo client."""
-    from tools.apollo_client import ApolloContact, PeopleSearchResult
+    from devrel_swarm.tools.apollo_client import ApolloContact, PeopleSearchResult
 
     client = MagicMock()
     client.search_people = AsyncMock(return_value=PeopleSearchResult(
@@ -573,7 +573,7 @@ class TestExecuteProspectPersonalize:
     async def test_returns_early_with_no_contacts(
         self, pax_full, mock_llm_client, mock_apollo_client,
     ):
-        from tools.apollo_client import PeopleSearchResult
+        from devrel_swarm.tools.apollo_client import PeopleSearchResult
 
         mock_apollo_client.search_people.return_value = PeopleSearchResult(
             contacts=[], total=0, page=1, per_page=25,
@@ -591,7 +591,7 @@ class TestExecuteProspectPersonalize:
     async def test_skips_contacts_without_email(
         self, pax_full, mock_llm_client, mock_apollo_client, mock_search_tools,
     ):
-        from tools.apollo_client import ApolloContact, PeopleSearchResult
+        from devrel_swarm.tools.apollo_client import ApolloContact, PeopleSearchResult
 
         # All contacts missing email, enrichment fails
         mock_apollo_client.search_people.return_value = PeopleSearchResult(
@@ -619,7 +619,7 @@ class TestExecuteProspectPersonalize:
     async def test_handles_email_generation_failure(
         self, pax_full, mock_llm_client, mock_search_tools, mock_apollo_client,
     ):
-        from tools.apollo_client import ApolloContact, PeopleSearchResult
+        from devrel_swarm.tools.apollo_client import ApolloContact, PeopleSearchResult
 
         mock_apollo_client.search_people.return_value = PeopleSearchResult(
             contacts=[
@@ -681,7 +681,7 @@ class TestExecuteProspectPersonalize:
             apollo_client=mock_apollo_client,
             product_name="TestProduct",
         )
-        from tools.apollo_client import ApolloContact, PeopleSearchResult
+        from devrel_swarm.tools.apollo_client import ApolloContact, PeopleSearchResult
 
         mock_apollo_client.search_people.return_value = PeopleSearchResult(
             contacts=[

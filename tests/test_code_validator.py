@@ -2,7 +2,7 @@
 
 import pytest
 
-from tools.code_validator import CodeBlock, CodeValidator, ValidationReport
+from devrel_swarm.tools.code_validator import CodeBlock, CodeValidator, ValidationReport
 
 
 @pytest.fixture
@@ -401,7 +401,7 @@ class TestKaiCodeValidation:
                 "```\n"
             )
         )
-        from agents.kai import Kai
+        from devrel_swarm.core.kai import Kai
 
         return Kai(
             api_client=posthog_client,
@@ -422,7 +422,7 @@ class TestKaiCodeValidation:
                 "```\n"
             )
         )
-        from agents.kai import Kai
+        from devrel_swarm.core.kai import Kai
 
         return Kai(
             api_client=posthog_client,

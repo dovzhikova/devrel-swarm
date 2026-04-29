@@ -57,12 +57,12 @@ def load_existing_emails() -> set[str]:
 
 
 async def main():
-    from agents.llm import LLMClient
-    from agents.pax import Pax
-    from tools.api_client import PostHogClient
-    from tools.apollo_client import ApolloClient
-    from tools.instantly_client import InstantlyClient, InstantlyLead
-    from tools.search_tools import SearchTools
+    from devrel_swarm.core.llm import LLMClient
+    from devrel_swarm.core.pax import Pax
+    from devrel_swarm.tools.api_client import PostHogClient
+    from devrel_swarm.tools.apollo_client import ApolloClient
+    from devrel_swarm.tools.instantly_client import InstantlyClient, InstantlyLead
+    from devrel_swarm.tools.search_tools import SearchTools
 
     anthropic_key = os.environ.get("ANTHROPIC_API_KEY", "")
     if not anthropic_key:

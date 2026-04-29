@@ -7,7 +7,7 @@ from typing import Any
 
 from anthropic import AsyncAnthropic
 
-from agents.base import strip_markdown_fences
+from devrel_swarm.core.base import strip_markdown_fences
 
 logger = logging.getLogger(__name__)
 

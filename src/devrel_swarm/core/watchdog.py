@@ -17,7 +17,7 @@ from typing import Any, Optional
 
 import httpx
 
-from agents.llm import LLMClient
+from devrel_swarm.core.llm import LLMClient
 
 logger = logging.getLogger(__name__)
 

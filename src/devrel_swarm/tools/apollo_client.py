@@ -70,7 +70,7 @@ class ApolloContact:
         - company_name -> company_name
         - phone, linkedin_url, title -> custom_variables (only if set)
         """
-        from tools.instantly_client import InstantlyLead
+        from devrel_swarm.tools.instantly_client import InstantlyLead
 
         return InstantlyLead(
             email=self.email or "",

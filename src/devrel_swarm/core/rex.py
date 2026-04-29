@@ -14,12 +14,12 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Optional
 
 if TYPE_CHECKING:
-    from tools.apollo_client import ApolloClient
+    from devrel_swarm.tools.apollo_client import ApolloClient
 
-from agents.base import STOP_WORDS, get_kb_search, load_agent_prompt, strip_markdown_fences
-from agents.llm import LLMClient
-from tools.api_client import PostHogClient
-from tools.search_tools import SearchTools
+from devrel_swarm.core.base import STOP_WORDS, get_kb_search, load_agent_prompt, strip_markdown_fences
+from devrel_swarm.core.llm import LLMClient
+from devrel_swarm.tools.api_client import PostHogClient
+from devrel_swarm.tools.search_tools import SearchTools
 
 logger = logging.getLogger(__name__)
 

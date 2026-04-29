@@ -747,7 +747,7 @@ SCORERS = {
 
 async def generate_for_agent(llm_client, agent_name: str, test_case: dict) -> str | None:
     """Generate output for one agent + test case."""
-    from agents.base import strip_markdown_fences
+    from devrel_swarm.core.base import strip_markdown_fences
 
     agent_dir = AGENTS_DIR / agent_name
     system_file = agent_dir / "system_prompt.txt"
@@ -901,7 +901,7 @@ async def generate_for_agent(llm_client, agent_name: str, test_case: dict) -> st
 
 async def eval_agent(agent_name: str, verbose: bool = False) -> float:
     """Evaluate one agent. Returns average score 0-100."""
-    from agents.llm import LLMClient
+    from devrel_swarm.core.llm import LLMClient
 
     api_key = os.environ.get("ANTHROPIC_API_KEY", "")
     if not api_key:

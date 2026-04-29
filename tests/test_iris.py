@@ -5,8 +5,8 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from agents.base import strip_markdown_fences
-from agents.iris import (
+from devrel_swarm.core.base import strip_markdown_fences
+from devrel_swarm.core.iris import (
     DeveloperJourneyStage,
     FeedbackSynthesis,
     FeedbackTheme,

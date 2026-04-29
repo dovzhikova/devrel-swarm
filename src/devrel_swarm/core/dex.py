@@ -13,8 +13,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Optional
 
-from agents.llm import LLMClient
-from tools.api_client import PostHogClient
+from devrel_swarm.core.llm import LLMClient
+from devrel_swarm.tools.api_client import PostHogClient
 
 logger = logging.getLogger(__name__)
 

@@ -12,10 +12,10 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Optional
 
-from agents.llm import LLMClient
-from tools.api_client import PostHogClient
+from devrel_swarm.core.llm import LLMClient
+from devrel_swarm.tools.api_client import PostHogClient
 
-from agents.base import strip_markdown_fences
+from devrel_swarm.core.base import strip_markdown_fences
 
 logger = logging.getLogger(__name__)
 

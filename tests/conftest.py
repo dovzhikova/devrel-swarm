@@ -4,9 +4,9 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from agents.llm import LLMClient
-from tools.api_client import PostHogClient
-from tools.github_tools import GitHubIssue, GitHubTools
+from devrel_swarm.core.llm import LLMClient
+from devrel_swarm.tools.api_client import PostHogClient
+from devrel_swarm.tools.github_tools import GitHubIssue, GitHubTools
 
 
 @pytest.fixture

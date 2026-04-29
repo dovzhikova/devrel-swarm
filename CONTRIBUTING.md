@@ -26,16 +26,16 @@ Tests use `respx` to mock all HTTP calls — no API keys needed for testing.
 ## Project Structure
 
 ```
-agents/          # 12 agent implementations + shared base
-  atlas.py       # Orchestrator (start here)
-  base.py        # Shared: TF-IDF KB search, prompt loading
-  llm.py         # LLM client with revision loop + cost tracking
-  config.py      # YAML config loader
-tools/           # External integrations (GitHub, Search, Email, etc.)
-knowledge_base/  # Product docs (markdown, searched via TF-IDF)
-optimize/        # Per-agent prompt optimization + eval harness
-tests/           # pytest + respx mocking
-config/          # env.example + agent_config.yaml
+src/devrel_swarm/core/   # 12 agent implementations + shared base
+  atlas.py               # Orchestrator (start here)
+  base.py                # Shared: TF-IDF KB search, prompt loading
+  llm.py                 # LLM client with revision loop + cost tracking
+  agent_config.py        # YAML config loader
+src/devrel_swarm/tools/  # External integrations (GitHub, Search, Email, etc.)
+knowledge_base/          # Product docs (markdown, searched via TF-IDF)
+optimize/                # Per-agent prompt optimization + eval harness
+tests/                   # pytest + respx mocking
+config/                  # env.example + agent_config.yaml
 ```
 
 ## How to Contribute
@@ -47,7 +47,7 @@ config/          # env.example + agent_config.yaml
 4. Ensure `pytest tests/ -v` passes
 
 ### Add a New Agent
-1. Create `agents/new_agent.py` with an `execute(task, context)` async method
+1. Create `src/devrel_swarm/core/new_agent.py` with an `execute(task, context)` async method
 2. Add to `Atlas.__init__()` and the weekly cycle in `run_weekly_cycle()`
 3. Update `SharedContext` with the agent's output field
 4. Add tests in `tests/test_new_agent.py`
@@ -55,7 +55,7 @@ config/          # env.example + agent_config.yaml
 6. Update CLAUDE.md file map
 
 ### Add an Integration
-1. Create `tools/new_tool.py` with an async client class
+1. Create `src/devrel_swarm/tools/new_tool.py` with an async client class
 2. Add env vars to `config/env.example`
 3. Wire into Atlas or the relevant agent
 4. Add tests with respx mocking
@@ -71,7 +71,7 @@ This system is designed to be pointed at any DevTools product:
 1. Set `PRODUCT_NAME` and `PRODUCT_URL` in `.env`
 2. Replace `knowledge_base/` contents with your product docs
 3. Set `GITHUB_REPO` to your repo
-4. Run `python -m agents.atlas --weekly-cycle`
+4. Run `python -m devrel_swarm.core.atlas --weekly-cycle`
 
 ## Code Style
 
@@ -86,7 +86,7 @@ This system is designed to be pointed at any DevTools product:
 ```bash
 ruff check .         # Lint
 black .              # Format
-mypy agents/ tools/  # Type check
+mypy src/devrel_swarm/  # Type check
 ```
 
 ## Pull Request Checklist

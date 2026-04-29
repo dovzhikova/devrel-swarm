@@ -15,26 +15,26 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Optional
 
 if TYPE_CHECKING:
-    from tools.apollo_client import ApolloClient
+    from devrel_swarm.tools.apollo_client import ApolloClient
 
-from agents.config import AgentConfig, load_config
-from agents.dex import Dex
-from agents.echo import Echo
-from agents.iris import Iris
-from agents.kai import Kai
-from agents.llm import LLMClient
-from agents.mox import Mox
-from agents.nova import Nova
-from agents.pax import Pax
-from agents.rex import Rex
-from agents.sage import Sage
-from agents.sentinel import Sentinel
-from agents.vox import Vox
-from agents.watchdog import Watchdog
-from tools.api_client import PostHogClient
-from tools.github_tools import GitHubTools
-from tools.instantly_client import InstantlyClient
-from tools.search_tools import SearchTools
+from devrel_swarm.core.agent_config import AgentConfig, load_config
+from devrel_swarm.core.dex import Dex
+from devrel_swarm.core.echo import Echo
+from devrel_swarm.core.iris import Iris
+from devrel_swarm.core.kai import Kai
+from devrel_swarm.core.llm import LLMClient
+from devrel_swarm.core.mox import Mox
+from devrel_swarm.core.nova import Nova
+from devrel_swarm.core.pax import Pax
+from devrel_swarm.core.rex import Rex
+from devrel_swarm.core.sage import Sage
+from devrel_swarm.core.sentinel import Sentinel
+from devrel_swarm.core.vox import Vox
+from devrel_swarm.core.watchdog import Watchdog
+from devrel_swarm.tools.api_client import PostHogClient
+from devrel_swarm.tools.github_tools import GitHubTools
+from devrel_swarm.tools.instantly_client import InstantlyClient
+from devrel_swarm.tools.search_tools import SearchTools
 
 logger = logging.getLogger(__name__)
 
@@ -465,7 +465,7 @@ class Atlas:
         the last completed checkpoint instead of re-running everything.
         Produces a run report with timing, cost, and quality data.
         """
-        from tools.run_report import RunReport
+        from devrel_swarm.tools.run_report import RunReport
         run_report = RunReport(
             week_of=self.context.week_of,
             started_at=datetime.now().isoformat(),
@@ -603,7 +603,7 @@ class Atlas:
 
         # Self-improvement: extract recurring issues and update agent prompts
         try:
-            from tools.self_improve import run_self_improvement
+            from devrel_swarm.tools.self_improve import run_self_improvement
             improve_report = run_self_improvement(
                 self.archive_dir,
                 Path(__file__).parent.parent / "optimize",
@@ -673,7 +673,7 @@ class Atlas:
         sheets_token = os.environ.get("SHEETS_ACCESS_TOKEN", "")
         if sheets_id:
             try:
-                from tools.sheets import ContentCalendar, SheetsConfig
+                from devrel_swarm.tools.sheets import ContentCalendar, SheetsConfig
                 cal = ContentCalendar(SheetsConfig(
                     spreadsheet_id=sheets_id,
                     access_token=sheets_token,
@@ -689,7 +689,7 @@ class Atlas:
         email_sender = os.environ.get("EMAIL_SENDER", "")
         if tg_token or email_sender:
             try:
-                from tools.notifications import NotificationConfig, NotificationService
+                from devrel_swarm.tools.notifications import NotificationConfig, NotificationService
                 svc = NotificationService(NotificationConfig(
                     telegram_bot_token=tg_token,
                     telegram_chat_id=os.environ.get("TELEGRAM_CHAT_ID", ""),
@@ -814,7 +814,7 @@ def _build_apollo_client(api_key: Optional[str]) -> Optional["ApolloClient"]:
     """Instantiate ApolloClient when the API key is available, else return None."""
     if not api_key:
         return None
-    from tools.apollo_client import ApolloClient  # noqa: PLC0415
+    from devrel_swarm.tools.apollo_client import ApolloClient  # noqa: PLC0415
     return ApolloClient(api_key=api_key)
 
 

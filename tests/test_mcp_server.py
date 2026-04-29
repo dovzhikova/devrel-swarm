@@ -1,9 +1,9 @@
-"""Tests for tools/mcp_server.py — ToolDefinition and MCPServer."""
+"""Tests for src/devrel_swarm/tools/mcp_server.py — ToolDefinition and MCPServer."""
 
 from dataclasses import dataclass
 from unittest.mock import AsyncMock, patch
 
-from tools.mcp_server import MCPServer, ToolDefinition
+from devrel_swarm.tools.mcp_server import MCPServer, ToolDefinition
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -62,9 +62,9 @@ class TestToolDefinition:
 # ---------------------------------------------------------------------------
 
 
-@patch("tools.mcp_server.SearchTools")
-@patch("tools.mcp_server.GitHubTools")
-@patch("tools.mcp_server.PostHogClient")
+@patch("devrel_swarm.tools.mcp_server.SearchTools")
+@patch("devrel_swarm.tools.mcp_server.GitHubTools")
+@patch("devrel_swarm.tools.mcp_server.PostHogClient")
 class TestMCPServerInit:
     """Tests for MCPServer.__init__ and tool registration."""
 
@@ -119,9 +119,9 @@ class TestMCPServerInit:
 # ---------------------------------------------------------------------------
 
 
-@patch("tools.mcp_server.SearchTools")
-@patch("tools.mcp_server.GitHubTools")
-@patch("tools.mcp_server.PostHogClient")
+@patch("devrel_swarm.tools.mcp_server.SearchTools")
+@patch("devrel_swarm.tools.mcp_server.GitHubTools")
+@patch("devrel_swarm.tools.mcp_server.PostHogClient")
 class TestHandleRequest:
     """Tests for MCPServer._handle_request JSON-RPC routing."""
 
@@ -266,9 +266,9 @@ class TestRPCHelpers:
 # ---------------------------------------------------------------------------
 
 
-@patch("tools.mcp_server.SearchTools")
-@patch("tools.mcp_server.GitHubTools")
-@patch("tools.mcp_server.PostHogClient")
+@patch("devrel_swarm.tools.mcp_server.SearchTools")
+@patch("devrel_swarm.tools.mcp_server.GitHubTools")
+@patch("devrel_swarm.tools.mcp_server.PostHogClient")
 class TestCleanup:
     """Tests for MCPServer._cleanup."""
 
@@ -308,9 +308,9 @@ class TestCleanup:
 # ---------------------------------------------------------------------------
 
 
-@patch("tools.mcp_server.SearchTools")
-@patch("tools.mcp_server.GitHubTools")
-@patch("tools.mcp_server.PostHogClient")
+@patch("devrel_swarm.tools.mcp_server.SearchTools")
+@patch("devrel_swarm.tools.mcp_server.GitHubTools")
+@patch("devrel_swarm.tools.mcp_server.PostHogClient")
 class TestToolHandlerDelegation:
     """Tests verifying handlers correctly delegate to underlying clients."""
 
@@ -339,7 +339,7 @@ class TestToolHandlerDelegation:
     async def test_handle_fetch_issues_returns_list_of_dicts(
         self, MockPostHog, MockGitHub, MockSearch
     ):
-        from tools.github_tools import GitHubIssue
+        from devrel_swarm.tools.github_tools import GitHubIssue
 
         server = MCPServer(github_token="ghp_token")
         sample_issue = GitHubIssue(
@@ -367,7 +367,7 @@ class TestToolHandlerDelegation:
         assert result[0]["title"] == "Sample bug"
 
     async def test_handle_web_search_delegates_correctly(self, MockPostHog, MockGitHub, MockSearch):
-        from tools.search_tools import SearchResult
+        from devrel_swarm.tools.search_tools import SearchResult
 
         server = MCPServer()
         fake_result = SearchResult(

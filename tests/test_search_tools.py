@@ -6,7 +6,7 @@ Uses respx to mock httpx calls — never hits real APIs.
 import httpx
 import respx
 
-from tools.search_tools import SearchResult, SearchTools
+from devrel_swarm.tools.search_tools import SearchResult, SearchTools
 
 # ---------------------------------------------------------------------------
 # Helpers
