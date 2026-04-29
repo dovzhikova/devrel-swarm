@@ -12,6 +12,7 @@ from typing import Any, Optional
 
 from devrel_swarm.core.base import get_kb_search, load_agent_prompt
 from devrel_swarm.core.llm import LLMClient
+from devrel_swarm.quality import generate_with_pipeline
 from devrel_swarm.tools.api_client import PostHogClient
 from devrel_swarm.tools.code_validator import CodeValidator
 from devrel_swarm.tools.search_tools import SearchTools
@@ -292,27 +293,20 @@ Always cite which knowledge base documents you referenced."""
 
         if self.llm_client:
             try:
-                content, trace = await self.llm_client.generate_with_revision(
+                content, strengths, issues = await generate_with_pipeline(
+                    llm_client=self.llm_client,
                     system_prompt=self.SYSTEM_PROMPT,
                     user_prompt=prompt,
-                    temperature=0.5,
-                    max_tokens=8192,
-                    max_rounds=2,
-                    min_score=7,
+                    content_type="tutorial",
+                    logger=logger,
                 )
                 base_result["content"] = content
                 base_result["revision"] = {
-                    "rounds": trace.revision_rounds,
-                    "final_score": trace.final_score,
-                    "strengths": (
-                        trace.critiques[-1].strengths if trace.critiques else []
-                    ),
+                    "strengths": strengths,
                     "remaining_issues": [
-                        i for i in (
-                            trace.critiques[-1].issues if trace.critiques else []
-                        )
-                        if i.get("severity") == "high"
-                    ],
+                        i for i in issues
+                        if isinstance(i, dict) and i.get("severity") == "high"
+                    ] if issues and isinstance(issues[0], dict) else issues,
                 }
 
                 # Validate code blocks in generated content
