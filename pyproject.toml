@@ -47,6 +47,9 @@ dev = [
 where = ["src"]
 include = ["devrel_swarm*"]
 
+[tool.setuptools.package-data]
+"devrel_swarm.project.templates" = ["*.toml", "*.md", "*.gitignore"]
+
 [tool.pytest.ini_options]
 minversion = "7.0"
 addopts = "-v --cov=devrel_swarm --cov-report=term-missing"

@@ -1,0 +1,10 @@
+# Auto-managed by `devrel init`. Edit only if you know what you're doing.
+# Generated outputs and runtime state are gitignored; the editorial
+# contract files (config.toml, voice.md, style.md, slop-blocklist.md) are
+# intended to be committed.
+
+kb/
+deliverables/
+context/
+state.db
+.env
