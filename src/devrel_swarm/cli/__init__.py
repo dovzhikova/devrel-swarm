@@ -20,6 +20,8 @@ from devrel_swarm.cli.experiment import experiment_command
 from devrel_swarm.cli.intel import intel_command
 from devrel_swarm.cli.sales import sales_app
 from devrel_swarm.cli.marketing import marketing_app
+from devrel_swarm.cli.kb import kb_app
+from devrel_swarm.cli.schedule import schedule_app
 
 
 app = typer.Typer(
@@ -61,6 +63,8 @@ app.command(name="experiment")(experiment_command)
 app.command(name="intel")(intel_command)
 app.add_typer(sales_app, name="sales")
 app.add_typer(marketing_app, name="marketing")
+app.add_typer(kb_app, name="kb")
+app.add_typer(schedule_app, name="schedule")
 
 
 if __name__ == "__main__":
