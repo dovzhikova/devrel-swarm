@@ -17,6 +17,8 @@ from devrel_swarm.cli.triage import triage_command
 from devrel_swarm.cli.listen import listen_command
 from devrel_swarm.cli.synthesize import synthesize_command
 from devrel_swarm.cli.experiment import experiment_command
+from devrel_swarm.cli.intel import intel_command
+from devrel_swarm.cli.sales import sales_app
 
 
 app = typer.Typer(
@@ -55,6 +57,8 @@ app.command(name="triage")(triage_command)
 app.command(name="listen")(listen_command)
 app.command(name="synthesize")(synthesize_command)
 app.command(name="experiment")(experiment_command)
+app.command(name="intel")(intel_command)
+app.add_typer(sales_app, name="sales")
 
 
 if __name__ == "__main__":
