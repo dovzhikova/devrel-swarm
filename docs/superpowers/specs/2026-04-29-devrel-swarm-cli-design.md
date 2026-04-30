@@ -200,7 +200,7 @@ Atlas keeps its existing public surface (`run_weekly_cycle`, `delegate`, etc.); 
 
 ## Migration from current state
 
-1. Tag-and-archive the SaaS branch: `git tag archive/v0-agentic-alpha product/v0-agentic-alpha`, then leave the branch in place but stop building on it.
+1. ✅ Tag-and-archive the SaaS branch (done in Phase 5 as `archive/v0-agentic-alpha`; local `product/v0-agentic-alpha` branch removed). View the archived history with `git log archive/v0-agentic-alpha`.
 2. Mark the superseded plan with a deprecation header pointing to this spec.
 3. Salvage from Phase A: `BudgetGate`, `InstanceStorage` (rebadged as `project/state.py` consumer), and the A.4 hardening test patterns. The A.4 hardening commit on the worktree branch can be cherry-picked or dropped — its security contributions (path traversal, fail-closed) are not needed in a CLI that runs locally with no inbound network surface.
 4. Delete: `tools/http_bridge.py`, `tools/storage.py`'s job/cost endpoints if the FastAPI dep is dropped, `central-app/` references in docs.
