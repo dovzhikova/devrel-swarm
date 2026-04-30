@@ -136,6 +136,48 @@ def test_deliverables_show_missing(tmp_path):
     assert r.exit_code == 1, r.output
 
 
+def test_deliverables_list_when_dir_absent(tmp_path):
+    """`deliverables list` exits 0 with friendly notice when dir doesn't exist."""
+    _init(tmp_path)
+    d = tmp_path / ".devrel" / "deliverables"
+    if d.exists():
+        for child in d.rglob("*"):
+            if child.is_file():
+                child.unlink()
+        d.rmdir()
+    r = _run(tmp_path, ["deliverables", "list"])
+    assert r.exit_code == 0, r.output
+    assert "No deliverables directory" in r.output
+
+
+def test_deliverables_show_when_dir_absent(tmp_path):
+    """`deliverables show` exits 1 when deliverables dir is missing."""
+    _init(tmp_path)
+    d = tmp_path / ".devrel" / "deliverables"
+    if d.exists():
+        for child in d.rglob("*"):
+            if child.is_file():
+                child.unlink()
+        d.rmdir()
+    r = _run(tmp_path, ["deliverables", "show", "anything"])
+    assert r.exit_code == 1, r.output
+    assert "No deliverables directory" in r.output
+
+
+def test_deliverables_show_multiple_matches(tmp_path):
+    """Substring matching multiple files exits 1 and lists candidates."""
+    _init(tmp_path)
+    d = tmp_path / ".devrel" / "deliverables"
+    d.mkdir(parents=True, exist_ok=True)
+    (d / "alpha-post.md").write_text("A")
+    (d / "beta-post.md").write_text("B")
+    r = _run(tmp_path, ["deliverables", "show", "post"])
+    assert r.exit_code == 1, r.output
+    assert "Multiple matches" in r.output
+    assert "alpha-post.md" in r.output
+    assert "beta-post.md" in r.output
+
+
 # ---- config ----------------------------------------------------------
 
 def test_config_get_existing_key(tmp_path):
