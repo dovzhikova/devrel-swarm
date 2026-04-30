@@ -15,6 +15,7 @@ from rich.console import Console
 from devrel_swarm.core.llm import LLMClient
 from devrel_swarm.project.paths import ProjectNotFoundError, ProjectPaths, find_devrel_root
 from devrel_swarm.quality.editorial import AbortLoud, run_pipeline
+from devrel_swarm.quality.slop import find_slop, parse_blocklist
 
 console = Console()
 
@@ -90,6 +91,33 @@ def draft_command(
             console.print("[yellow]⚠[/yellow] Flagged: persona or readability gates failed twice; output shipped anyway.")
 
     asyncio.run(_do())
+
+
+@content_app.command("slop")
+def slop_command(
+    file: Path = typer.Argument(..., exists=True, readable=True, help="File to lint for slop."),
+) -> None:
+    """Run the deterministic regex slop blocklist against a file. Exits
+    nonzero if any blocklisted phrase is hit. No LLM calls."""
+    try:
+        root = find_devrel_root()
+    except ProjectNotFoundError as e:
+        console.print(f"[red]{e}[/red]")
+        raise typer.Exit(code=1) from None
+    paths = ProjectPaths.from_root(root)
+    if not paths.slop_file.is_file():
+        console.print(f"[red]No slop blocklist at {paths.slop_file}[/red]")
+        raise typer.Exit(code=1)
+    blocklist = parse_blocklist(paths.slop_file.read_text())
+    text = file.read_text()
+    hits = find_slop(text, blocklist)
+    if not hits:
+        console.print(f"[green]✓[/green] {file.name}: no slop hits ({len(blocklist)} phrases checked)")
+        return
+    console.print(f"[red]✗[/red] {file.name}: {len(hits)} slop hit(s)")
+    for h in hits[:50]:
+        console.print(f"  [yellow]{h.phrase!r}[/yellow] at offset {h.start}")
+    raise typer.Exit(code=1)
 
 
 @content_app.command("audit")

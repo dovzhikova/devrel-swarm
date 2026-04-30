@@ -22,6 +22,9 @@ from devrel_swarm.cli.sales import sales_app
 from devrel_swarm.cli.marketing import marketing_app
 from devrel_swarm.cli.kb import kb_app
 from devrel_swarm.cli.schedule import schedule_app
+from devrel_swarm.cli.cost import cost_command
+from devrel_swarm.cli.deliverables import deliverables_app
+from devrel_swarm.cli.config import config_app
 
 
 app = typer.Typer(
@@ -65,6 +68,9 @@ app.add_typer(sales_app, name="sales")
 app.add_typer(marketing_app, name="marketing")
 app.add_typer(kb_app, name="kb")
 app.add_typer(schedule_app, name="schedule")
+app.command(name="cost")(cost_command)
+app.add_typer(deliverables_app, name="deliverables")
+app.add_typer(config_app, name="config")
 
 
 if __name__ == "__main__":
