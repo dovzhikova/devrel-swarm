@@ -25,6 +25,8 @@ from devrel_swarm.cli.schedule import schedule_app
 from devrel_swarm.cli.cost import cost_command
 from devrel_swarm.cli.deliverables import deliverables_app
 from devrel_swarm.cli.config import config_app
+from devrel_swarm.cli.docs import docs_app
+from devrel_swarm.cli.video import video_app
 
 
 app = typer.Typer(
@@ -71,6 +73,8 @@ app.add_typer(schedule_app, name="schedule")
 app.command(name="cost")(cost_command)
 app.add_typer(deliverables_app, name="deliverables")
 app.add_typer(config_app, name="config")
+app.add_typer(docs_app, name="docs")
+app.add_typer(video_app, name="video")
 
 
 if __name__ == "__main__":
