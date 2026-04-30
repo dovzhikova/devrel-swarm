@@ -7,6 +7,7 @@ import os
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+import typer
 from typer.testing import CliRunner
 
 from devrel_swarm.cli import app
@@ -105,3 +106,145 @@ def test_audit_runs_pipeline_against_existing_file(tmp_path):
         os.chdir(cwd)
     assert result.exit_code == 0, result.output
     assert "rewritten" in result.output or "rewritten" in (tmp_path / ".devrel" / "deliverables").glob("*.md").__iter__().__next__().read_text()
+
+
+def test_audit_fails_without_project(tmp_path):
+    draft = tmp_path / "draft.md"
+    draft.write_text("hello")
+    cwd = os.getcwd()
+    os.chdir(tmp_path)
+    try:
+        result = runner.invoke(
+            app,
+            ["content", "audit", str(draft), "--type", "tutorial"],
+            env={"ANTHROPIC_API_KEY": "sk-ant-test", **os.environ},
+        )
+    finally:
+        os.chdir(cwd)
+    assert result.exit_code != 0
+
+
+def test_build_llm_client_raises_without_api_key(monkeypatch):
+    from devrel_swarm.cli import content as content_mod
+
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    with pytest.raises(typer.BadParameter):
+        content_mod._build_llm_client()
+
+
+@patch("devrel_swarm.cli.content._build_llm_client")
+def test_draft_aborts_loud_exits_nonzero(mock_client, tmp_path):
+    from devrel_swarm.quality.editorial import AbortLoud
+
+    _init_project(tmp_path)
+    mock_client.return_value = MagicMock(generate=AsyncMock(return_value=("draft", None)))
+
+    async def _raise(**kwargs):
+        raise AbortLoud("slop persists")
+
+    cwd = os.getcwd()
+    os.chdir(tmp_path)
+    try:
+        with patch("devrel_swarm.cli.content.run_pipeline", new=_raise):
+            result = runner.invoke(
+                app,
+                ["content", "draft", "topic", "--type", "tutorial"],
+                env={"ANTHROPIC_API_KEY": "sk-ant-test", **os.environ},
+            )
+    finally:
+        os.chdir(cwd)
+    assert result.exit_code == 1
+
+
+@patch("devrel_swarm.cli.content._build_llm_client")
+def test_draft_flagged_prints_warning(mock_client, tmp_path):
+    _init_project(tmp_path)
+    mock_client.return_value = MagicMock(generate=AsyncMock(return_value=("draft", None)))
+    flagged_result = MagicMock(
+        final_text="Final.",
+        flagged=True,
+        stages=[],
+        revision_trace={"content_type": "tutorial", "stages": []},
+    )
+
+    cwd = os.getcwd()
+    os.chdir(tmp_path)
+    try:
+        with patch(
+            "devrel_swarm.cli.content.run_pipeline",
+            new=AsyncMock(return_value=flagged_result),
+        ):
+            result = runner.invoke(
+                app,
+                ["content", "draft", "topic", "--type", "tutorial"],
+                env={"ANTHROPIC_API_KEY": "sk-ant-test", **os.environ},
+            )
+    finally:
+        os.chdir(cwd)
+    assert result.exit_code == 0, result.output
+    assert "Flagged" in result.output
+
+
+@patch("devrel_swarm.cli.content._build_llm_client")
+def test_audit_aborts_loud_exits_nonzero(mock_client, tmp_path):
+    from devrel_swarm.quality.editorial import AbortLoud
+
+    _init_project(tmp_path)
+    mock_client.return_value = MagicMock(generate=AsyncMock(return_value=("x", None)))
+    draft = tmp_path / "draft.md"
+    draft.write_text("seed")
+
+    async def _raise(**kwargs):
+        raise AbortLoud("nope")
+
+    cwd = os.getcwd()
+    os.chdir(tmp_path)
+    try:
+        with patch("devrel_swarm.cli.content.run_pipeline", new=_raise):
+            result = runner.invoke(
+                app,
+                ["content", "audit", str(draft), "--type", "tutorial"],
+                env={"ANTHROPIC_API_KEY": "sk-ant-test", **os.environ},
+            )
+    finally:
+        os.chdir(cwd)
+    assert result.exit_code == 1
+
+
+@patch("devrel_swarm.cli.content._build_llm_client")
+def test_audit_flagged_prints_warning(mock_client, tmp_path):
+    _init_project(tmp_path)
+    mock_client.return_value = MagicMock(generate=AsyncMock(return_value=("x", None)))
+    draft = tmp_path / "draft.md"
+    draft.write_text("seed")
+    flagged_result = MagicMock(
+        final_text="Cleaned.",
+        flagged=True,
+        stages=[],
+        revision_trace={"content_type": "tutorial", "stages": []},
+    )
+
+    cwd = os.getcwd()
+    os.chdir(tmp_path)
+    try:
+        with patch(
+            "devrel_swarm.cli.content.run_pipeline",
+            new=AsyncMock(return_value=flagged_result),
+        ):
+            result = runner.invoke(
+                app,
+                ["content", "audit", str(draft), "--type", "tutorial"],
+                env={"ANTHROPIC_API_KEY": "sk-ant-test", **os.environ},
+            )
+    finally:
+        os.chdir(cwd)
+    assert result.exit_code == 0, result.output
+    assert "Flagged" in result.output
+
+
+def test_slug_helper_handles_special_chars():
+    from devrel_swarm.cli.content import _slug
+
+    assert _slug("Hello, World!") == "hello-world"
+    assert _slug("@#$%^&*") == "draft"
+    assert _slug("a" * 100) == "a" * 48

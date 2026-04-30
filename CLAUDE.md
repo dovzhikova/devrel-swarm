@@ -143,6 +143,14 @@ src/devrel_swarm/project/  Project bootstrap. paths.py walks cwd to find
                            .devrel/ idempotently. templates/ holds the
                            starter content for voice.md, style.md,
                            slop-blocklist.md, config.toml, .gitignore.
+src/devrel_swarm/quality/  8-stage editorial pipeline. voice.py loads
+                           voice.md; style.py loads + parses targets;
+                           slop.py runs regex + LLM lint + force-rewrite;
+                           persona.py scores via skeptical-dev persona;
+                           readability.py computes Flesch + sentence
+                           stats; editorial.py orchestrates the 8 stages
+                           with copy-edit fallback on persona/readability
+                           failures.
 
 knowledge_base/   — Curated product docs (auto-harvestable via kb_harvester)
 optimize/         — Per-agent prompt files. Drop optimize/{agent}/system_prompt.txt to override.
@@ -275,6 +283,12 @@ devrel init --name openclaw --url https://openclaw.ai --github-repo openclaw/ope
 devrel doctor
 devrel doctor --json
 
+# Generate content via the 8-stage editorial pipeline
+devrel content draft "tutorial on feature flags" --type tutorial
+
+# Audit an existing draft
+devrel content audit ./draft.md --type blog_post
+
 # Run full weekly cycle
 python -m devrel_swarm.core.atlas --weekly-cycle
 
@@ -314,6 +328,9 @@ pytest tests/ -v
 - **Knowledge base is markdown** — one .md file per topic, searched via TF-IDF
 - **Prompts from files** — use `load_agent_prompt()` for overridable prompts
 - **Parallel when independent** — use `asyncio.gather()` for independent operations
+- **Content quality** — new content-producing agents must call `quality.editorial.run_pipeline`,
+  not `generate_with_revision` directly. The single legacy revision loop
+  is for fallback only (no .devrel/ project, or pipeline AbortLoud).
 
 ---
 
