@@ -1,255 +1,223 @@
-# AI DevRel + Sales Agent System
+# devrel-swarm
 
-**12 autonomous AI agents that replace a full developer advocacy and sales team.**
+**A developer-first CLI for AI-powered DevRel, sales, and marketing.**
 
-This system handles the complete DevRel + Sales lifecycle — community triage, social listening, feedback synthesis, growth experimentation, content creation, video production, technical documentation, competitive intelligence, sales enablement, campaign marketing, system health monitoring, and brand consistency auditing — all coordinated through a single orchestrator with shared context, cross-run memory, and a self-improving content pipeline.
+`devrel-swarm` is a `pipx`-installable command-line tool that runs a 12-agent system against any project — community triage, social listening, theme extraction, growth experiments, content production, video tutorials, documentation, competitive intel, sales outreach, and brand-consistent campaigns. Operates on a project repo the way `git`, `npm`, and `cargo` do.
 
-**Currently targeting [OpenClaw](https://openclaw.ai)** — a self-hosted, local-first personal AI assistant platform. Retargetable at any DevTools product by changing `product_name` in `config/agent_config.yaml` (or `PRODUCT_NAME` env var) and swapping the knowledge base.
+Every piece of content the system produces flows through an 8-stage editorial pipeline (developmental edit → line edit → copy edit → anti-slop → reader-persona test → readability check → brand audit) so output reads like senior-editor work, not generic AI prose.
 
 > Every deliverable in this repository was produced by the agent system itself.
 
 ---
 
-## What It Does
-
-```
-Pre-flight  Watchdog checks system health, integration status, budget usage
-
-Monday      Sage scans GitHub → triages issues, flags churn risks, spots champions
-            Echo scans Reddit/HN/Twitter → LLM-classified sentiment, engagement opportunities
-
-Tuesday     Rex + Iris run in parallel:
-              Rex → competitive landscape, threat assessment, opportunity mapping
-              Iris → theme extraction, pain point ranking, developer journey mapping
-
-Wednesday   Nova + Kai run in parallel:
-              Nova → A/B experiments with power analysis, funnel optimization
-              Kai → tutorials grounded in pain points, deduped against previous weeks
-
-Thursday    Vox produces video → screen-recorded walkthroughs with TTS narration
-            Dex generates docs → architecture overviews and API references from source code
-
-Friday      Sentinel audits all content → brand voice, ICP alignment, messaging coherence
-            Atlas compiles OKRs → archives context, publishes to Sheets, sends digest
-```
-
-One command runs the full pipeline:
+## Quick start
 
 ```bash
-python -m devrel_swarm.core.atlas --weekly-cycle
+pipx install devrel-swarm
+
+cd /path/to/your/project
+devrel init --name myproject --url https://myproject.dev --github-repo me/myproject
+
+# edit .devrel/voice.md, .devrel/style.md, .devrel/slop-blocklist.md
+
+export ANTHROPIC_API_KEY=sk-ant-...
+devrel doctor                                  # check env + scaffold
+devrel content draft "tutorial on feature flags" --type tutorial
+devrel run                                     # full weekly pipeline
 ```
 
----
-
-## The Agents
-
-| Agent | Role | What It Produces |
-|-------|------|-----------------|
-| **Atlas** | Orchestrator | Coordinates all agents, manages shared context, retries with backoff, tracks OKRs, publishes & notifies |
-| **Watchdog** | System Health | Pre-flight health checks, integration status, budget monitoring, stale output detection |
-| **Sage** | Community Manager | Issue triage reports with priority scoring, sentiment analysis, churn risk flags, suggested responses |
-| **Echo** | Social Listener | Cross-platform mention reports with LLM-classified sentiment, engagement opportunities, reputation risk alerts |
-| **Iris** | Feedback Synthesizer | Theme extraction with chunked processing (no signal caps), developer journey maps, content opportunity lists |
-| **Nova** | Growth Strategist | Pre-registered experiment designs with power analysis, funnel drop-off detection, cohort segmentation |
-| **Kai** | Content Creator | Tutorials, blog posts, changelogs — revision-looped, deduped against previous weeks, code-validated |
-| **Vox** | Video Producer | Screen-recorded tutorials with TTS narration, FFmpeg overlays, step-by-step walkthroughs |
-| **Dex** | Documentation Generator | Architecture overviews, API references, module guides — parsed from source via AST |
-| **Rex** | Competitive Intelligence | Parallel competitor discovery, threat assessment, opportunity mapping, Apollo enrichment |
-| **Pax** | Sales Enablement | Outreach emails, battle cards, nurture sequences — revision-looped, grounded in Rex intel + Iris pain points |
-| **Mox** | Campaign Marketing | Blog posts, landing pages, social batches, campaign briefs — revision-looped, parallel analytics |
-| **Sentinel** | Brand Auditor | Post-pipeline brand voice audit, ICP alignment check, cross-piece consistency, quality scoring |
-
-### Pipeline Architecture
+After `devrel init`, your repo has a `.devrel/` directory with:
 
 ```
-Watchdog (health check)
-    │
-    ▼
-Sage + Echo + Dex ──── parallel (no cross-dependencies)
-    │
-    ▼
-Rex + Iris ──────────── parallel (both use Sage + Echo output)
-    │
-    ▼
-Nova + Kai ──────────── parallel (both use Iris themes)
-    │
-    ▼
-Vox (uses Kai content)
-    │
-    ▼
-Sentinel (brand audit)
-    │
-    ▼
-Instantly sync → OKRs → Sheets publish → Telegram + Email digest
+.devrel/
+  config.toml          # product identity, model selection, budget caps
+  voice.md             # tone profile + sample passages    (commit)
+  style.md             # house style + per-content targets (commit)
+  slop-blocklist.md    # banned phrases                    (commit)
+  kb/                  # knowledge base, TF-IDF indexed
+  deliverables/        # generated outputs
+  state.db             # SQLite: jobs, costs, checkpoints
 ```
 
-Every downstream agent sees upstream insights. Kai doesn't guess what to write about — it writes about the pain points Iris extracted from the issues Sage triaged, deduped against the last 4 weeks of content history.
+The four committed files (`config.toml`, `voice.md`, `style.md`, `slop-blocklist.md`) encode the editorial contract. Diff them like any other source.
 
 ---
 
-## Content Quality Pipeline
+## Commands
 
-Every content agent (Kai, Mox, Pax) uses a **generate → critique → revise** loop:
+```
+# Bootstrap & health
+devrel init                      bootstrap .devrel/ in cwd
+devrel doctor [--json]           check env, API keys, KB freshness
+devrel cost [--month YYYY-MM]    token + USD report from state.db
 
-1. **Draft** — Generate content grounded in KB + upstream context
-2. **Critique** — LLM editorial review scores accuracy, clarity, voice, structure (1-10)
-3. **Revise** — If score < 7 or high-severity issues found, revise and re-critique
-4. **Validate** — Code blocks checked via `ast.parse()` (Python), delimiter balancing (JS), `json.loads()` (JSON)
-5. **Audit** — Sentinel runs post-pipeline brand consistency check across all outputs
+# Pipelines
+devrel run                       full weekly cycle
+devrel run --health              health check only (Watchdog)
+devrel run --agent NAME --task T run a single agent ad-hoc
 
-Revision trace (rounds, scores, remaining issues) is included in every output for transparency.
+# DevRel
+devrel triage [--days N]         GitHub issue triage (Sage)
+devrel listen [--platforms ...]  Reddit / HN / X (Echo)
+devrel synthesize                theme extraction (Iris)
+devrel experiment HYPOTHESIS     A/B + power analysis (Nova)
 
----
+# Content
+devrel content draft PROMPT      revision-looped + 5-lever quality (Kai)
+devrel content audit FILE        run quality pipeline on existing draft
+devrel content slop FILE         run only the anti-slop pass
+devrel docs build                AST-based docs (Dex)
+devrel video record SCRIPT       screen-recorded tutorial (Vox)
 
-## Cross-Run Memory
+# Sales
+devrel intel COMPETITOR
+devrel sales outreach COMPANY
+devrel sales battlecard COMPETITOR
+devrel sales sequence CAMPAIGN
 
-The system maintains memory across weekly cycles:
+# Marketing
+devrel marketing blog TOPIC
+devrel marketing landing TOPIC
+devrel marketing social TOPIC
+devrel marketing campaign BRIEF
 
-- **WeeklyMemory** summaries extracted from the last 4 archived contexts
-- **Content dedup** — Kai's prompt includes previous content titles to avoid repetition
-- **Trend detection** — Recurring themes are flagged for deeper coverage
-- **Context archive** — Full SharedContext saved as `context_YYYY-WNN.json` per cycle
+# Knowledge base
+devrel kb add URL [--category C]
+devrel kb list
+devrel kb refresh
 
----
+# Config & schedule
+devrel config get KEY
+devrel config set KEY VALUE
+devrel schedule install | list | remove
 
-## Integrations
-
-| Integration | Module | Purpose |
-|-------------|--------|---------|
-| **Google Sheets** | `src/devrel_swarm/tools/sheets.py` | Content calendar — auto-publishes drafts for editorial review |
-| **Telegram** | `src/devrel_swarm/tools/notifications.py` | Real-time alerts on pipeline completion |
-| **Email** | `src/devrel_swarm/tools/notifications.py` | HTML daily/weekly digest reports |
-| **Instantly** | `src/devrel_swarm/tools/instantly_client.py` | Cold email campaigns with parallel lead upload |
-| **Apollo** | `src/devrel_swarm/tools/apollo_client.py` | Lead enrichment with firmographic data |
-| **Firecrawl/Brave** | `src/devrel_swarm/tools/search_tools.py` | Web search with dual-provider fallback |
-| **MCP** | `src/devrel_swarm/tools/mcp_server.py` | 14 tools for Claude Desktop, Cursor, Windsurf |
-
-All integrations degrade gracefully — if env vars aren't set, the step is skipped.
-
----
-
-## Quick Start
-
-```bash
-git clone https://github.com/dovzhikova/devrel-swarm.git
-cd devrel-swarm
-
-pip install -r requirements.txt
-
-cp config/env.example .env
-# Required: ANTHROPIC_API_KEY
-# Optional: GITHUB_TOKEN, FIRECRAWL_API_KEY, INSTANTLY_API_KEY, APOLLO_API_KEY
-# Notifications: TELEGRAM_BOT_TOKEN, EMAIL_SENDER, SHEETS_SPREADSHEET_ID
-
-# Run the full weekly pipeline
-python -m devrel_swarm.core.atlas --weekly-cycle
-
-# Run a single agent
-python -m devrel_swarm.core.atlas --agent kai --task "Write a tutorial on feature flags"
-python -m devrel_swarm.core.atlas --agent sentinel --task "Audit this week's content"
-python -m devrel_swarm.core.atlas --agent watchdog --task "Check system health"
-
-# Auto-populate knowledge base from public content
-python -m devrel_swarm.tools.kb_harvester --url "https://example.com/docs" --category docs
-
-# Install cron schedule
-python -m devrel_swarm.tools.scheduler --action install
-
-# Send digest manually
-python -m devrel_swarm.tools.scheduler --action digest --mode weekly
-
-# Run tests
-pytest tests/ -v
+# Outputs
+devrel deliverables list
+devrel deliverables show NAME
 ```
 
-### Environment Variables
+Global flags on most verbs: `--json` (machine-readable output) and `--quiet`.
 
-| Variable | Required | Used By |
+---
+
+## Editorial quality pipeline
+
+Every content-producing run (`devrel content draft`, `devrel content audit`, plus internal calls from `marketing`, `sales`, `kb`-driven tutorials) flows through 8 stages:
+
+```
+1. Generate          KB-grounded; voice.md + style.md in prompt
+2. Developmental     critique+revise (structure, argument, hook)
+3. Line edit         critique+revise (rhythm, voice fidelity)
+4. Copy edit         critique+revise (grammar, code, consistency)
+5. Anti-slop         regex blocklist + LLM lint; force-rewrite on hit;
+                       second failure aborts loud with a phrase report
+6. Reader persona    "skeptical senior backend dev" scores 1-10
+7. Readability       Flesch + sentence variance + jargon density
+                       checked against per-content-type targets
+8. Brand audit       Sentinel (existing 6-dimension audit)
+
+→ deliverables/ + revision-trace.json (every stage's score + diff)
+```
+
+Stages 5-7 use Haiku for cost; stages 2-4 use Sonnet. Total cost ≈ 2.5-4× a single revision loop, with prompt caching pulling toward the lower bound. BudgetGate guardrails (configurable in `.devrel/config.toml`) track spend; `devrel cost --month YYYY-MM` reports it.
+
+---
+
+## How it works internally
+
+Hub-and-spoke with 12 agents. Atlas orchestrates; specialists execute across three pipelines.
+
+```
+Atlas (Orchestrator)
+├── Health: Watchdog (pre-flight) + Sentinel (post-pipeline brand audit)
+├── DevRel: Sage, Echo, Iris, Nova, Kai, Vox, Dex
+└── Sales:  Rex, Pax, Mox
+```
+
+The weekly cycle (driven by `devrel run`):
+
+```
+Stage 0: Watchdog         (health + budget check)
+Stage 1: Sage + Echo + Dex     parallel
+Stage 2: Rex + Iris            parallel
+Stage 3: Nova + Kai            parallel (Kai routes through quality pipeline)
+Stage 4: Vox
+Stage 5: Sentinel              brand audit
+Stage 6: Instantly sync, OKR compilation, Sheets publish, digest
+```
+
+The `Atlas.delegate()` API also dispatches single-agent tasks, which is what every non-`run` verb wraps. So `devrel triage` is `Atlas.delegate("sage", "Triage GitHub issues from the last 7 days")` — the agents never appear in the public CLI surface, only the verbs.
+
+---
+
+## Configuration
+
+`.devrel/config.toml` example:
+
+```toml
+[project]
+name = "openclaw"
+url = "https://openclaw.ai"
+github_repo = "openclaw/openclaw"
+
+[model]
+default = "claude-sonnet-4-6"
+cheap = "claude-haiku-4-5-20251001"
+opus_opt_in = true
+
+[budget]
+monthly_usd = 100.0
+warn_at_pct = 80
+```
+
+Edit with `devrel config set <key> <value>` or directly in your editor.
+
+### Environment variables
+
+| Variable | Required | Used by |
 |----------|----------|---------|
-| `ANTHROPIC_API_KEY` | Yes | All LLM-powered agents |
-| `GITHUB_TOKEN` | For issue triage | Sage |
-| `FIRECRAWL_API_KEY` | For web search | Echo, Kai, Rex, KB Harvester |
-| `INSTANTLY_API_KEY` | For email campaigns | Pax, Mox |
-| `APOLLO_API_KEY` | For lead enrichment | Rex, Pax |
-| `TELEGRAM_BOT_TOKEN` | For notifications | Atlas pipeline |
-| `EMAIL_SENDER` / `EMAIL_PASSWORD` | For email digests | Atlas pipeline |
-| `SHEETS_SPREADSHEET_ID` | For content calendar | Atlas pipeline |
-| `OPENAI_API_KEY` | For TTS narration | Vox |
+| `ANTHROPIC_API_KEY` | yes | every LLM-using verb |
+| `GITHUB_TOKEN` | for triage | Sage |
+| `FIRECRAWL_API_KEY` | for KB harvest + intel | `kb add`, Echo, Rex |
+| `BRAVE_API_KEY` | optional fallback | search |
+| `INSTANTLY_API_KEY` | for cold-email sync | Pax, Mox |
+| `APOLLO_API_KEY` | for lead enrichment | Rex, Pax |
+| `TELEGRAM_BOT_TOKEN` | for digests | Atlas pipeline |
+| `EMAIL_SENDER` / `EMAIL_PASSWORD` | for digests | Atlas pipeline |
+| `OPENAI_API_KEY` | for video TTS | Vox |
+
+`.env` files at the project root are loaded automatically. Cross-project shared keys can live at `~/.devrel/secrets.env`.
 
 ---
 
-## Project Structure
+## Retargeting to another product
 
-```
-src/devrel_swarm/core/
-  atlas.py           Orchestrator — delegation, retry, SharedContext, OKR tracking,
-                     cross-run memory, publish & notify
-  watchdog.py        System Health — pre-flight checks, budget monitoring, integration status
-  sage.py            Community Manager — issue triage, sentiment, churn risk
-  echo.py            Social Listener — Reddit/HN/Twitter, LLM batch sentiment
-  iris.py            Feedback Synthesizer — chunked theme extraction, journey mapping
-  nova.py            Growth Strategist — experiments, funnels, power analysis
-  kai.py             Content Creator — revision-looped tutorials, content dedup
-  vox.py             Video Producer — screen recording, TTS, FFmpeg assembly
-  dex.py             Documentation Generator — AST parsing, architecture docs
-  rex.py             Competitive Intelligence — parallel search, Apollo enrichment
-  pax.py             Sales Enablement — revision-looped outreach, battle cards
-  mox.py             Campaign Marketing — revision-looped content, parallel analytics
-  sentinel.py        Brand Auditor — voice, ICP, messaging, quality scoring
-  base.py            Shared utilities — TF-IDF KB search, prompt file loading
-  llm.py             LLM client — generate, critique, revision loop, per-agent cost tracking
-  agent_config.py    YAML config loader with product_name centralization
-  video/             Vox sub-modules (script parser, TTS, recorder, overlays, assembler)
-
-src/devrel_swarm/tools/
-  api_client.py      Async PostHog API v2 client with typed DTOs
-  github_tools.py    Async GitHub client (issues, comments, profiles, labels)
-  search_tools.py    Web search (Firecrawl + Brave), official docs via GitMCP
-  code_validator.py  Syntax validation for code blocks in generated content
-  notifications.py   Telegram + email delivery for digests and alerts
-  sheets.py          Google Sheets content calendar publisher
-  scheduler.py       Cron-based pipeline scheduling with CLI
-  kb_harvester.py    Auto-populate knowledge base from public content
-  instantly_client.py  Instantly AI client with parallel bulk lead upload
-  apollo_client.py   Apollo.io client for lead enrichment
-  mcp_server.py      MCP server exposing 14 tools via JSON-RPC
-
-knowledge_base/      Curated product docs (auto-harvestable via kb_harvester)
-optimize/            Per-agent prompt optimization files
-tests/               Test suite (pytest + pytest-asyncio + respx)
-config/              Environment template + agent configuration YAML
-deliverables/        Agent-generated output artifacts
-context_archive/     Weekly SharedContext JSON snapshots
+```bash
+cd /path/to/other-project
+devrel init --name otherproduct --url https://otherproduct.dev --github-repo owner/otherproduct
+devrel kb add https://otherproduct.dev/docs --category docs
+# edit voice.md / style.md / slop-blocklist.md to match the other product's voice
+devrel doctor
+devrel run
 ```
 
----
-
-## Retargeting to Another Product
-
-The system is product-agnostic. To point it at a different product:
-
-1. **Set `product_name`** in `config/agent_config.yaml` — flows to Rex, Pax, Mox automatically
-2. **Harvest new KB** — `python -m devrel_swarm.tools.kb_harvester --url "https://newproduct.com/docs" --category docs`
-3. **Update `src/devrel_swarm/tools/github_tools.py`** — Change the `OWNER/REPO` constants
-4. **Optionally customize prompts** — Drop files into `optimize/{agent}/system_prompt.txt`
-5. **Run** — `python -m devrel_swarm.core.atlas --weekly-cycle`
-
-Works with: Supabase, Cal.com, Trigger.dev, Langfuse, Neon, Tinybird, or any product with a GitHub repo and docs.
+The agent system is product-agnostic. Per-project config + KB + voice files do all the targeting.
 
 ---
 
-## Tech Stack
+## Tech stack
 
 | Component | Choice |
-|-----------|--------|
-| Language | Python 3.12+ (async/await, dataclasses, type hints) |
+|---|---|
+| Language | Python 3.12+ |
+| CLI framework | Typer + Rich |
 | Agent SDK | Claude Agent SDK |
-| Tool protocol | Model Context Protocol (MCP) |
 | HTTP | httpx (async) |
-| Model | Claude Sonnet 4.6 |
-| Statistics | scipy (power analysis, Bayesian evaluation) |
-| Video | Playwright (recording) + FFmpeg (assembly) + OpenAI TTS |
-| Testing | pytest + pytest-asyncio + respx |
+| Default model | Claude Sonnet 4.6 (Haiku for cheap quality stages, Opus opt-in) |
+| Stats | scipy (power analysis, Bayesian eval) |
+| Video | Playwright + FFmpeg + OpenAI TTS |
+| Storage | SQLite per project (.devrel/state.db) |
+| Tests | pytest + pytest-asyncio + respx |
 
 ---
 
