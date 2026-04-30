@@ -4,9 +4,11 @@
 
 ## Identity
 
-This is a **multi-agent developer advocacy and sales system**. 12 specialized AI agents replace a full DevRel + Sales team — community management, social listening, feedback synthesis, growth experimentation, content creation, video production, documentation generation, competitive intelligence, sales enablement, campaign marketing, system health monitoring, and brand consistency auditing — for any open-source DevTools product.
+This is **`devrel-swarm`**, a `pipx`-installable Python CLI that runs a 12-agent DevRel + Sales + Marketing system against any project repo. Operates on `cwd` like `git` / `npm` — `devrel init` scaffolds a `.devrel/` directory with config, voice/style/slop files, knowledge base, and state DB. Every CLI verb (`devrel run`, `devrel content draft`, `devrel triage`, etc.) wraps a single-agent or pipeline call.
 
-The system is retargetable by changing `product_name` in `config/agent_config.yaml` (or `PRODUCT_NAME` env var) and swapping the knowledge base.
+Every piece of content flows through an 8-stage editorial quality pipeline (`quality.editorial.run_pipeline`) before being shipped: developmental edit → line edit → copy edit → anti-slop → reader-persona → readability → brand audit.
+
+The system is retargetable per project: each `.devrel/config.toml` carries the product identity (name, URL, github_repo), and `.devrel/kb/` carries the harvested docs.
 
 ---
 
