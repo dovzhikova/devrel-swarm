@@ -13,6 +13,10 @@ from devrel_swarm.cli.init import init_command
 from devrel_swarm.cli.doctor import doctor_command
 from devrel_swarm.cli.content import content_app
 from devrel_swarm.cli.run import run_command
+from devrel_swarm.cli.triage import triage_command
+from devrel_swarm.cli.listen import listen_command
+from devrel_swarm.cli.synthesize import synthesize_command
+from devrel_swarm.cli.experiment import experiment_command
 
 
 app = typer.Typer(
@@ -47,6 +51,10 @@ app.command(name="init")(init_command)
 app.command(name="doctor")(doctor_command)
 app.add_typer(content_app, name="content")
 app.command(name="run")(run_command)
+app.command(name="triage")(triage_command)
+app.command(name="listen")(listen_command)
+app.command(name="synthesize")(synthesize_command)
+app.command(name="experiment")(experiment_command)
 
 
 if __name__ == "__main__":
