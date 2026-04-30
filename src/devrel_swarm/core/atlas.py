@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Optional
 
 if TYPE_CHECKING:
+    from devrel_swarm.project.paths import ProjectPaths
     from devrel_swarm.tools.apollo_client import ApolloClient
 
 from devrel_swarm.core.agent_config import AgentConfig, load_config
@@ -243,6 +244,7 @@ class Atlas:
         config: Optional[AgentConfig] = None,
         instantly_client: Optional[InstantlyClient] = None,
         apollo_client: Optional["ApolloClient"] = None,
+        project_paths: Optional["ProjectPaths"] = None,
     ):
         self.api_client = api_client
         self.knowledge_base_path = knowledge_base_path
@@ -252,6 +254,16 @@ class Atlas:
         self.apollo_client = apollo_client
         self.config = config or AgentConfig()
         self.context = SharedContext(week_of=datetime.now().strftime("%Y-W%U"))
+
+        # If the caller passed a project_paths and the state DB exists, wire
+        # cost events from the LLMClient into the project's `costs` table.
+        if (
+            project_paths is not None
+            and self.llm_client is not None
+            and project_paths.state_db.is_file()
+        ):
+            from devrel_swarm.project.cost_sink import make_sqlite_sink
+            self.llm_client.set_cost_sink(make_sqlite_sink(project_paths.state_db))
 
         # Apply config retry settings
         self.MAX_RETRIES = self.config.retry_settings.get("max_retries", 2)
