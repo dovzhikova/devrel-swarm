@@ -19,6 +19,11 @@ console = Console()
 
 
 def cost_command(
+    month: str = typer.Option(
+        "",
+        "--month",
+        help="Filter to a YYYY-MM slice (e.g., '2026-04').",
+    ),
     json_output: bool = typer.Option(False, "--json", help="Emit machine-readable JSON."),
 ) -> None:
     """Show recorded LLM cost totals from the project state DB."""
@@ -26,23 +31,44 @@ def cost_command(
     if not paths.state_db.is_file():
         console.print("[yellow]No state.db yet. Run an agent first.[/yellow]")
         if json_output:
-            typer.echo(json.dumps({"total_usd": 0.0, "by_agent": {}, "calls": 0}))
+            typer.echo(
+                json.dumps(
+                    {
+                        "total_usd": 0.0,
+                        "by_agent": {},
+                        "calls": 0,
+                        "month_filter": month or None,
+                    }
+                )
+            )
         return
+
+    # Build a parameterised WHERE clause. The `where` literal is one of two
+    # fixed strings we control — user input flows only through `params`,
+    # so SQL injection is impossible.
+    where = ""
+    params: tuple = ()
+    if month:
+        where = "WHERE recorded_at LIKE ?"
+        params = (f"{month}%",)
 
     with open_db(paths.state_db) as conn:
         total_row = conn.execute(
-            "SELECT COALESCE(SUM(cost_usd), 0.0) AS total, COUNT(*) AS calls FROM costs"
+            f"SELECT COALESCE(SUM(cost_usd), 0.0) AS total, COUNT(*) AS calls "
+            f"FROM costs {where}",
+            params,
         ).fetchone()
         total_usd = float(total_row["total"]) if total_row else 0.0
         calls = int(total_row["calls"]) if total_row else 0
 
         by_agent_rows = conn.execute(
-            "SELECT agent, "
-            "COALESCE(SUM(cost_usd), 0.0) AS usd, "
-            "COALESCE(SUM(input_tokens), 0) AS in_tok, "
-            "COALESCE(SUM(output_tokens), 0) AS out_tok, "
-            "COUNT(*) AS calls "
-            "FROM costs GROUP BY agent ORDER BY usd DESC"
+            f"SELECT agent, "
+            f"COALESCE(SUM(cost_usd), 0.0) AS usd, "
+            f"COALESCE(SUM(input_tokens), 0) AS in_tok, "
+            f"COALESCE(SUM(output_tokens), 0) AS out_tok, "
+            f"COUNT(*) AS calls "
+            f"FROM costs {where} GROUP BY agent ORDER BY usd DESC",
+            params,
         ).fetchall()
 
     by_agent = {
@@ -58,13 +84,21 @@ def cost_command(
     if json_output:
         typer.echo(
             json.dumps(
-                {"total_usd": total_usd, "calls": calls, "by_agent": by_agent},
+                {
+                    "total_usd": total_usd,
+                    "calls": calls,
+                    "by_agent": by_agent,
+                    "month_filter": month or None,
+                },
                 indent=2,
             )
         )
         return
 
-    console.print(f"[bold]Total:[/bold] ${total_usd:.4f}  [dim]({calls} call(s))[/dim]")
+    suffix = f" for {month}" if month else ""
+    console.print(
+        f"[bold]Total{suffix}:[/bold] ${total_usd:.4f}  [dim]({calls} call(s))[/dim]"
+    )
     if not by_agent:
         console.print("[dim]No cost rows yet.[/dim]")
         return

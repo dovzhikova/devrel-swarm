@@ -97,6 +97,43 @@ def test_cost_no_api_key_required(tmp_path, monkeypatch):
     assert r.exit_code == 0, r.output
 
 
+def test_cost_month_filter(tmp_path):
+    _init(tmp_path)
+    db = tmp_path / ".devrel" / "state.db"
+    with sqlite3.connect(db) as conn:
+        # Two rows: one in 2026-04, one in 2026-05.
+        conn.execute(
+            "INSERT INTO costs (agent, model, input_tokens, output_tokens, cost_usd, recorded_at) "
+            "VALUES ('kai', 'm', 100, 50, 0.01, '2026-04-15 10:00:00')"
+        )
+        conn.execute(
+            "INSERT INTO costs (agent, model, input_tokens, output_tokens, cost_usd, recorded_at) "
+            "VALUES ('mox', 'm', 200, 100, 0.02, '2026-05-15 10:00:00')"
+        )
+        conn.commit()
+
+    # Without filter: both rows.
+    r_all = _run(tmp_path, ["cost", "--json"])
+    assert r_all.exit_code == 0
+    data_all = json.loads(r_all.output)
+    assert data_all["calls"] == 2
+
+    # April only.
+    r_apr = _run(tmp_path, ["cost", "--month", "2026-04", "--json"])
+    assert r_apr.exit_code == 0
+    data_apr = json.loads(r_apr.output)
+    assert data_apr["calls"] == 1
+    assert "kai" in data_apr["by_agent"]
+    assert "mox" not in data_apr["by_agent"]
+
+    # May only.
+    r_may = _run(tmp_path, ["cost", "--month", "2026-05", "--json"])
+    assert r_may.exit_code == 0
+    data_may = json.loads(r_may.output)
+    assert data_may["calls"] == 1
+    assert "mox" in data_may["by_agent"]
+
+
 # ---- deliverables ----------------------------------------------------
 
 def test_deliverables_list_empty(tmp_path):
