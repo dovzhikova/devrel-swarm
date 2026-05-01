@@ -160,6 +160,8 @@ Champion signals:
                     title=issue.title,
                     body=issue.body,
                     author=issue.author,
+                    comments_count=getattr(issue, "comments_count", 0) or 0,
+                    reactions_total=getattr(issue, "reactions_total", 0) or 0,
                 )
             )
 
@@ -212,6 +214,8 @@ Champion signals:
         title: str,
         body: str,
         author: str,
+        comments_count: int = 0,
+        reactions_total: int = 0,
     ) -> TriagedIssue:
         """Triage a single GitHub issue."""
         # Analyze sentiment
@@ -225,6 +229,14 @@ Champion signals:
         product_area = self._detect_product_area(title, body)
         priority = self._score_priority(title, body, sentiment)
 
+        # Champion detection — high-engagement issues / PR-referencing bodies
+        # are candidate champions for downstream identification.
+        champion = self._detect_champion_signal(
+            body=body,
+            comments_count=comments_count,
+            reactions_total=reactions_total,
+        )
+
         return TriagedIssue(
             issue_number=issue_number,
             title=title,
@@ -234,9 +246,42 @@ Champion signals:
             category=category,
             product_area=product_area,
             summary=f"[{priority.value.upper()}] {category} in {product_area}",
-            suggested_response=self._draft_response(title, category, priority),
+            suggested_response=self._draft_response(
+                title, category, priority, sentiment, author,
+            ),
             churn_risk=churn_risk,
+            champion_signal=champion,
         )
+
+    # Module-level threshold map — tuned high enough that random noise
+    # doesn't trigger champion-flagging, low enough that genuine community
+    # engagement is caught.
+    CHAMPION_THRESHOLDS = {
+        "comments_count": 3,
+        "reactions_total": 5,
+    }
+
+    def _detect_champion_signal(
+        self,
+        body: str,
+        comments_count: int = 0,
+        reactions_total: int = 0,
+    ) -> bool:
+        """Return True if the issue shows champion-grade engagement.
+
+        A "champion signal" means the user is going beyond just filing —
+        attracting community discussion (comments), strong reactions, or
+        referencing a PR they opened to fix the issue. Used by
+        ``_identify_champions`` downstream.
+        """
+        if (comments_count or 0) >= self.CHAMPION_THRESHOLDS["comments_count"]:
+            return True
+        if (reactions_total or 0) >= self.CHAMPION_THRESHOLDS["reactions_total"]:
+            return True
+        body_lower = (body or "").lower()
+        if "pr #" in body_lower or "#pull" in body_lower or "pull/" in body_lower:
+            return True
+        return False
 
     def _analyze_sentiment(self, text: str) -> SentimentScore:
         """Rule-based sentiment pre-filter before LLM analysis."""
@@ -321,8 +366,30 @@ Champion signals:
             return IssuePriority.MEDIUM
         return IssuePriority.LOW
 
-    def _draft_response(self, title: str, category: str, priority: IssuePriority) -> str:
-        """Draft a suggested first response."""
+    def _draft_response(
+        self,
+        title: str,
+        category: str,
+        priority: IssuePriority,
+        sentiment: SentimentScore = SentimentScore.NEUTRAL,
+        author: str = "",
+    ) -> str:
+        """Draft a suggested first response.
+
+        Branch order matters: a CHURNING user with a CRITICAL bug should
+        receive the empathetic response, not the templated critical one,
+        so we check sentiment first.
+        """
+        # CHURNING comes BEFORE CRITICAL on purpose — frustrated users
+        # need empathy first, not a templated triage notice.
+        if sentiment == SentimentScore.CHURNING:
+            handle = f"@{author} " if author else ""
+            return (
+                f"Hey {handle}— I hear you, and I'm sorry this has been frustrating. "
+                f"This is on me to help you fix. Can you share: (1) what version "
+                f"you're on, (2) the exact error or behavior you're seeing, and "
+                f"(3) what you've already tried? I'll dig in personally."
+            )
         if priority == IssuePriority.CRITICAL:
             return (
                 "Thanks for reporting this — we're treating this as critical priority. "

@@ -163,3 +163,49 @@ class TestSageExecuteWired:
         result = await sage.execute("Triage issues")
         assert result["issues"] == []
         assert result["status"] == "triaged"
+
+
+class TestSageChampionSignal:
+    """champion_signal must reflect actual engagement, not always be False."""
+
+    @pytest.mark.asyncio
+    async def test_champion_signal_set_when_comments_high(self, sage):
+        """High comment count on an issue is a champion signal."""
+        triaged = await sage.triage_issue(
+            issue_number=1,
+            title="Bug",
+            body="x",
+            author="ada",
+            comments_count=5,
+            reactions_total=0,
+        )
+        assert triaged.champion_signal is True
+
+    @pytest.mark.asyncio
+    async def test_champion_signal_off_when_low_engagement(self, sage):
+        triaged = await sage.triage_issue(
+            issue_number=2,
+            title="Bug",
+            body="no PR mentioned",
+            author="bob",
+            comments_count=0,
+            reactions_total=0,
+        )
+        assert triaged.champion_signal is False
+
+
+class TestSageChurningResponse:
+    """A CHURNING user gets an empathetic response, not the generic triage line."""
+
+    @pytest.mark.asyncio
+    async def test_churning_sentiment_gets_empathetic_response(self, sage):
+        triaged = await sage.triage_issue(
+            issue_number=3,
+            title="i'm done with this",
+            body="been broken for the third time, switching to a different tool",
+            author="charlie",
+        )
+        assert triaged.sentiment == SentimentScore.CHURNING
+        response = triaged.suggested_response.lower()
+        assert "frustrating" in response
+        assert "queue" not in response
