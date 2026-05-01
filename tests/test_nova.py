@@ -156,3 +156,59 @@ class TestNovaExecuteWired:
         result = await nova.execute("Design experiments", context={})
         assert result["experiments"] == []
         assert result["upstream_themes_used"] == 0
+
+
+class TestNovaExperimentIdStability:
+    """experiment_id must be stable across process restarts (no Python hash randomization)."""
+
+    @pytest.mark.asyncio
+    async def test_experiment_id_is_stable_across_calls(self, nova):
+        """sha256-based experiment_id must be deterministic for the same hypothesis."""
+        hypothesis = "Larger CTA increases signups"
+        d1 = await nova.design_experiment(
+            hypothesis=hypothesis,
+            primary_metric="signup_rate",
+            baseline_rate=0.10,
+            minimum_detectable_effect=0.02,
+        )
+        d2 = await nova.design_experiment(
+            hypothesis=hypothesis,
+            primary_metric="signup_rate",
+            baseline_rate=0.10,
+            minimum_detectable_effect=0.02,
+        )
+        assert d1.experiment_id == d2.experiment_id
+        # And it should look like our sha-based format, not the old hash() form.
+        assert d1.experiment_id.startswith("exp_")
+        assert len(d1.experiment_id) == len("exp_") + 8
+
+
+class TestNovaDailySignupsGuard:
+    """DAILY_SIGNUPS_ESTIMATE below the floor must be clamped, not used directly."""
+
+    @pytest.mark.asyncio
+    async def test_low_daily_signups_clamped_to_floor(self, nova, monkeypatch, caplog):
+        monkeypatch.setenv("DAILY_SIGNUPS_ESTIMATE", "1")
+        with caplog.at_level("WARNING"):
+            design = await nova.design_experiment(
+                hypothesis="floor-test",
+                primary_metric="signup_rate",
+                baseline_rate=0.10,
+                minimum_detectable_effect=0.05,
+            )
+        # Floor of 10 keeps duration finite and reasonable; without it,
+        # large sample sizes / 1 daily signup → multi-decade durations.
+        assert design.expected_duration_days < 10000
+        assert any("below floor" in rec.message for rec in caplog.records)
+
+    @pytest.mark.asyncio
+    async def test_zero_daily_signups_does_not_raise(self, nova, monkeypatch):
+        monkeypatch.setenv("DAILY_SIGNUPS_ESTIMATE", "0")
+        # Must not raise ZeroDivisionError — the floor guards the divisor.
+        design = await nova.design_experiment(
+            hypothesis="zero-test",
+            primary_metric="signup_rate",
+            baseline_rate=0.10,
+            minimum_detectable_effect=0.05,
+        )
+        assert design.expected_duration_days > 0

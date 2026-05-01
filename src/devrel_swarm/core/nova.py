@@ -5,6 +5,7 @@ Designs activation experiments, analyzes funnels, segments cohorts,
 and models LTV — all with statistical rigor.
 """
 
+import hashlib
 import logging
 import math
 import os
@@ -15,6 +16,14 @@ from typing import Any, Optional
 from devrel_swarm.tools.api_client import PostHogClient
 
 logger = logging.getLogger(__name__)
+
+
+# Default daily signups assumed when DAILY_SIGNUPS_ESTIMATE is unset.
+DAILY_SIGNUPS_DEFAULT = 500
+# Below this floor, experiment durations explode into multi-decade ranges
+# and a value of 0 raises ZeroDivisionError. We clamp to this floor and
+# warn rather than silently producing a 30-year duration.
+DAILY_SIGNUPS_FLOOR = 10
 
 
 @dataclass
@@ -248,12 +257,27 @@ where MDE = minimum detectable effect, p = baseline conversion rate"""
             minimum_detectable_effect=minimum_detectable_effect,
         )
 
-        # Estimate duration based on daily traffic volume
-        daily_signups = int(os.environ.get("DAILY_SIGNUPS_ESTIMATE", "500"))
+        # Estimate duration based on daily traffic volume. Clamp to a
+        # floor so misconfigured envs (or test environments setting 0)
+        # don't produce 30-year experiments or ZeroDivisionError.
+        raw_signups = int(
+            os.environ.get("DAILY_SIGNUPS_ESTIMATE", str(DAILY_SIGNUPS_DEFAULT))
+        )
+        if raw_signups < DAILY_SIGNUPS_FLOOR:
+            logger.warning(
+                "DAILY_SIGNUPS_ESTIMATE=%d is below floor %d; using floor instead",
+                raw_signups, DAILY_SIGNUPS_FLOOR,
+            )
+            daily_signups = DAILY_SIGNUPS_FLOOR
+        else:
+            daily_signups = raw_signups
         duration_days = math.ceil((sample_size * 2) / daily_signups)
 
         return ExperimentDesign(
-            experiment_id=f"exp_{hash(hypothesis) % 10000:04d}",
+            # sha256-based ID is stable across process restarts (Python's
+            # built-in hash() is randomized per-process, breaking
+            # pre-registration de-duplication).
+            experiment_id=f"exp_{hashlib.sha256(hypothesis.encode()).hexdigest()[:8]}",
             hypothesis=hypothesis,
             primary_metric=primary_metric,
             secondary_metrics=["time_to_first_event", "d7_retention"],
