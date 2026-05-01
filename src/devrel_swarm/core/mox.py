@@ -23,6 +23,22 @@ from devrel_swarm.tools.search_tools import SearchTools
 logger = logging.getLogger(__name__)
 
 
+# Map Mox's parsed content_type to the editorial pipeline's vocabulary.
+# blog_post / landing_page exist verbatim in DEFAULT_TARGETS; the rest fall
+# back to a sensible neighbour. Keep this in sync with CONTENT_KEYWORDS so
+# every routed type has an explicit entry — unmapped types log a warning
+# at the call site rather than silently defaulting.
+PIPELINE_CONTENT_TYPE_MAP: dict[str, str] = {
+    "blog": "blog_post",
+    "landing_page": "landing_page",
+    "social": "blog_post",
+    "campaign": "blog_post",
+    "press_release": "blog_post",
+    "case_study": "blog_post",
+    "email_campaign": "blog_post",
+}
+
+
 @dataclass
 class BlogPost:
     """SEO-optimized marketing blog post."""
@@ -373,11 +389,16 @@ Return the content as markdown."""
         content_type = self._parse_content_type(task)
         upstream = self._extract_upstream_context(context)
         kb_context = self._kb.search_as_text(task)
-        prompt = self._build_content_prompt(task, content_type, upstream, kb_context)
+        # `prose_prompt` is the clean, human-readable prompt used by the
+        # editorial pipeline path. `email_prompt` (built below) decorates it
+        # with a JSON output contract for Instantly only — never pass the
+        # JSON-decorated one into the editorial pipeline.
+        prose_prompt = self._build_content_prompt(task, content_type, upstream, kb_context)
+        prompt = prose_prompt  # backwards-compatible alias
 
         # Handle email_campaign type with Instantly push
         if content_type == "email_campaign" and self.instantly_client and self.llm_client:
-            email_prompt = f"""{prompt}
+            email_prompt = f"""{prose_prompt}
 
 ## Output Format
 Return ONLY a JSON object with this structure:
@@ -412,7 +433,9 @@ Each email should sell one next step. 3-5 emails in the sequence."""
                 }
             except Exception as exc:
                 logger.warning(f"Email campaign creation failed: {exc}")
-                # Fall through to normal generation
+                # Fall through to normal generation. CRITICAL: continue with
+                # `prose_prompt` (clean), NOT the JSON-decorated `email_prompt`.
+                prompt = prose_prompt
 
         base_result: dict[str, Any] = {
             "agent": "mox",
@@ -424,13 +447,15 @@ Each email should sell one next step. 3-5 emails in the sequence."""
         if self.llm_client:
             try:
                 # Map Mox's parsed content_type to the pipeline's vocabulary.
-                # blog_post / landing_page exist verbatim in DEFAULT_TARGETS;
-                # social falls back to blog_post readability targets.
-                pipeline_content_type = {
-                    "blog": "blog_post",
-                    "landing_page": "landing_page",
-                    "social": "blog_post",
-                }.get(content_type, "blog_post")
+                # See PIPELINE_CONTENT_TYPE_MAP for the full routing table.
+                if content_type not in PIPELINE_CONTENT_TYPE_MAP:
+                    logger.warning(
+                        "Unmapped content_type %r — defaulting to blog_post pipeline",
+                        content_type,
+                    )
+                pipeline_content_type = PIPELINE_CONTENT_TYPE_MAP.get(
+                    content_type, "blog_post"
+                )
                 raw, strengths, issues = await generate_with_pipeline(
                     llm_client=self.llm_client,
                     system_prompt=self.SYSTEM_PROMPT.format(

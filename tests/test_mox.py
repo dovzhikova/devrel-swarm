@@ -1,10 +1,11 @@
 """Tests for Mox campaign marketing agent."""
 
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
 from devrel_swarm.core.mox import (
+    PIPELINE_CONTENT_TYPE_MAP,
     BlogPost,
     CampaignBrief,
     LandingPageCopy,
@@ -202,3 +203,47 @@ class TestMoxExecute:
         result = await mox.execute("Generate social media posts", context=context)
         assert result["agent"] == "mox"
         assert result["content_type"] == "social"
+
+
+class TestMoxPipelineRouting:
+    """Test PIPELINE_CONTENT_TYPE_MAP coverage and the email_campaign fallback."""
+
+    def test_pipeline_map_covers_all_routed_types(self, mox):
+        # Every CONTENT_KEYWORDS key must have an explicit pipeline mapping
+        # so we never silently default to blog_post.
+        for content_type in mox.CONTENT_KEYWORDS:
+            assert content_type in PIPELINE_CONTENT_TYPE_MAP, (
+                f"content_type {content_type!r} missing from PIPELINE_CONTENT_TYPE_MAP"
+            )
+
+    @pytest.mark.asyncio
+    async def test_email_campaign_fallback_uses_clean_prose_prompt(
+        self, posthog_client, knowledge_base_path, mock_llm_client
+    ):
+        # When push_campaign fails, the editorial-pipeline fallback must
+        # receive the CLEAN prose prompt, NOT the JSON-formatted email_prompt.
+        instantly = MagicMock()
+        mox = Mox(
+            api_client=posthog_client,
+            knowledge_base_path=knowledge_base_path,
+            llm_client=mock_llm_client,
+            instantly_client=instantly,
+        )
+        # Make the email_campaign-specific generate fail so we fall through
+        mock_llm_client.generate = AsyncMock(side_effect=RuntimeError("instantly down"))
+        captured: dict = {}
+
+        async def fake_pipeline(*, user_prompt, content_type, **_):
+            captured["user_prompt"] = user_prompt
+            captured["content_type"] = content_type
+            return ("body", [], [])
+
+        with patch("devrel_swarm.core.mox.generate_with_pipeline", new=fake_pipeline):
+            result = await mox.execute("Build a cold email drip campaign")
+
+        assert result["content_type"] == "email_campaign"
+        # The JSON output contract must NOT leak into the editorial fallback
+        assert "Output Format" not in captured["user_prompt"]
+        assert '"sequences"' not in captured["user_prompt"]
+        # email_campaign should now route through the pipeline (mapped to blog_post)
+        assert captured["content_type"] == "blog_post"
