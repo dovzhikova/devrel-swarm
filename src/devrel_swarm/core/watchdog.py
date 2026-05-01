@@ -11,7 +11,7 @@ import json
 import logging
 import os
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Optional
 
@@ -20,6 +20,23 @@ import httpx
 from devrel_swarm.core.llm import LLMClient
 
 logger = logging.getLogger(__name__)
+
+
+def _compute_age_hours(timestamp_str: str) -> float:
+    """Parse an ISO 8601 timestamp string and return age in hours.
+
+    Returns 999.0 if the string is empty, malformed, or in the future.
+    """
+    if not timestamp_str:
+        return 999.0
+    try:
+        ts = datetime.fromisoformat(timestamp_str.replace("Z", "+00:00"))
+        if ts.tzinfo is None:
+            ts = ts.replace(tzinfo=timezone.utc)
+        age_seconds = (datetime.now(timezone.utc) - ts).total_seconds()
+        return max(0.0, age_seconds / 3600)
+    except (ValueError, TypeError):
+        return 999.0
 
 
 @dataclass
@@ -123,18 +140,28 @@ class Watchdog:
         for agent, field_name in agent_fields.items():
             data = (context or {}).get(field_name, {})
             if isinstance(data, dict) and data:
+                last_run_ts = data.get("timestamp", "") or ""
+                output_age_hours = _compute_age_hours(last_run_ts)
+                status = (
+                    "stale" if output_age_hours > self.STALE_THRESHOLD_HOURS else "healthy"
+                )
                 checks.append(AgentHealthCheck(
                     agent=agent,
-                    status="healthy",
-                    last_run=data.get("timestamp", "unknown"),
-                    output_age_hours=0,
+                    status=status,
+                    last_run=last_run_ts or "unknown",
+                    output_age_hours=output_age_hours,
+                    issues=(
+                        [f"{agent} output age {output_age_hours:.1f}h exceeds "
+                         f"{self.STALE_THRESHOLD_HOURS}h threshold"]
+                        if status == "stale" else []
+                    ),
                 ))
             else:
                 checks.append(AgentHealthCheck(
                     agent=agent,
                     status="stale" if context else "unknown",
                     last_run="never",
-                    output_age_hours=999,
+                    output_age_hours=999.0,
                     issues=[f"{agent} has no output in current context"],
                 ))
 
@@ -246,11 +273,22 @@ class Watchdog:
                 f"INTEGRATION: {', '.join(failed_integrations)} unhealthy"
             )
 
-        # Budget alerts
+        # Budget alerts: prefer cost-vs-cap ratio when a budget is configured;
+        # fall back to absolute token threshold only when no budget is set.
         total_tokens = budget.get("total_input_tokens", 0) + budget.get(
             "total_output_tokens", 0
         )
-        if total_tokens > 500_000:
+        total_cost_usd = budget.get("total_cost_usd", 0.0) or 0.0
+        budget_limit_usd = budget.get("budget_limit_usd", 0) or 0
+        if budget_limit_usd > 0:
+            spend_ratio = total_cost_usd / budget_limit_usd
+            if spend_ratio > 0.8:
+                alerts.append(
+                    f"BUDGET: {int(spend_ratio * 100)}% consumed "
+                    f"(${total_cost_usd:.2f} / ${budget_limit_usd:.2f})"
+                )
+        elif total_tokens > 500_000:
+            # Fallback: no budget configured, use absolute threshold
             alerts.append(f"BUDGET: High token usage ({total_tokens:,} total)")
 
         return alerts
