@@ -181,8 +181,10 @@ class Watchdog:
 
         firecrawl_key = os.environ.get("FIRECRAWL_API_KEY", "")
         if firecrawl_key:
+            # Use a GET-able endpoint; /v1/scrape is POST-only and always
+            # returns 405 on GET, masking healthy auth as unhealthy.
             probes["search"] = (
-                "https://api.firecrawl.dev/v1/scrape",
+                "https://api.firecrawl.dev/v1/team",
                 {"Authorization": f"Bearer {firecrawl_key}"},
             )
 
@@ -232,12 +234,16 @@ class Watchdog:
             agents = ", ".join(c.agent for c in stale)
             alerts.append(f"STALE: {agents} have no recent output")
 
+        # Any state that isn't healthy ("connected") or intentionally absent
+        # ("not_configured") is a real alert: error_405, error_500,
+        # unreachable: ConnectionError, etc.
         failed_integrations = [
-            k for k, v in integrations.items() if v == "unknown"
+            f"{k}={v}" for k, v in integrations.items()
+            if v not in ("connected", "not_configured")
         ]
         if failed_integrations:
             alerts.append(
-                f"INTEGRATION: {', '.join(failed_integrations)} status unknown"
+                f"INTEGRATION: {', '.join(failed_integrations)} unhealthy"
             )
 
         # Budget alerts
@@ -266,11 +272,12 @@ class Watchdog:
             elif c.status == "unknown":
                 score -= 3
 
-        # Deduct for integration issues
+        # Deduct for integration issues. "not_configured" is intentional
+        # (no key set), so it's a smaller deduction than an actual failure.
         for status in integrations.values():
-            if status == "unknown":
-                score -= 5
-            elif status == "not_configured":
+            if status == "not_configured":
                 score -= 2
+            elif status != "connected":
+                score -= 5
 
         return max(0, score)
