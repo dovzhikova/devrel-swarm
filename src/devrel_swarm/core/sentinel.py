@@ -19,6 +19,26 @@ from devrel_swarm.tools.api_client import PostHogClient
 logger = logging.getLogger(__name__)
 
 
+# Per-agent map of content fields to scan. Each agent stores its prose
+# under a different key (Mox under "blog_post", Pax under "body", etc.),
+# so Sentinel must check each agent's actual primary field rather than
+# assuming a universal "content" key. Order within the list = priority;
+# the first non-empty value wins.
+_AGENT_CONTENT_FIELDS: dict[str, list[str]] = {
+    "kai_content": ["content", "body"],
+    "mox_campaigns": [
+        "blog_post", "landing_page", "social_batch", "campaign_brief", "content",
+    ],
+    "pax_sales": ["body", "battle_card", "sequence", "content"],
+    "rex_competitive": ["analysis", "summary", "content"],
+    "dex_docs": ["architecture", "api_reference", "content"],
+    "iris_themes": ["recommendations", "content"],
+    "vox_video": ["script", "content"],
+    "sage_triage": ["content"],
+    "echo_social": ["content"],
+}
+
+
 @dataclass
 class AuditItem:
     """Audit result for a single content piece."""
@@ -122,35 +142,43 @@ Be strict. Generic AI slop scores 3-4 regardless of technical accuracy."""
         return self._structural_audit(task, pieces)
 
     def _collect_content(
-        self, context: dict[str, Any] | None,
+        self, context: Any,
     ) -> list[dict[str, str]]:
-        """Extract all content pieces from SharedContext for auditing."""
-        pieces = []
+        """Extract all content pieces from SharedContext for auditing.
+
+        Walks ``_AGENT_CONTENT_FIELDS`` and picks the first non-empty
+        candidate field per agent. Each agent has a different primary
+        field (Mox stores under ``blog_post``, Pax under ``body``, etc.),
+        so a universal "content" key would silently audit only Kai.
+        """
+        pieces: list[dict[str, str]] = []
         if not context:
             return pieces
 
-        content_fields = {
-            "kai_content": "tutorial",
-            "mox_campaigns": "marketing",
-            "pax_sales": "sales",
-            "rex_competitive": "competitive_intel",
-            "echo_social": "social_listening",
-            "dex_docs": "documentation",
-            "vox_video": "video_script",
-            "sage_triage": "community_triage",
-            "iris_themes": "feedback_synthesis",
-        }
+        ctx_dict = context.to_dict() if hasattr(context, "to_dict") else dict(context)
 
-        for field_name, content_type in content_fields.items():
-            data = context.get(field_name)
-            if isinstance(data, dict):
-                content = data.get("content", "")
-                if isinstance(content, str) and len(content) > 50:
+        for context_key, candidate_fields in _AGENT_CONTENT_FIELDS.items():
+            agent_data = ctx_dict.get(context_key, {})
+            if not isinstance(agent_data, dict):
+                continue
+            for fld in candidate_fields:
+                value = agent_data.get(fld)
+                if isinstance(value, str) and value.strip():
                     pieces.append({
-                        "agent": field_name.split("_")[0],
-                        "content_type": content_type,
-                        "content": content[:5000],
+                        "agent": context_key,
+                        "content_type": fld,
+                        "content": value[:5000],
                     })
+                    break  # one piece per agent
+                if isinstance(value, list) and value:
+                    joined = "\n\n".join(str(v) for v in value[:3])[:5000]
+                    if joined.strip():
+                        pieces.append({
+                            "agent": context_key,
+                            "content_type": fld,
+                            "content": joined,
+                        })
+                        break
 
         return pieces
 
