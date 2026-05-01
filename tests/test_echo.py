@@ -404,3 +404,54 @@ class TestSuggestEngagementAction:
     def test_generic_action(self):
         action = Echo._suggest_engagement_action(["unknown signal"])
         assert len(action) > 0
+
+
+class TestQuestionSignalsConstant:
+    """is_question must use the dedicated QUESTION_SIGNALS, not a slice."""
+
+    def test_question_signals_named_constant_used(self):
+        from devrel_swarm.core.echo import QUESTION_SIGNALS
+        assert "?" in QUESTION_SIGNALS
+        assert "how do" in QUESTION_SIGNALS
+        assert "anyone know" in QUESTION_SIGNALS
+
+
+class TestPostedAtParsing:
+    """Search results carrying a date should produce that date, not now()."""
+
+    def test_posted_at_parsed_from_result(self):
+        from devrel_swarm.core.echo import _parse_result_date
+
+        class FakeResult:
+            published_date = "2026-04-10T14:00:00Z"
+            title = "x"
+            url = "https://reddit.com/r/x/comments/abc/x/"
+            snippet = "y"
+            author = ""
+
+        parsed = _parse_result_date(FakeResult())
+        assert parsed is not None
+        assert parsed.year == 2026
+        assert parsed.month == 4
+        assert parsed.day == 10
+
+    def test_parse_result_date_returns_none_for_missing(self):
+        from devrel_swarm.core.echo import _parse_result_date
+
+        class Empty:
+            title = "x"
+
+        assert _parse_result_date(Empty()) is None
+
+
+class TestNoOpenClawTypo:
+    """The OpenClaw' typo must not appear in engagement-action templates."""
+
+    def test_no_openclaw_apostrophe_typo_with_trailing_space(self):
+        # The original typo was "OpenClaw' " (apostrophe followed by space).
+        # Any well-formed possessive ("OpenClaw's") is fine — only the
+        # space-after-apostrophe variant indicates the bug.
+        import inspect
+        from devrel_swarm.core import echo
+        source = inspect.getsource(echo)
+        assert "OpenClaw' " not in source

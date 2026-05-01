@@ -82,6 +82,43 @@ REDDIT_SUBREDDITS = [
     "devtools", "selfhosted", "SaaS", "opensource",
 ]
 
+# Subset of ENGAGEMENT_SIGNALS that specifically indicates a question from a
+# user. Maintained as its own constant so that reordering ENGAGEMENT_SIGNALS
+# doesn't silently change is_question detection.
+QUESTION_SIGNALS: tuple[str, ...] = (
+    "?",
+    "how do",
+    "how to",
+    "what is",
+    "why does",
+    "is there",
+    "can someone",
+    "anyone know",
+)
+
+
+def _parse_result_date(result: Any) -> Optional[datetime]:
+    """Best-effort parse of a search result's publication date.
+
+    Search backends use different field names — Firecrawl exposes
+    ``published_date``, Brave reports ``age``, others use ``date`` or
+    ``created_at``. Returns None if no parseable date is found; the
+    caller falls back to ``datetime.now()`` so downstream code never
+    sees None.
+    """
+    for fld in ("published_date", "posted_at", "date", "created_at"):
+        val = getattr(result, fld, None)
+        if not val:
+            continue
+        if isinstance(val, datetime):
+            return val
+        if isinstance(val, str):
+            try:
+                return datetime.fromisoformat(val.replace("Z", "+00:00"))
+            except ValueError:
+                continue
+    return None
+
 # Platform-specific search query templates
 PLATFORM_QUERIES = {
     "reddit": "site:reddit.com {brand}",
@@ -262,7 +299,7 @@ class Echo:
             return None
 
         sentiment = self._classify_sentiment(text)
-        is_question = any(signal in text for signal in ENGAGEMENT_SIGNALS[:8])
+        is_question = any(signal in text for signal in QUESTION_SIGNALS)
         requires_response = is_question or sentiment == "negative"
 
         # Extract subreddit from URL if Reddit
@@ -272,6 +309,13 @@ class Echo:
             if len(parts) > 1:
                 subreddit = parts[1].split("/")[0]
 
+        # Use the actual publication date from the result when available;
+        # otherwise fall back to "now" (preserves prior behavior). Trend
+        # detection is broken if every mention is timestamped with the
+        # scrape time.
+        parsed_date = _parse_result_date(result)
+        posted_at = (parsed_date or datetime.now()).strftime("%Y-%m-%d")
+
         return SocialMention(
             platform=platform,
             title=result.title,
@@ -280,7 +324,7 @@ class Echo:
             content=result.snippet,
             sentiment=sentiment,
             engagement=0,  # Not available from search results
-            posted_at=datetime.now().strftime("%Y-%m-%d"),
+            posted_at=posted_at,
             subreddit=subreddit,
             is_question=is_question,
             requires_response=requires_response,
@@ -497,7 +541,7 @@ Return ONLY the JSON array, no commentary."""
         if any(s in signals for s in ["looking for", "recommend", "best tool"]):
             return "Share how OpenClaw addresses their need with a helpful, non-salesy comment"
         if any(s in signals for s in ["alternative to", "vs", "comparison"]):
-            return "Provide an honest comparison highlighting OpenClaw' strengths vs Orbit, Common Room, DevRev, or Chatwoot"
+            return "Provide an honest comparison highlighting OpenClaw's strengths vs Orbit, Common Room, DevRev, or Chatwoot"
         if any(s in signals for s in ["how to", "anyone using"]):
             return "Share relevant documentation or tutorial link"
         if any(s in signals for s in ["migrating from", "should I use"]):
