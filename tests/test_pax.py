@@ -711,3 +711,53 @@ class TestExecuteProspectPersonalize:
         assert result["emails_generated"] == 1
         assert result["hooks_found"] == 0
         assert result["outreach"][0]["research_hook"] == ""
+
+
+class TestExtractIcpCriteria:
+    """Test the shared _extract_icp_criteria helper."""
+
+    @pytest.mark.asyncio
+    async def test_normalizes_singular_keys_to_plural(
+        self, posthog_client, knowledge_base_path, mock_llm_client
+    ):
+        # LLMs sometimes return singular keys; helper must normalize to plural
+        mock_llm_client.generate = AsyncMock(
+            return_value=json.dumps({
+                "title": "Head of Developer Relations",
+                "industry": "DevTools",
+                "domain": "example.com",
+                "min_headcount": 50,
+            })
+        )
+        pax = Pax(
+            api_client=posthog_client,
+            knowledge_base_path=knowledge_base_path,
+            llm_client=mock_llm_client,
+        )
+        criteria = await pax._extract_icp_criteria("Find me DevRel leaders")
+
+        assert criteria["titles"] == ["Head of Developer Relations"]
+        assert criteria["industries"] == ["DevTools"]
+        assert criteria["domains"] == ["example.com"]
+        assert criteria["min_headcount"] == 50
+
+    @pytest.mark.asyncio
+    async def test_parse_failure_returns_empty_defaults(
+        self, posthog_client, knowledge_base_path, mock_llm_client
+    ):
+        # When the LLM returns garbage, the helper must return the empty
+        # default shape, not crash and not return partial data.
+        mock_llm_client.generate = AsyncMock(return_value="not valid json {[")
+        pax = Pax(
+            api_client=posthog_client,
+            knowledge_base_path=knowledge_base_path,
+            llm_client=mock_llm_client,
+        )
+        criteria = await pax._extract_icp_criteria("Find me CTOs")
+
+        assert criteria == {
+            "industries": [],
+            "company_sizes": [],
+            "titles": [],
+            "locations": [],
+        }

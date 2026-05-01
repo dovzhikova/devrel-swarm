@@ -468,6 +468,81 @@ Return JSON:
                 return asset_type
         return "general"
 
+    async def _extract_icp_criteria(self, task: str) -> dict[str, list[str]]:
+        """Extract ICP criteria from a task description via Haiku.
+
+        Shared between `_execute_prospect` and `_execute_prospect_personalize`.
+        Catches both `json.JSONDecodeError` and generic exceptions and returns
+        a fully-populated dict with empty defaults so callers can pass it
+        straight into Apollo without further None-checks.
+
+        Normalizes singular keys (industry/title/domain) to plural list-based
+        keys, and only passes through known Apollo `search_people` params.
+        """
+        from devrel_swarm.core.base import strip_markdown_fences
+
+        empty: dict[str, list[str]] = {
+            "industries": [],
+            "company_sizes": [],
+            "titles": [],
+            "locations": [],
+        }
+        if not self.llm_client:
+            return empty
+        try:
+            raw = await self.llm_client.generate(
+                system_prompt=(
+                    "Extract ICP criteria from the task for an Apollo.io people search."
+                ),
+                user_prompt=(
+                    f"Extract search criteria from: {task}\n"
+                    "Return JSON with these optional keys:\n"
+                    '- "titles": list of job titles (each title separate, no OR)\n'
+                    '- "industries": list of industry tags\n'
+                    '- "domains": list of company domains\n'
+                    '- "min_headcount": integer\n'
+                    '- "max_headcount": integer\n'
+                    'Example: {{"titles": ["Head of Developer Relations", '
+                    '"VP Developer Experience"], "min_headcount": 50, '
+                    '"max_headcount": 500}}'
+                ),
+                temperature=0.0,
+                model="haiku",
+            )
+            criteria = json.loads(strip_markdown_fences(raw))
+            if not isinstance(criteria, dict):
+                logger.warning("ICP extraction returned non-dict, using empty criteria")
+                return empty
+        except json.JSONDecodeError as exc:
+            logger.warning("ICP extraction JSON parse failed: %s", exc)
+            return empty
+        except Exception as exc:
+            logger.warning("ICP extraction failed (%s), using empty criteria", exc)
+            return empty
+
+        # Normalise singular LLM keys to plural list-based keys
+        normalised: dict[str, Any] = {}
+        if "title" in criteria:
+            val = criteria["title"]
+            normalised["titles"] = [val] if isinstance(val, str) else val
+        if "industry" in criteria:
+            val = criteria["industry"]
+            normalised["industries"] = [val] if isinstance(val, str) else val
+        if "domain" in criteria:
+            val = criteria["domain"]
+            normalised["domains"] = [val] if isinstance(val, str) else val
+        if "location" in criteria:
+            val = criteria["location"]
+            normalised["locations"] = [val] if isinstance(val, str) else val
+        # Pass through only known search_people params
+        for key in (
+            "titles", "industries", "domains", "locations",
+            "company_sizes", "min_headcount", "max_headcount",
+        ):
+            if key in criteria:
+                normalised[key] = criteria[key]
+        return normalised
+
     def _extract_upstream_context(
         self, context: dict[str, Any] | None,
     ) -> dict[str, Any]:
@@ -595,45 +670,9 @@ Return JSON:
     ) -> dict[str, Any]:
         """Full prospect -> research -> personalize -> upload flow."""
         import asyncio
-        from devrel_swarm.core.base import strip_markdown_fences
 
-        # Step 1: Extract ICP criteria via LLM
-        criteria: dict[str, Any] = {}
-        if self.llm_client:
-            try:
-                raw = await self.llm_client.generate(
-                    system_prompt="Extract ICP criteria from the task for an Apollo.io people search.",
-                    user_prompt=(
-                        f"Extract search criteria from: {task}\n"
-                        "Return JSON with these optional keys:\n"
-                        '- "titles": list of job titles (each title separate, no OR)\n'
-                        '- "industries": list of industry tags\n'
-                        '- "domains": list of company domains\n'
-                        '- "min_headcount": integer\n'
-                        '- "max_headcount": integer\n'
-                        'Example: {{"titles": ["Head of Developer Relations", "VP Developer Experience"], '
-                        '"min_headcount": 50, "max_headcount": 500}}'
-                    ),
-                    temperature=0.0,
-                )
-                criteria = json.loads(strip_markdown_fences(raw))
-                normalised: dict[str, Any] = {}
-                if "title" in criteria:
-                    val = criteria["title"]
-                    normalised["titles"] = [val] if isinstance(val, str) else val
-                if "industry" in criteria:
-                    val = criteria["industry"]
-                    normalised["industries"] = [val] if isinstance(val, str) else val
-                if "domain" in criteria:
-                    val = criteria["domain"]
-                    normalised["domains"] = [val] if isinstance(val, str) else val
-                for key in ("titles", "industries", "domains",
-                            "min_headcount", "max_headcount"):
-                    if key in criteria:
-                        normalised[key] = criteria[key]
-                criteria = normalised
-            except Exception:
-                logger.warning("ICP extraction failed, using empty criteria")
+        # Step 1: Extract ICP criteria via LLM (shared helper)
+        criteria = await self._extract_icp_criteria(task)
 
         # Step 2: Apollo search
         try:
@@ -897,45 +936,7 @@ Return JSON:
         context: Optional[dict[str, Any]] = None,
     ) -> dict[str, Any]:
         """Handle the prospect_leads execute path."""
-        criteria: dict[str, Any] = {}
-        if self.llm_client:
-            try:
-                from devrel_swarm.core.base import strip_markdown_fences
-                raw = await self.llm_client.generate(
-                    system_prompt="Extract ICP criteria from the task for an Apollo.io people search.",
-                    user_prompt=(
-                        f"Extract search criteria from: {task}\n"
-                        "Return JSON with these optional keys:\n"
-                        '- "titles": list of job titles (each title separate, no OR)\n'
-                        '- "industries": list of industry tags\n'
-                        '- "domains": list of company domains\n'
-                        '- "min_headcount": integer\n'
-                        '- "max_headcount": integer\n'
-                        'Example: {{"titles": ["Head of Developer Relations", "VP Developer Experience"], '
-                        '"min_headcount": 50, "max_headcount": 500}}'
-                    ),
-                    temperature=0.0,
-                )
-                criteria = json.loads(strip_markdown_fences(raw))
-                # Normalise singular LLM keys to plural list-based keys
-                normalised: dict[str, Any] = {}
-                if "title" in criteria:
-                    val = criteria["title"]
-                    normalised["titles"] = [val] if isinstance(val, str) else val
-                if "industry" in criteria:
-                    val = criteria["industry"]
-                    normalised["industries"] = [val] if isinstance(val, str) else val
-                if "domain" in criteria:
-                    val = criteria["domain"]
-                    normalised["domains"] = [val] if isinstance(val, str) else val
-                # Pass through only known search_people params
-                for key in ("titles", "industries", "domains",
-                            "min_headcount", "max_headcount"):
-                    if key in criteria:
-                        normalised[key] = criteria[key]
-                criteria = normalised
-            except Exception:
-                pass
+        criteria = await self._extract_icp_criteria(task)
         try:
             contacts = await self.prospect_leads(criteria)
         except Exception as exc:
