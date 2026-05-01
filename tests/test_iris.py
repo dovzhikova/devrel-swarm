@@ -57,15 +57,18 @@ class TestIrisExecute:
 class TestIrisJourneyMapping:
     """Test _map_to_journey() stage generation."""
 
-    def test_produces_all_five_stages(self, iris):
+    def test_produces_all_journey_stages(self, iris):
+        # Six stages: five journey stages + an explicit "other" bucket for
+        # themes that don't keyword-match any stage.
         stages = iris._map_to_journey([])
-        assert len(stages) == 5
+        assert len(stages) == 6
         stage_names = [s.stage for s in stages]
         assert "discovery" in stage_names
         assert "evaluation" in stage_names
         assert "onboarding" in stage_names
         assert "integration" in stage_names
         assert "scaling" in stage_names
+        assert "other" in stage_names
 
     def test_stages_are_developer_journey_stages(self, iris):
         stages = iris._map_to_journey([])
@@ -312,3 +315,27 @@ class TestStripMarkdownFences:
 
     def test_strips_whitespace_around_fences(self):
         assert strip_markdown_fences('  ```json\n{"a": 1}\n```  ') == '{"a": 1}'
+
+
+class TestUnmatchedThemeRouting:
+    """Themes that match no journey-stage keyword must go to 'other', not onboarding."""
+
+    def test_unmatched_theme_routed_to_other_stage(self, iris):
+        unrelated = FeedbackTheme(
+            theme_id="t-unrelated",
+            title="completely unrelated topic",
+            description="x",
+            frequency=1,
+            severity=5.0,
+            composite_score=5.0,
+            sources=["github"],
+            representative_quotes=[],
+            product_areas=[],
+            recommended_actions=[],
+        )
+        journey = iris._map_to_journey([unrelated])
+        by_stage = {s.stage: s for s in journey}
+        assert "other" in by_stage
+        assert "completely unrelated topic" in by_stage["other"].pain_points
+        # And critically, NOT silently dumped into onboarding
+        assert "completely unrelated topic" not in by_stage["onboarding"].pain_points

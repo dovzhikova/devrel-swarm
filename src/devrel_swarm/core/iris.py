@@ -264,7 +264,17 @@ Pain point severity scale:
         themes from each chunk, then merges overlapping themes by title
         similarity. This ensures no signals are silently dropped.
         """
-        if not signals or not self.llm_client:
+        # Distinguish the two early-return paths in logs so "no themes
+        # this week" can be diagnosed without re-running the agent.
+        if not signals:
+            logger.info(
+                "Iris._extract_themes: no signals provided; returning empty themes list"
+            )
+            return []
+        if not self.llm_client:
+            logger.warning(
+                "Iris._extract_themes: no LLM client available; cannot extract themes"
+            )
             return []
 
         # Process in chunks
@@ -415,7 +425,14 @@ Return ONLY valid JSON, no markdown fences."""
 
     def _map_to_journey(self, themes: list[FeedbackTheme]) -> list[DeveloperJourneyStage]:
         """Map themes to developer journey stages based on product areas and keywords."""
-        stage_data: dict[str, list[FeedbackTheme]] = {stage: [] for stage in self.JOURNEY_KEYWORDS}
+        # Include an explicit "other" bucket. Defaulting unmatched themes to
+        # "onboarding" systematically inflates onboarding-friction signal
+        # for mature products, where most themes are about scaling and
+        # integration. "other" is honest about not knowing.
+        stage_data: dict[str, list[FeedbackTheme]] = {
+            stage: [] for stage in self.JOURNEY_KEYWORDS
+        }
+        stage_data["other"] = []
 
         for theme in themes:
             text = f"{theme.title} {theme.description} {' '.join(theme.product_areas)}".lower()
@@ -426,7 +443,17 @@ Return ONLY valid JSON, no markdown fences."""
                     matched = True
                     break
             if not matched:
-                stage_data["onboarding"].append(theme)  # default
+                stage_data["other"].append(theme)
+
+        # One summary log per call rather than per theme — keeps signal
+        # actionable without flooding logs on a 50-theme run.
+        unmatched = stage_data["other"]
+        if unmatched:
+            logger.info(
+                "%d theme(s) routed to 'other' journey stage: %s",
+                len(unmatched),
+                [t.title for t in unmatched],
+            )
 
         result = []
         for stage, matched_themes in stage_data.items():
