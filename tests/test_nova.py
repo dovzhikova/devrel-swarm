@@ -212,3 +212,31 @@ class TestNovaDailySignupsGuard:
             minimum_detectable_effect=0.05,
         )
         assert design.expected_duration_days > 0
+
+
+class TestNovaFunnelDataSource:
+    """Funnel block must declare whether counts came from the API or are default estimates."""
+
+    @pytest.mark.asyncio
+    async def test_funnel_marks_default_estimates_when_api_client_lacks_get_funnel(
+        self, nova
+    ):
+        """Without a real funnel API the funnel must be marked as default estimates."""
+        # The default PostHog api_client doesn't expose ``get_funnel`` —
+        # consumers reading the result need an unambiguous signal so they
+        # don't write the hardcoded mock counts into reports as if real.
+        context = {
+            "iris_themes": {
+                "themes": [
+                    {
+                        "title": "Test",
+                        "severity": 5.0,
+                        "product_areas": ["analytics"],
+                        "recommended_actions": ["Fix"],
+                    }
+                ]
+            }
+        }
+        result = await nova.execute("Design experiments", context=context)
+        funnel = result.get("funnel_analysis") or {}
+        assert funnel.get("data_source") == "default_estimates"

@@ -177,22 +177,40 @@ where MDE = minimum detectable effect, p = baseline conversion rate"""
                 }
             )
 
-        # Analyze the standard OpenClaw activation funnel
+        # Analyze the standard OpenClaw activation funnel.
+        # Attempt to source real funnel stages from the API client when
+        # available; otherwise fall back to default illustrative estimates
+        # and mark them as such so downstream consumers know not to trust
+        # the absolute counts.
         funnel_result = None
         if themes:
+            default_stages = [
+                {"name": "signup", "count": 1000},
+                {"name": "repo_cloned", "count": 700},
+                {"name": "first_agent_run", "count": 595},
+                {"name": "knowledge_base_configured", "count": 298},
+                {"name": "weekly_cycle_activated", "count": 89},
+                {"name": "team_onboarded", "count": 36},
+            ]
+            stages = default_stages
+            funnel_data_source = "default_estimates"
+            if self.api_client is not None and hasattr(self.api_client, "get_funnel"):
+                try:
+                    real_stages = await self.api_client.get_funnel()
+                    if real_stages:
+                        stages = real_stages
+                        funnel_data_source = "api"
+                except Exception as exc:
+                    logger.warning(
+                        "Funnel API call failed; using default estimates: %s", exc
+                    )
             funnel = await self.analyze_funnel(
                 funnel_name="devrel_ai_agents_activation",
-                stages=[
-                    {"name": "signup", "count": 1000},
-                    {"name": "repo_cloned", "count": 700},
-                    {"name": "first_agent_run", "count": 595},
-                    {"name": "knowledge_base_configured", "count": 298},
-                    {"name": "weekly_cycle_activated", "count": 89},
-                    {"name": "team_onboarded", "count": 36},
-                ],
+                stages=stages,
             )
             funnel_result = {
                 "funnel_name": funnel.funnel_name,
+                "data_source": funnel_data_source,
                 "overall_conversion": funnel.overall_conversion,
                 "biggest_drop_off_stage": funnel.biggest_drop_off_stage,
                 "recommended_interventions": funnel.recommended_interventions,
