@@ -466,9 +466,18 @@ Each email should sell one next step. 3-5 emails in the sequence."""
                     logger=logger,
                 )
                 base_result["content"] = raw
+                if issues and isinstance(issues[0], dict):
+                    remaining_issues = [
+                        i for i in issues
+                        if isinstance(i, dict) and i.get("severity") == "high"
+                    ]
+                else:
+                    remaining_issues = [
+                        i for i in issues if isinstance(i, str) and i.strip()
+                    ]
                 base_result["revision"] = {
                     "strengths": strengths,
-                    "issues": issues,
+                    "remaining_issues": remaining_issues,
                 }
 
                 # Validate code blocks in blog posts
