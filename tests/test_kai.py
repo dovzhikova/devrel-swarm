@@ -1,6 +1,6 @@
 """Tests for Kai content creator module."""
 
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -128,3 +128,54 @@ class TestKaiWriteTutorial:
         result = await kai.write_tutorial("Setting up PostHog")
         assert isinstance(result, ContentPiece)
         assert result.content_type == "tutorial"
+
+
+class TestKaiContentTypeRouting:
+    """Test that content_type flows through to the editorial pipeline."""
+
+    @pytest.mark.asyncio
+    async def test_write_changelog_uses_landing_page_content_type(
+        self, posthog_client, knowledge_base_path, mock_llm_client
+    ):
+        mock_llm_client.generate = AsyncMock(return_value=("# Changelog body", None))
+        kai = Kai(
+            api_client=posthog_client,
+            knowledge_base_path=knowledge_base_path,
+            llm_client=mock_llm_client,
+        )
+        captured: dict = {}
+
+        async def fake_pipeline(*, content_type, **_):
+            captured["content_type"] = content_type
+            return ("body", ["s"], [])
+
+        with patch("devrel_swarm.core.kai.generate_with_pipeline", new=fake_pipeline):
+            await kai.write_changelog("New SDK")
+        assert captured["content_type"] == "landing_page"
+
+    @pytest.mark.asyncio
+    async def test_pipeline_string_issues_preserved_in_remaining_issues(
+        self, posthog_client, knowledge_base_path, mock_llm_client
+    ):
+        kai = Kai(
+            api_client=posthog_client,
+            knowledge_base_path=knowledge_base_path,
+            llm_client=mock_llm_client,
+        )
+
+        async def fake_pipeline(**_):
+            # Simulate pipeline returning string issues (the editorial pipeline path)
+            return (
+                "body",
+                ["good thing"],
+                ["readability concern", "voice mismatch", "  "],
+            )
+
+        with patch("devrel_swarm.core.kai.generate_with_pipeline", new=fake_pipeline):
+            result = await kai.execute("Write a tutorial")
+
+        # String issues should now survive the filter; the empty/whitespace one is dropped
+        remaining = result["revision"]["remaining_issues"]
+        assert "readability concern" in remaining
+        assert "voice mismatch" in remaining
+        assert "  " not in remaining

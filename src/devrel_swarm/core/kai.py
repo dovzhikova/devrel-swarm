@@ -170,6 +170,7 @@ Always cite which knowledge base documents you referenced."""
         self,
         task: str,
         context: Optional[dict[str, Any]] = None,
+        content_type: str = "tutorial",
     ) -> dict[str, Any]:
         """
         Execute a content creation task.
@@ -297,16 +298,22 @@ Always cite which knowledge base documents you referenced."""
                     llm_client=self.llm_client,
                     system_prompt=self.SYSTEM_PROMPT,
                     user_prompt=prompt,
-                    content_type="tutorial",
+                    content_type=content_type,
                     logger=logger,
                 )
                 base_result["content"] = content
-                base_result["revision"] = {
-                    "strengths": strengths,
-                    "remaining_issues": [
+                if issues and isinstance(issues[0], dict):
+                    remaining_issues = [
                         i for i in issues
                         if isinstance(i, dict) and i.get("severity") == "high"
-                    ] if issues and isinstance(issues[0], dict) else issues,
+                    ]
+                else:
+                    remaining_issues = [
+                        i for i in issues if isinstance(i, str) and i.strip()
+                    ]
+                base_result["revision"] = {
+                    "strengths": strengths,
+                    "remaining_issues": remaining_issues,
                 }
 
                 # Validate code blocks in generated content
@@ -346,6 +353,7 @@ Always cite which knowledge base documents you referenced."""
         topic: str,
         target_sdk: str = "javascript",
         context: Optional[dict[str, Any]] = None,
+        content_type: str = "tutorial",
     ) -> ContentPiece:
         """Generate a step-by-step technical tutorial."""
         task = (
@@ -353,7 +361,7 @@ Always cite which knowledge base documents you referenced."""
             f"Target SDK: {target_sdk}. "
             f"Include prerequisites, working code examples, and next steps."
         )
-        result = await self.execute(task, context)
+        result = await self.execute(task, context, content_type=content_type)
         return ContentPiece(
             title=topic,
             content_type="tutorial",
@@ -366,13 +374,14 @@ Always cite which knowledge base documents you referenced."""
         self,
         feature_name: str,
         context: Optional[dict[str, Any]] = None,
+        content_type: str = "landing_page",
     ) -> ContentPiece:
         """Generate a changelog announcement for a new feature."""
         task = (
             f"Write a changelog announcement for: {feature_name}. "
             f"Cover what changed, why it matters, and how to use it."
         )
-        result = await self.execute(task, context)
+        result = await self.execute(task, context, content_type=content_type)
         return ContentPiece(
             title=f"New: {feature_name}",
             content_type="changelog",
