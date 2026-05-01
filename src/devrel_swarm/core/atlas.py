@@ -9,6 +9,7 @@ import asyncio
 import json
 import logging
 import random
+from contextlib import nullcontext as _nullcontext
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
@@ -382,15 +383,21 @@ class Atlas:
 
         # Tag LLM calls with the agent name for cost tracking
         if self.llm_client:
-            self.llm_client.set_agent(agent_name)
+            self.llm_client.set_agent(agent_name)  # legacy fallback for non-LLM call sites
 
         for attempt in range(1, self.MAX_RETRIES + 2):
             try:
                 logger.info(f"Delegating to {agent_name} (attempt {attempt}): {task[:80]}...")
-                result = await asyncio.wait_for(
-                    agent.execute(task=task, context=merged_context),
-                    timeout=self.AGENT_TIMEOUT,
+                ctx_mgr = (
+                    self.llm_client.agent_context(agent_name)
+                    if self.llm_client
+                    else _nullcontext()
                 )
+                with ctx_mgr:
+                    result = await asyncio.wait_for(
+                        agent.execute(task=task, context=merged_context),
+                        timeout=self.AGENT_TIMEOUT,
+                    )
                 logger.info(
                     "delegation_success",
                     extra={"agent": agent_name, "task": task[:80], "attempts": attempt},

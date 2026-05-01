@@ -3,6 +3,8 @@
 import json
 import logging
 from collections.abc import Awaitable
+from contextlib import contextmanager
+from contextvars import ContextVar
 from dataclasses import dataclass, field
 from typing import Any, Callable
 
@@ -11,6 +13,8 @@ from anthropic import AsyncAnthropic
 from devrel_swarm.core.base import strip_markdown_fences
 
 logger = logging.getLogger(__name__)
+
+_current_agent_var: ContextVar[str] = ContextVar("devrel_swarm_current_agent", default="")
 
 DEFAULT_MODEL = "claude-sonnet-4-5-20250929"
 DEFAULT_MAX_TOKENS = 4096
@@ -282,7 +286,7 @@ class LLMClient:
         logger.info(
             "llm_call",
             extra={
-                "agent": self._current_agent or "unknown",
+                "agent": _current_agent_var.get() or self._current_agent or "unknown",
                 "input_tokens": response.usage.input_tokens,
                 "output_tokens": response.usage.output_tokens,
                 "model": resolved_model,
@@ -295,6 +299,20 @@ class LLMClient:
     def set_agent(self, agent_name: str) -> None:
         """Set the current agent name for per-agent cost tracking."""
         self._current_agent = agent_name
+
+    @contextmanager
+    def agent_context(self, agent_name: str):
+        """Set the cost-attribution agent for the duration of this context.
+
+        Async-task-local via ContextVar — safe under asyncio.gather() unlike
+        set_agent(), which mutates a shared instance attribute. Prefer this
+        over set_agent() when running agents concurrently.
+        """
+        token = _current_agent_var.set(agent_name)
+        try:
+            yield
+        finally:
+            _current_agent_var.reset(token)
 
     def set_cost_sink(
         self,
@@ -320,7 +338,7 @@ class LLMClient:
             return
         try:
             await self._cost_sink(
-                self._current_agent or "unknown",
+                _current_agent_var.get() or self._current_agent or "unknown",
                 model,
                 {
                     "input_tokens": input_tokens,

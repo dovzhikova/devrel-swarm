@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -75,3 +76,30 @@ async def test_sink_exception_does_not_break_emit():
     # Must not raise.
     await client._emit_cost(model="claude-haiku-4-5-20251001", input_tokens=1, output_tokens=1)
     sink.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_agent_context_is_race_safe_under_gather():
+    """Concurrent agent_context blocks must not bleed into each other's cost emissions."""
+    client = LLMClient(api_key="dummy")
+    captured: list[str] = []
+
+    async def sink(agent: str, model: str, usage: dict) -> None:
+        captured.append(agent)
+
+    client.set_cost_sink(sink)
+
+    async def emit_under_context(name: str) -> None:
+        with client.agent_context(name):
+            # Yield to event loop to let other tasks interleave.
+            await asyncio.sleep(0)
+            await client._emit_cost(
+                model="claude-haiku-4-5-20251001",
+                input_tokens=1, output_tokens=1,
+            )
+
+    await asyncio.gather(
+        *[emit_under_context(f"agent_{i}") for i in range(5)]
+    )
+    # Each gather participant must see its own agent name in its emission.
+    assert sorted(captured) == [f"agent_{i}" for i in range(5)]
