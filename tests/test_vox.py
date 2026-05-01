@@ -512,3 +512,33 @@ class TestGetFFmpegInputFormat:
         assert isinstance(fmt, str)
         assert isinstance(device, str)
         assert fmt in ("avfoundation", "x11grab", "gdigrab")
+
+
+class TestVoxSlug:
+    """Tests for the _slug helper that builds safe filenames."""
+
+    def test_slug_handles_unsafe_chars(self):
+        from devrel_swarm.core.vox import _slug
+
+        # Spaces, slashes, punctuation, and emoji-style chars all collapse
+        # to single hyphens; result is filesystem-safe.
+        result = _slug("Build a / Tutorial: Step 1!")
+        assert result == "build-a-tutorial-step-1"
+        # Empty / all-punct input falls back to the safe default
+        assert _slug("") == "tutorial"
+        assert _slug("!!!@@@   ") == "tutorial"
+        # max_len truncation is honored
+        long = _slug("a" * 200)
+        assert len(long) == 32
+
+    def test_slug_uniqueness_across_distinct_tasks(self):
+        from devrel_swarm.core.vox import _slug
+
+        # Different inputs produce different slugs — the timestamp prefix
+        # added at the call site provides full uniqueness, but the slug
+        # itself must still differentiate distinct tasks.
+        a = _slug("Setting up PostHog feature flags")
+        b = _slug("Recording a Vox video tutorial")
+        assert a != b
+        assert a == "setting-up-posthog-feature-flags"
+        assert b == "recording-a-vox-video-tutorial"

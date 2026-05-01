@@ -9,6 +9,30 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
+# Hard cap on FFmpeg subprocess wall-clock time (seconds). 5 minutes is
+# generous for normal merge/concat work but stops a stuck encoder from
+# hanging the whole pipeline.
+FFMPEG_TIMEOUT_S = 300
+
+
+async def _communicate_with_timeout(process: asyncio.subprocess.Process):
+    """Run ``process.communicate()`` with a hard timeout.
+
+    On timeout: send SIGKILL, await the reaper, then raise RuntimeError so
+    the surrounding pipeline error path engages and the caller logs the
+    failure instead of waiting indefinitely.
+    """
+    try:
+        return await asyncio.wait_for(
+            process.communicate(), timeout=FFMPEG_TIMEOUT_S
+        )
+    except asyncio.TimeoutError as exc:
+        process.kill()
+        await process.wait()
+        raise RuntimeError(
+            f"FFmpeg subprocess timed out after {FFMPEG_TIMEOUT_S}s; killed"
+        ) from exc
+
 
 class VideoAssembler:
     def __init__(self, output_dir: Path):
@@ -49,7 +73,7 @@ class VideoAssembler:
         process = await asyncio.create_subprocess_exec(
             *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
         )
-        _, stderr = await process.communicate()
+        _, stderr = await _communicate_with_timeout(process)
         if process.returncode != 0:
             err_text = stderr.decode()
             logger.error(f"FFmpeg merge failed: {err_text[:500]}")
@@ -68,7 +92,7 @@ class VideoAssembler:
         process = await asyncio.create_subprocess_exec(
             *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
         )
-        _, stderr = await process.communicate()
+        _, stderr = await _communicate_with_timeout(process)
         concat_file.unlink(missing_ok=True)
         if process.returncode != 0:
             err_text = stderr.decode()

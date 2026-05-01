@@ -7,7 +7,9 @@ for overlays and assembly.
 """
 
 import logging
+import re
 import shutil
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Optional
 
@@ -16,6 +18,17 @@ from devrel_swarm.tools.search_tools import SearchTools
 from devrel_swarm.core.video.script_parser import ScriptParser, TutorialStep, VideoTutorial
 
 logger = logging.getLogger(__name__)
+
+
+def _slug(text: str, max_len: int = 32) -> str:
+    """Slugify a free-form task string for use in filenames.
+
+    Lowercases, replaces runs of non-alphanumeric chars with single hyphens,
+    strips leading/trailing hyphens, truncates to ``max_len``, and falls
+    back to "tutorial" when the result would otherwise be empty (e.g.,
+    the input was all whitespace or punctuation).
+    """
+    return re.sub(r"[^a-zA-Z0-9]+", "-", text.lower()).strip("-")[:max_len] or "tutorial"
 
 
 def _check_ffmpeg() -> bool:
@@ -127,10 +140,12 @@ Keep narration concise and developer-focused. Show, don't tell."""
             steps = self.script_parser.parse_task(task)
             source = "standalone_task"
 
+        ts = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
+        output_filename = f"{ts}-{_slug(task)}.mp4"
         tutorial = VideoTutorial(
             title=task[:100],
             steps=steps,
-            output_path=str(self.output_dir / "tutorial.mp4"),
+            output_path=str(self.output_dir / output_filename),
             source=source,
         )
 
@@ -231,7 +246,7 @@ Keep narration concise and developer-focused. Show, don't tell."""
         final_path = await assembler.assemble(
             step_videos=step_videos,
             step_audios=step_audios,
-            output_filename="tutorial.mp4",
+            output_filename=Path(tutorial.output_path).name,
         )
 
         tutorial.output_path = str(final_path)

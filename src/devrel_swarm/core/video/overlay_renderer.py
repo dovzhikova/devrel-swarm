@@ -11,6 +11,25 @@ from typing import Optional
 
 logger = logging.getLogger(__name__)
 
+# Hard cap on FFmpeg subprocess wall-clock time (seconds). 5 minutes is
+# generous for normal overlay encoding but stops a stuck encoder from
+# hanging the whole pipeline.
+FFMPEG_TIMEOUT_S = 300
+
+
+async def _communicate_with_timeout(process: asyncio.subprocess.Process):
+    """Run ``process.communicate()`` with a hard timeout; kill on timeout."""
+    try:
+        return await asyncio.wait_for(
+            process.communicate(), timeout=FFMPEG_TIMEOUT_S
+        )
+    except asyncio.TimeoutError as exc:
+        process.kill()
+        await process.wait()
+        raise RuntimeError(
+            f"FFmpeg subprocess timed out after {FFMPEG_TIMEOUT_S}s; killed"
+        ) from exc
+
 
 @dataclass
 class OverlayConfig:
@@ -58,7 +77,7 @@ class OverlayRenderer:
         process = await asyncio.create_subprocess_exec(
             *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
         )
-        _, stderr = await process.communicate()
+        _, stderr = await _communicate_with_timeout(process)
         if process.returncode != 0:
             err_text = stderr.decode()
             logger.error(f"FFmpeg overlay failed: {err_text[:500]}")
