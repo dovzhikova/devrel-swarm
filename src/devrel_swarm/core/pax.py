@@ -13,7 +13,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Optional
 
-from devrel_swarm.core.base import get_kb_search
+from devrel_swarm.core.base import get_kb_search, load_agent_prompt
 from devrel_swarm.core.llm import LLMClient
 from devrel_swarm.quality import generate_with_pipeline
 from devrel_swarm.tools.api_client import PostHogClient
@@ -188,16 +188,12 @@ Lead: {lead_email}
 Write a personalized, non-salesy follow-up. Be helpful and specific.
 Return JSON: {{"subject": "...", "body": "..."}}"""
 
-    # Load optimized prompts from files if available, otherwise use inline defaults
-    _OPTIMIZE_DIR = Path(__file__).parent.parent / "optimize"
+    # Load optimized prompts via the shared util (delegates to optimize/pax/<file>).
 
     @classmethod
     def _load_prompt(cls, filename: str, default: str) -> str:
-        """Load prompt from optimize/ dir if it exists, else return default."""
-        path = cls._OPTIMIZE_DIR / filename
-        if path.exists():
-            return path.read_text()
-        return default
+        """Load prompt from optimize/pax/<filename> via the shared util."""
+        return load_agent_prompt("pax", filename, default)
 
     _DEFAULT_EMAIL_PROMPT = """Write a personalized cold email for this prospect.
 
@@ -860,6 +856,9 @@ Return JSON:
     ) -> dict[str, Any]:
         """Handle the instantly_campaign execute path."""
         from devrel_swarm.core.base import strip_markdown_fences
+
+        if self.llm_client is None:
+            return {"status": "skipped", "reason": "no_llm_client", "task": task}
 
         prompt_text = (
             f"Create a cold email outreach campaign for {self.product_name}. "

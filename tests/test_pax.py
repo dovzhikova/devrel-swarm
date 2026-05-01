@@ -761,3 +761,19 @@ class TestExtractIcpCriteria:
             "titles": [],
             "locations": [],
         }
+
+
+class TestPaxExecuteCampaignNoneGuard:
+    """Wave 2: _execute_campaign must short-circuit when llm_client is None."""
+
+    @pytest.mark.asyncio
+    async def test_execute_campaign_skips_without_llm(self, pax_no_llm):
+        base_result = {"agent": "pax", "task": "Set up cold email campaign"}
+        result = await pax_no_llm._execute_campaign(
+            "Set up cold email campaign",
+            "instantly_campaign",
+            base_result,
+        )
+        assert result["status"] == "skipped"
+        assert result["reason"] == "no_llm_client"
+        assert result["task"] == "Set up cold email campaign"
