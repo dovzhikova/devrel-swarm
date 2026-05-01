@@ -142,6 +142,24 @@ class TestParsePython:
         assert len(methods) == 1
         assert methods[0].name == "Foo.bar"
 
+    def test_extracts_methods_under_if_block(self, dex):
+        # Wave 2: ast.walk traversal must find methods that are guarded
+        # by an `if` (e.g. version-conditional) or wrapped in a try block.
+        # The previous one-level iter_child_nodes loop missed these.
+        source = (
+            "import sys\n"
+            "class Foo:\n"
+            "    if sys.version_info >= (3, 12):\n"
+            "        def new_method(self):\n"
+            "            pass\n"
+            "    def old_method(self):\n"
+            "        pass\n"
+        )
+        result = dex._parse_python("test.py", source)
+        method_names = {s.name for s in result.symbols if s.kind == "method"}
+        assert "Foo.new_method" in method_names
+        assert "Foo.old_method" in method_names
+
     def test_extracts_constants(self, dex):
         source = "MAX_SIZE = 1024\nDEBUG = True\nlocal_var = 42\n"
         result = dex._parse_python("test.py", source)

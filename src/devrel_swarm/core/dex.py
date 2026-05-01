@@ -220,8 +220,11 @@ Output formats:
                     decorators=decorators,
                 ))
 
-                # Methods inside class
-                for item in ast.iter_child_nodes(node):
+                # Methods inside class — use ast.walk to capture nested
+                # classes and decorated/conditionally-defined methods.
+                for item in ast.walk(node):
+                    if item is node:
+                        continue
                     if isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef)):
                         method = self._parse_python_func(item, class_name=node.name)
                         symbols.append(method)
@@ -612,10 +615,23 @@ Output formats:
         """
         logger.info(f"Dex executing: {task[:80]}...")
 
-        # Determine repo path: from context, or default to project root
-        repo_path = Path(".")
+        # Determine repo path: from context, or default to .devrel project
+        # root, falling back to cwd if no .devrel/config.toml is reachable.
         if context and "repo_path" in context:
             repo_path = Path(context["repo_path"])
+        else:
+            try:
+                from devrel_swarm.project.paths import (
+                    ProjectNotFoundError,
+                    find_devrel_root,
+                )
+
+                try:
+                    repo_path = find_devrel_root()
+                except ProjectNotFoundError:
+                    repo_path = Path(".")
+            except Exception:
+                repo_path = Path(".")
 
         # Scan and analyse
         analysis = self.scan_repo(repo_path)
