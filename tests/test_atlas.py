@@ -1,5 +1,6 @@
 """Tests for Atlas orchestrator module."""
 
+import json
 from unittest.mock import AsyncMock
 
 import pytest
@@ -270,6 +271,57 @@ class TestSharedContextSalesFields:
         assert "rex_competitive" in d
         assert "pax_sales" in d
         assert "mox_campaigns" in d
+
+
+class TestAtlasCheckpointResume:
+    """Test that per-agent checkpoint flags allow partial-stage resume."""
+
+    @pytest.mark.asyncio
+    async def test_partial_stage_1_failure_only_reruns_failed_agent(
+        self, posthog_client, knowledge_base_path, tmp_path
+    ):
+        """If Sage and Dex succeeded but Echo failed, resume re-runs only Echo."""
+        archive_dir = tmp_path / "archive"
+        archive_dir.mkdir(parents=True, exist_ok=True)
+
+        # Manually craft a stage-1 checkpoint where sage+dex completed but echo did not.
+        week_of = "2026-W11"
+        ctx = SharedContext(
+            week_of=week_of,
+            sage_triage={"issues": []},
+            dex_docs={"modules": []},
+        )
+        d = ctx.to_dict()
+        d.pop("previous_weeks", None)
+        d["_checkpoint_stage"] = 1
+        d["_completed_agents"] = ["dex", "sage", "watchdog"]
+        (archive_dir / f"context_{week_of}_stage1.json").write_text(
+            json.dumps(d, default=str)
+        )
+
+        atlas = Atlas(
+            api_client=posthog_client,
+            knowledge_base_path=knowledge_base_path,
+            archive_dir=archive_dir,
+        )
+        atlas.context.week_of = week_of
+
+        called: list[str] = []
+        original_delegate = atlas.delegate
+
+        async def tracking_delegate(agent_name, task, context=None):
+            called.append(agent_name)
+            return await original_delegate(agent_name, task, context)
+
+        atlas.delegate = tracking_delegate
+        await atlas.run_weekly_cycle()
+
+        # Sage and Dex should NOT be re-invoked; Echo SHOULD be invoked exactly once
+        assert called.count("sage") == 0
+        assert called.count("dex") == 0
+        assert called.count("echo") == 1
+        # Watchdog also already completed, so should not be re-invoked
+        assert called.count("watchdog") == 0
 
 
 class TestAtlasWeeklyCycleRex:

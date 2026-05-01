@@ -437,33 +437,54 @@ class Atlas:
             attempts=self.MAX_RETRIES + 1,
         )
 
-    def _checkpoint(self, stage: int) -> None:
+    def _checkpoint(
+        self,
+        stage: int,
+        completed_agents: set[str] | None = None,
+    ) -> None:
         """Save a partial checkpoint after completing a pipeline stage.
 
         Checkpoints are named context_{week}_stage{N}.json and allow
         resuming from the last completed stage on crash recovery.
+
+        ``completed_agents`` is the optional set of agent names that
+        finished successfully within (or up to) the current stage —
+        used by parallel stages to allow partial-progress resume.
         """
         self.archive_dir.mkdir(parents=True, exist_ok=True)
         filepath = self.archive_dir / f"context_{self.context.week_of}_stage{stage}.json"
         d = self.context.to_dict()
         d.pop("previous_weeks", None)
         d["_checkpoint_stage"] = stage
+        d["_completed_agents"] = sorted(completed_agents or [])
         filepath.write_text(json.dumps(d, indent=2, default=str))
         logger.info(f"Checkpoint saved: stage {stage}")
 
     @classmethod
-    def _load_checkpoint(cls, archive_dir: Path, week_of: str) -> tuple[int, SharedContext] | None:
-        """Load the latest checkpoint for the current week, if any."""
-        for stage in range(5, -1, -1):
+    def _load_checkpoint(
+        cls, archive_dir: Path, week_of: str
+    ) -> tuple[int, set[str], SharedContext] | None:
+        """Load the latest checkpoint for the current week, if any.
+
+        Returns ``(resume_stage, completed_agents, ctx)`` or ``None``.
+        ``completed_agents`` is the set of agents from the partially-
+        completed stage that already succeeded; on resume those are
+        skipped and only the failed agents are re-run.
+        """
+        for stage in range(6, -1, -1):
             filepath = archive_dir / f"context_{week_of}_stage{stage}.json"
             if filepath.exists():
                 try:
                     data = json.loads(filepath.read_text())
                     ctx = SharedContext(week_of=week_of)
                     for key, value in data.items():
-                        if hasattr(ctx, key) and key != "_checkpoint_stage":
+                        if hasattr(ctx, key) and key not in (
+                            "_checkpoint_stage",
+                            "_completed_agents",
+                        ):
                             setattr(ctx, key, value)
-                    return data.get("_checkpoint_stage", 0), ctx
+                    completed = set(data.get("_completed_agents", []))
+                    return data.get("_checkpoint_stage", 0), completed, ctx
                 except (json.JSONDecodeError, OSError) as e:
                     logger.warning(f"Failed to load checkpoint {filepath}: {e}")
         return None
@@ -493,11 +514,15 @@ class Atlas:
         # Check for existing checkpoint to resume from
         checkpoint = self._load_checkpoint(self.archive_dir, self.context.week_of)
         resume_stage = 0
+        completed_agents: set[str] = set()
         if checkpoint:
-            resume_stage, restored = checkpoint
+            resume_stage, completed_agents, restored = checkpoint
             self.context = restored
             run_report.resumed_from_stage = resume_stage
-            logger.info(f"Resuming from checkpoint: stage {resume_stage}")
+            logger.info(
+                f"Resuming from checkpoint: stage {resume_stage} "
+                f"(completed_agents={sorted(completed_agents)})"
+            )
 
         # Load previous weeks' memory for trend detection and dedup
         if resume_stage == 0:
@@ -509,7 +534,7 @@ class Atlas:
         )
 
         # Stage 0: Watchdog health check (pre-flight)
-        if resume_stage < 1:
+        if resume_stage <= 0 and "watchdog" not in completed_agents:
             watchdog_result = await self.delegate(
                 "watchdog",
                 "Run system health check. Verify all integrations are "
@@ -517,78 +542,97 @@ class Atlas:
             )
             if watchdog_result.success:
                 self.context.okr_progress["pre_health"] = watchdog_result.output
+                completed_agents.add("watchdog")
 
         # Stage 1: Sage + Echo + Dex in parallel (no cross-dependencies)
-        if resume_stage < 1:
-            triage_result, social_result, docs_result = await asyncio.gather(
-                self.delegate(
-                    "sage",
-                    "Triage GitHub issues from the past 7 days. Categorize by type, "
-                    "analyze sentiment, flag churn risks, and identify community champions.",
-                ),
-                self.delegate(
-                    "echo",
-                    "Scan Reddit, Hacker News, and Twitter/X for OpenClaw mentions. "
-                    "Identify engagement opportunities and flag reputation risks.",
-                ),
-                self.delegate(
-                    "dex",
-                    "Generate technical documentation for the repository. "
-                    "Produce an architecture overview and API reference.",
-                ),
-            )
-            if triage_result.success:
-                self.context.sage_triage = triage_result.output
-            if social_result.success:
-                self.context.echo_social = social_result.output
-            if docs_result.success:
-                self.context.dex_docs = docs_result.output
-            self._checkpoint(1)
+        if resume_stage <= 1:
+            stage_1_agents = ["sage", "echo", "dex"]
+            stage_1_pending = [a for a in stage_1_agents if a not in completed_agents]
+            if stage_1_pending:
+                tasks_1 = {
+                    "sage": (
+                        "Triage GitHub issues from the past 7 days. Categorize by type, "
+                        "analyze sentiment, flag churn risks, and identify community champions."
+                    ),
+                    "echo": (
+                        "Scan Reddit, Hacker News, and Twitter/X for OpenClaw mentions. "
+                        "Identify engagement opportunities and flag reputation risks."
+                    ),
+                    "dex": (
+                        "Generate technical documentation for the repository. "
+                        "Produce an architecture overview and API reference."
+                    ),
+                }
+                coros = [self.delegate(a, tasks_1[a]) for a in stage_1_pending]
+                results = await asyncio.gather(*coros)
+                for agent_name, res in zip(stage_1_pending, results):
+                    if res.success:
+                        if agent_name == "sage":
+                            self.context.sage_triage = res.output
+                        elif agent_name == "echo":
+                            self.context.echo_social = res.output
+                        elif agent_name == "dex":
+                            self.context.dex_docs = res.output
+                        completed_agents.add(agent_name)
+            self._checkpoint(1, completed_agents=completed_agents)
 
         # Stage 2: Rex + Iris in parallel (both use Sage + Echo, independent)
-        if resume_stage < 2:
-            rex_result, synthesis_result = await asyncio.gather(
-                self.delegate(
-                    "rex",
-                    "Analyze the competitive landscape. Discover competitors from the "
-                    "knowledge base and web search. Identify threats and opportunities.",
-                ),
-                self.delegate(
-                    "iris",
-                    "Synthesize developer feedback themes from GitHub issues, Discourse "
-                    "threads, and support channels. Rank pain points by frequency and severity.",
-                ),
-            )
-            if rex_result.success:
-                self.context.rex_competitive = rex_result.output
-            if synthesis_result.success:
-                self.context.iris_themes = synthesis_result.output
-            self._checkpoint(2)
+        if resume_stage <= 2:
+            stage_2_agents = ["rex", "iris"]
+            stage_2_pending = [a for a in stage_2_agents if a not in completed_agents]
+            if stage_2_pending:
+                tasks_2 = {
+                    "rex": (
+                        "Analyze the competitive landscape. Discover competitors from the "
+                        "knowledge base and web search. Identify threats and opportunities."
+                    ),
+                    "iris": (
+                        "Synthesize developer feedback themes from GitHub issues, Discourse "
+                        "threads, and support channels. Rank pain points by frequency and "
+                        "severity."
+                    ),
+                }
+                coros = [self.delegate(a, tasks_2[a]) for a in stage_2_pending]
+                results = await asyncio.gather(*coros)
+                for agent_name, res in zip(stage_2_pending, results):
+                    if res.success:
+                        if agent_name == "rex":
+                            self.context.rex_competitive = res.output
+                        elif agent_name == "iris":
+                            self.context.iris_themes = res.output
+                        completed_agents.add(agent_name)
+            self._checkpoint(2, completed_agents=completed_agents)
 
         # Stage 3: Nova + Kai in parallel (both use Iris themes, independent)
-        if resume_stage < 3:
-            experiment_result, content_result = await asyncio.gather(
-                self.delegate(
-                    "nova",
-                    "Design activation experiments based on the top pain points. "
-                    "Include pre-registration, power analysis, and success criteria.",
-                ),
-                self.delegate(
-                    "kai",
-                    "Write a technical tutorial addressing the #1 developer pain point. "
-                    "Ground the content in the knowledge base and Dex's architecture analysis. "
-                    "Reference real GitHub issues from Sage's triage. "
-                    "Use actual file paths, commands, and APIs from the source code.",
-                ),
-            )
-            if experiment_result.success:
-                self.context.nova_experiments = experiment_result.output
-            if content_result.success:
-                self.context.kai_content = content_result.output
-            self._checkpoint(3)
+        if resume_stage <= 3:
+            stage_3_agents = ["nova", "kai"]
+            stage_3_pending = [a for a in stage_3_agents if a not in completed_agents]
+            if stage_3_pending:
+                tasks_3 = {
+                    "nova": (
+                        "Design activation experiments based on the top pain points. "
+                        "Include pre-registration, power analysis, and success criteria."
+                    ),
+                    "kai": (
+                        "Write a technical tutorial addressing the #1 developer pain point. "
+                        "Ground the content in the knowledge base and Dex's architecture "
+                        "analysis. Reference real GitHub issues from Sage's triage. "
+                        "Use actual file paths, commands, and APIs from the source code."
+                    ),
+                }
+                coros = [self.delegate(a, tasks_3[a]) for a in stage_3_pending]
+                results = await asyncio.gather(*coros)
+                for agent_name, res in zip(stage_3_pending, results):
+                    if res.success:
+                        if agent_name == "nova":
+                            self.context.nova_experiments = res.output
+                        elif agent_name == "kai":
+                            self.context.kai_content = res.output
+                        completed_agents.add(agent_name)
+            self._checkpoint(3, completed_agents=completed_agents)
 
         # Stage 4: Vox (uses Kai's content)
-        if resume_stage < 4:
+        if resume_stage <= 4 and "vox" not in completed_agents:
             video_result = await self.delegate(
                 "vox",
                 "Generate a video tutorial from Kai's written content. "
@@ -596,10 +640,11 @@ class Atlas:
             )
             if video_result.success:
                 self.context.vox_video = video_result.output
-            self._checkpoint(4)
+                completed_agents.add("vox")
+            self._checkpoint(4, completed_agents=completed_agents)
 
         # Stage 5: Sentinel brand audit — audit all generated content
-        if resume_stage < 5:
+        if resume_stage <= 5 and "sentinel" not in completed_agents:
             sentinel_result = await self.delegate(
                 "sentinel",
                 "Audit all generated content for brand voice consistency, "
@@ -607,11 +652,18 @@ class Atlas:
             )
             if sentinel_result.success:
                 self.context.okr_progress["brand_audit"] = sentinel_result.output
-            self._checkpoint(5)
+                completed_agents.add("sentinel")
+            self._checkpoint(5, completed_agents=completed_agents)
 
         # Stage 6: Instantly sync (analytics + reply triage)
-        if self.instantly_client:
+        if (
+            resume_stage <= 6
+            and self.instantly_client
+            and "instantly_sync" not in completed_agents
+        ):
             await self._run_instantly_sync()
+            completed_agents.add("instantly_sync")
+            self._checkpoint(6, completed_agents=completed_agents)
 
         # Stage 7: OKR compilation (Atlas)
         self.context.okr_progress = self._compile_okrs()
