@@ -480,7 +480,6 @@ Return ONLY the JSON object.
             "kb_sources": [doc["source"] for doc in kb_docs],
             "upstream_social_mentions": len(upstream["social_mentions"]),
             "upstream_community_issues": len(upstream["community_issues"]),
-            "status": "generated",
         }
 
         base_result["enriched_profiles"] = enriched_profiles
@@ -497,12 +496,21 @@ Return ONLY the JSON object.
                 try:
                     parsed = json.loads(cleaned)
                     base_result["content"] = parsed
-                except json.JSONDecodeError:
-                    base_result["content"] = cleaned
+                    base_result["status"] = "generated"
+                except json.JSONDecodeError as e:
+                    logger.warning(f"Rex JSON parse failed: {e}")
+                    logger.debug(f"Rex raw response head: {cleaned[:500]}")
+                    base_result["status"] = "parse_error"
+                    base_result["raw_content"] = cleaned
+                    base_result["content"] = {}
+                    base_result["error"] = f"JSON parse failed: {e}"
             except Exception as exc:
                 logger.warning(f"LLM generation failed: {exc}")
+                base_result["status"] = "error"
+                base_result["error"] = str(exc)
                 base_result["prompt_used"] = user_prompt[:500]
         else:
+            base_result["status"] = "generated"
             base_result["prompt_used"] = user_prompt[:500]
 
         return base_result

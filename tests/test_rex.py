@@ -310,6 +310,29 @@ class TestRexExecute:
         assert "summary" in result["content"]
 
     @pytest.mark.asyncio
+    async def test_execute_parse_error_preserves_raw(
+        self, posthog_client, knowledge_base_path, mock_llm_client,
+    ):
+        """Wave 2: invalid JSON from the LLM yields parse_error status,
+        keeps the raw text under raw_content, and content is an empty
+        dict (so consumers calling result['content'].get(...) work).
+        """
+        mock_llm_client.generate = AsyncMock(
+            return_value="not valid json {[ at all"
+        )
+        rex = Rex(
+            api_client=posthog_client,
+            knowledge_base_path=knowledge_base_path,
+            llm_client=mock_llm_client,
+            product_name="TestProduct",
+        )
+        result = await rex.execute("Analyze landscape")
+        assert result["status"] == "parse_error"
+        assert result["raw_content"] == "not valid json {[ at all"
+        assert result["content"] == {}
+        assert "JSON parse failed" in result["error"]
+
+    @pytest.mark.asyncio
     async def test_execute_with_search_tools(
         self, posthog_client, knowledge_base_path,
     ):
