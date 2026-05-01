@@ -1,16 +1,19 @@
 """Tests for Rex competitive intelligence agent."""
 
+import asyncio
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
 from devrel_swarm.core.rex import (
-    CompetitorProfile,
+    SEARCH_CONCURRENCY,
     CompetitiveReport,
+    CompetitorProfile,
     MarketPosition,
     Opportunity,
     Rex,
     Threat,
+    _guess_domain,
 )
 from devrel_swarm.tools.search_tools import SearchResult, SearchTools
 
@@ -332,3 +335,71 @@ class TestRexExecute:
         result = await rex.execute("Analyze for: Mixpanel")
         assert result["web_intel_sources"]["Mixpanel"] == 1
         mock_search.web_search.assert_awaited()
+
+
+class TestGuessDomain:
+    """Tests for the _guess_domain helper used at the Apollo enrichment site."""
+
+    def test_preserves_existing_tld(self):
+        # Names that already look like a domain (Pendo.io, Sentry.dev, etc.)
+        # must NOT have a second `.com` appended on top.
+        assert _guess_domain("Pendo.io") == "pendo.io"
+        assert _guess_domain("Sentry.dev") == "sentry.dev"
+        assert _guess_domain("PostHog.com") == "posthog.com"
+
+    def test_appends_com_for_bare_names(self):
+        # Bare brand names get `.com` appended; spaces are stripped.
+        assert _guess_domain("FullStory") == "fullstory.com"
+        assert _guess_domain("Mix Panel") == "mixpanel.com"
+        assert _guess_domain("Heap") == "heap.com"
+
+
+class TestSearchConcurrency:
+    """Verify the parallel search fan-out is bounded by SEARCH_CONCURRENCY."""
+
+    @pytest.mark.asyncio
+    async def test_semaphore_caps_concurrent_web_searches(
+        self, posthog_client, knowledge_base_path, monkeypatch
+    ):
+        # Track how many web_search calls are in-flight at once.
+        in_flight = 0
+        peak = 0
+        gate = asyncio.Event()
+
+        async def fake_web_search(query, limit=5):
+            nonlocal in_flight, peak
+            in_flight += 1
+            peak = max(peak, in_flight)
+            # Hold each call open until all that can launch are launched.
+            await gate.wait()
+            in_flight -= 1
+            return []
+
+        mock_search = MagicMock(spec=SearchTools)
+        mock_search.web_search = AsyncMock(side_effect=fake_web_search)
+
+        rex = Rex(
+            api_client=posthog_client,
+            knowledge_base_path=knowledge_base_path,
+            search_tools=mock_search,
+            product_name="TestProduct",
+        )
+
+        # Force-push a list of 8 competitors so we exceed SEARCH_CONCURRENCY.
+        monkeypatch.setattr(
+            rex, "_discover_competitors",
+            lambda task: [f"Comp{i}" for i in range(8)],
+        )
+
+        async def runner():
+            return await rex.execute("Analyze landscape")
+
+        task = asyncio.create_task(runner())
+        # Let the semaphore admit up to SEARCH_CONCURRENCY workers.
+        await asyncio.sleep(0.05)
+        assert peak <= SEARCH_CONCURRENCY, (
+            f"peak in-flight searches was {peak}, must not exceed "
+            f"SEARCH_CONCURRENCY={SEARCH_CONCURRENCY}"
+        )
+        gate.set()
+        await task

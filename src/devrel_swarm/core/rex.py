@@ -34,6 +34,28 @@ REX_STOP_WORDS = frozenset({
     "landscape", "report",
 })
 
+# Cap parallel web-search and Apollo enrichment fan-out so a 10-competitor
+# task doesn't open 10 simultaneous Firecrawl/Brave/Apollo connections.
+# 3 is conservative enough for free-tier API limits while still cutting
+# wall-clock time roughly to ceil(N/3).
+SEARCH_CONCURRENCY = 3
+
+
+def _guess_domain(comp: str) -> str:
+    """Best-effort domain guess for a competitor name.
+
+    Preserves an existing TLD if the input already looks like a domain
+    (e.g. ``"Pendo.io"`` → ``"pendo.io"``, ``"FullStory"`` → ``"fullstory.com"``).
+    Strips spaces; the result is lowercased so callers can pass it
+    straight to Apollo enrichment.
+    """
+    cleaned = comp.strip().lower().replace(" ", "")
+    # If the name already contains a dot followed by 2+ alpha chars, treat
+    # it as an existing domain and don't append `.com` on top.
+    if re.search(r"\.[a-z]{2,}$", cleaned):
+        return cleaned
+    return f"{cleaned}.com"
+
 
 @dataclass
 class CompetitorProfile:
@@ -303,33 +325,40 @@ class Rex:
         competitors = self._discover_competitors(task)
         logger.info(f"Discovered competitors: {competitors}")
 
-        # 2. Web search per competitor (parallel)
+        # 2. Web search per competitor (semaphore-bounded parallel fan-out)
         web_intel: dict[str, list[dict[str, str]]] = {}
         if self.search_tools and competitors:
+            search_sem = asyncio.Semaphore(SEARCH_CONCURRENCY)
+
             async def _search_competitor(comp: str) -> tuple[str, list[dict[str, str]]]:
-                try:
-                    results = await self.search_tools.web_search(
-                        f"{comp} vs {self.product_name}", limit=5,
-                    )
-                    return comp, [
-                        {"title": r.title, "url": r.url, "snippet": r.snippet}
-                        for r in results
-                    ]
-                except Exception as exc:
-                    logger.warning(f"Web search failed for {comp}: {exc}")
-                    return comp, []
+                async with search_sem:
+                    try:
+                        results = await self.search_tools.web_search(
+                            f"{comp} vs {self.product_name}", limit=5,
+                        )
+                        return comp, [
+                            {"title": r.title, "url": r.url, "snippet": r.snippet}
+                            for r in results
+                        ]
+                    except Exception as exc:
+                        logger.warning(f"Web search failed for {comp}: {exc}")
+                        return comp, []
 
             search_results = await asyncio.gather(
                 *[_search_competitor(c) for c in competitors]
             )
             web_intel = dict(search_results)
 
-        # 2b. Apollo enrichment per competitor (parallel)
+        # 2b. Apollo enrichment per competitor (semaphore-bounded parallel)
         enriched_profiles: list[dict[str, Any]] = []
         if self.apollo_client and competitors:
+            enrich_sem = asyncio.Semaphore(SEARCH_CONCURRENCY)
+
             async def _enrich(comp: str) -> dict[str, Any] | None:
-                domain_guess = comp.lower().replace(" ", "") + ".com"
-                return await self.enrich_competitor_profile(comp, domain_guess)
+                async with enrich_sem:
+                    return await self.enrich_competitor_profile(
+                        comp, _guess_domain(comp)
+                    )
 
             enrichment_results = await asyncio.gather(
                 *[_enrich(c) for c in competitors]
