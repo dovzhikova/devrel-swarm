@@ -22,6 +22,13 @@ logger = logging.getLogger(__name__)
 # Max signals to send in a single LLM call to avoid oversized/truncated responses
 _MAX_SIGNALS_PER_CALL = 30
 
+# Jaccard similarity threshold for merging near-duplicate themes.
+# Calibrated for theme titles in the 4-8 word range (typical LLM output).
+# Two themes whose normalized title token sets share >= 50% are merged.
+# Lower this if you see near-duplicate themes proliferating; raise it if
+# distinct themes are being incorrectly merged.
+SIMILARITY_THRESHOLD = 0.5
+
 
 def _safe_json_loads(text: str) -> dict:
     """Parse JSON from LLM output with regex fallback for malformed responses."""
@@ -371,12 +378,11 @@ Return ONLY valid JSON, no markdown fences."""
     def _merge_themes(cls, themes: list[FeedbackTheme]) -> list[FeedbackTheme]:
         """Merge themes with similar titles using fuzzy matching.
 
-        Uses token-overlap Jaccard similarity (threshold >= 0.5) to group
-        themes that the LLM named differently across chunks. When themes
-        merge, frequencies are summed and severity is averaged.
+        Uses token-overlap Jaccard similarity (threshold from module-level
+        ``SIMILARITY_THRESHOLD``) to group themes that the LLM named
+        differently across chunks. When themes merge, frequencies are
+        summed and severity is averaged.
         """
-        SIMILARITY_THRESHOLD = 0.5
-
         # Build groups using greedy fuzzy matching
         groups: list[list[FeedbackTheme]] = []
         for t in themes:
@@ -488,8 +494,23 @@ Return ONLY valid JSON, no markdown fences."""
         ]
 
     def _find_content_opportunities(self, themes: list[FeedbackTheme]) -> list[str]:
-        """Identify tutorial/doc gaps that would address top pain points."""
-        return [
-            f"Tutorial: How to resolve '{theme.title}'"
-            for theme in sorted(themes, key=lambda t: t.composite_score, reverse=True)[:5]
-        ]
+        """Build content briefs from themes — title + top recommended action.
+
+        Each brief is a short string Kai can use as a writing prompt without
+        further synthesis. When a theme has no recommended_actions, the
+        fallback surfaces severity and frequency so Kai's KB-search has
+        enough context to find related material.
+        """
+        ranked = sorted(themes, key=lambda t: t.composite_score, reverse=True)[:5]
+        opportunities: list[str] = []
+        for theme in ranked:
+            actions = getattr(theme, "recommended_actions", None) or []
+            top_action = actions[0] if actions else None
+            if top_action:
+                opportunities.append(f"Tutorial on '{theme.title}': {top_action}")
+            else:
+                opportunities.append(
+                    f"Tutorial on '{theme.title}' "
+                    f"(severity={theme.severity}, freq={theme.frequency})"
+                )
+        return opportunities

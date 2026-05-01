@@ -159,6 +159,42 @@ class TestIrisContentOpportunities:
         opportunities = iris._find_content_opportunities(themes)
         assert len(opportunities) <= 5
 
+    def test_content_opportunity_includes_recommended_action(self, iris):
+        """Briefs should embed the top recommended_action so Kai gets a usable prompt."""
+        theme = FeedbackTheme(
+            theme_id="t1",
+            title="Setup friction",
+            description="...",
+            frequency=10,
+            severity=8.0,
+            composite_score=80.0,
+            sources=["github"],
+            representative_quotes=[],
+            product_areas=["onboarding"],
+            recommended_actions=["Add a 5-minute quickstart guide"],
+        )
+        opps = iris._find_content_opportunities([theme])
+        assert "5-minute quickstart" in opps[0]
+        assert "Setup friction" in opps[0]
+
+    def test_content_opportunity_falls_back_to_severity_when_no_action(self, iris):
+        """Without recommended_actions the brief surfaces severity/frequency for KB context."""
+        theme = FeedbackTheme(
+            theme_id="t1",
+            title="Setup friction",
+            description="...",
+            frequency=10,
+            severity=8.0,
+            composite_score=80.0,
+            sources=["github"],
+            representative_quotes=[],
+            product_areas=["onboarding"],
+            recommended_actions=[],
+        )
+        opps = iris._find_content_opportunities([theme])
+        assert "severity=8" in opps[0]
+        assert "freq=10" in opps[0]
+
 
 class TestIrisSynthesizeWeekly:
     """Test synthesize_weekly() integration."""
