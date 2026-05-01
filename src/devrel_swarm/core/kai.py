@@ -341,7 +341,10 @@ Always cite which knowledge base documents you referenced."""
                         f"blocks failed syntax checks"
                     )
             except Exception as exc:
-                logger.warning(f"Content generation failed: {exc}")
+                logger.exception(f"Content generation failed: {exc}")
+                base_result["status"] = "error"
+                base_result["error"] = str(exc)
+                base_result.setdefault("content", "")
                 base_result["prompt_used"] = prompt[:500]
         else:
             base_result["prompt_used"] = prompt[:500]
