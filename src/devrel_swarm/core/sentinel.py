@@ -229,6 +229,7 @@ Return JSON:
   "recommendations": ["..."]
 }}"""
 
+        raw = ""
         try:
             raw = await self.llm_client.generate(
                 system_prompt=self.SYSTEM_PROMPT,
@@ -236,7 +237,7 @@ Return JSON:
                 temperature=0.2,
                 max_tokens=4096,
             )
-            cleaned = strip_markdown_fences(raw)
+            cleaned = strip_markdown_fences(raw).strip()
             audit = json.loads(cleaned)
             return {
                 "agent": "sentinel",
@@ -244,8 +245,20 @@ Return JSON:
                 "status": "audited",
                 **audit,
             }
+        except json.JSONDecodeError as exc:
+            logger.warning(
+                "Sentinel LLM audit returned non-JSON response; falling back "
+                "to structural. error=%s raw_head=%r",
+                exc,
+                (raw or "")[:200],
+            )
+            logger.debug("Full raw response: %s", raw)
+            return self._structural_audit(task, pieces)
         except Exception as exc:
-            logger.warning(f"LLM audit failed: {exc}")
+            logger.warning(
+                "Sentinel LLM audit API error; falling back to structural: %s",
+                exc,
+            )
             return self._structural_audit(task, pieces)
 
     def _structural_audit(
@@ -308,12 +321,17 @@ Return JSON:
             })
             total_score += max(1, score)
 
-        overall = int((total_score / max(len(items), 1)) * 10)
+        # Map item average from 1-7 scale onto 10-100 scale linearly so the
+        # structural fallback produces scores comparable to the LLM 1-100 path:
+        #   item_avg = 1 → 10, item_avg = 4 → 55, item_avg = 7 → 100
+        average_item = total_score / max(len(items), 1)
+        overall = int(round(((average_item - 1) / 6) * 90 + 10))
+        overall = max(0, min(100, overall))
         return {
             "agent": "sentinel",
             "task": task,
             "status": "audited_structural",
-            "overall_score": min(100, overall),
+            "overall_score": overall,
             "items": items,
             "cross_piece_issues": [],
             "recommendations": [],
