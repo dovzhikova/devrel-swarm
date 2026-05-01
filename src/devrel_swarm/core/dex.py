@@ -238,6 +238,20 @@ Output formats:
                             line_number=node.lineno,
                         ))
 
+            # Annotated module-level constants (e.g. `MAX_RETRIES: int = 5`)
+            # — `ast.AnnAssign` has a single `target` (not `targets`), and we
+            # only capture ALL_CAPS names so lowercase typed module vars
+            # don't pollute the parsed symbol list.
+            elif isinstance(node, ast.AnnAssign):
+                if isinstance(node.target, ast.Name) and node.target.id.isupper():
+                    symbols.append(ParsedSymbol(
+                        name=node.target.id,
+                        kind="constant",
+                        signature=f"{node.target.id} = ...",
+                        docstring="",
+                        line_number=node.lineno,
+                    ))
+
         return ParsedModule(
             path=rel_path,
             language="python",

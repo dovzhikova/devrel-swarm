@@ -151,6 +151,23 @@ class TestParsePython:
         assert "DEBUG" in names
         assert "local_var" not in names  # not ALL_CAPS
 
+    def test_extracts_annotated_constants(self, dex):
+        # Annotated module-level constants (`X: int = 42`) come through
+        # the AST as `AnnAssign`, not `Assign`. The parser must handle
+        # both branches; lowercase annotated module vars must NOT be
+        # captured (matches the existing Assign-branch policy).
+        source = (
+            "MAX_RETRIES: int = 5\n"
+            "API_URL: str = 'https://example.com'\n"
+            "config_path: str = '/etc/conf'\n"
+        )
+        result = dex._parse_python("test.py", source)
+        constants = [s for s in result.symbols if s.kind == "constant"]
+        names = [c.name for c in constants]
+        assert "MAX_RETRIES" in names
+        assert "API_URL" in names
+        assert "config_path" not in names  # lowercase, not a constant
+
     def test_extracts_decorators(self, dex):
         source = "@staticmethod\ndef foo():\n    pass\n"
         result = dex._parse_python("test.py", source)
