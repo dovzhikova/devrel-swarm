@@ -323,7 +323,7 @@ Return a JSON object with a "themes" array. Each theme has:
 - description: 1-2 sentence explanation
 - frequency: how many signals relate to this theme (integer)
 - severity: 1-10 severity score (float)
-- sources: ["github"] (always for now)
+- sources: list of platforms observed in the signals you classified (typically a subset of github, discourse, twitter, support_tickets — infer from the signals above)
 - representative_issues: list of issue numbers (e.g. ["#123", "#456"]) from the signals above
 - product_areas: which areas are affected (orchestration, agent SDK, MCP tools, knowledge base, scoring/eval, prompt optimization, onboarding/docs, security)
 - recommended_actions: 1-2 concrete actions to address this
