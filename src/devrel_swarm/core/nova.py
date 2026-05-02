@@ -13,6 +13,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Optional
 
+from scipy import stats
+
 from devrel_swarm.tools.api_client import PostHogClient
 
 logger = logging.getLogger(__name__)
@@ -156,6 +158,11 @@ where MDE = minimum detectable effect, p = baseline conversion rate"""
             title = theme.get("title", "Unknown")
             severity = theme.get("severity", 5.0)
             areas = theme.get("product_areas", ["general"])
+            # High-severity themes warrant detecting a smaller lift (3% MDE) — the
+            # downside of missing a real improvement is large because the underlying
+            # pain is hurting users. Lower-severity themes accept a larger MDE (5%)
+            # to ship faster; if the experiment is inconclusive, the cost of being
+            # wrong is bounded.
             mde = 0.03 if severity >= 7 else 0.05
             baseline = 0.15
 
@@ -245,8 +252,6 @@ where MDE = minimum detectable effect, p = baseline conversion rate"""
         Returns:
             Required sample size per arm
         """
-        from scipy import stats  # type: ignore
-
         z_alpha = stats.norm.ppf(1 - significance_level / 2)
         z_beta = stats.norm.ppf(power)
 
