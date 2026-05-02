@@ -15,7 +15,7 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Iterator
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS schema_meta (
@@ -54,17 +54,29 @@ CREATE TABLE IF NOT EXISTS checkpoints (
     saved_at TEXT NOT NULL DEFAULT (datetime('now')),
     UNIQUE (agent, week_of)
 );
+
+CREATE TABLE IF NOT EXISTS analytics_reports (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    period_start TEXT NOT NULL,
+    period_end TEXT NOT NULL,
+    report_json TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_analytics_reports_period
+    ON analytics_reports(period_end);
 """
 
 
 def init_db(db_path: Path) -> None:
     """Create the DB file and apply the schema. Idempotent — preserves
-    existing data."""
+    existing data and bumps schema_meta to the current SCHEMA_VERSION."""
     db_path.parent.mkdir(parents=True, exist_ok=True)
     with sqlite3.connect(db_path) as conn:
         conn.executescript(SCHEMA)
         conn.execute(
-            "INSERT OR IGNORE INTO schema_meta (version) VALUES (?)",
+            "INSERT OR REPLACE INTO schema_meta (version, applied_at) "
+            "VALUES (?, datetime('now'))",
             (SCHEMA_VERSION,),
         )
         conn.commit()
