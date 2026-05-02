@@ -8,7 +8,10 @@ cross-agent context sharing, and weekly OKR tracking.
 import asyncio
 import json
 import logging
+import os
 import random
+import shutil
+import subprocess
 from contextlib import nullcontext as _nullcontext
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -675,17 +678,25 @@ class Atlas:
         # Self-improvement: extract recurring issues and update agent prompts
         try:
             from devrel_swarm.tools.self_improve import run_self_improvement
-            improve_report = run_self_improvement(
-                self.archive_dir,
-                Path(__file__).parent.parent / "optimize",
+        except ImportError as exc:
+            logger.warning(
+                "Self-improvement module not available; skipping: %s", exc
             )
-            if improve_report.get("recurring_issues"):
-                logger.info(
-                    "self_improvement_complete",
-                    extra={"agents_updated": list(improve_report["recurring_issues"].keys())},
+        else:
+            try:
+                improve_report = run_self_improvement(
+                    self.archive_dir,
+                    Path(__file__).parent.parent / "optimize",
                 )
-        except Exception as exc:
-            logger.warning(f"Self-improvement failed: {exc}")
+                if improve_report.get("recurring_issues"):
+                    logger.info(
+                        "self_improvement_complete",
+                        extra={"agents_updated": list(improve_report["recurring_issues"].keys())},
+                    )
+            except Exception:
+                logger.exception(
+                    "Self-improvement step raised; continuing weekly cycle"
+                )
 
         # Stage 8: Publish to content calendar + send notifications
         await self._publish_and_notify()
@@ -853,7 +864,6 @@ async def process_draft(draft: dict, instantly_client: InstantlyClient) -> str:
         draft["status"] = "sent"
         return "approved"
     elif choice == "e":
-        import os
         import tempfile
 
         with tempfile.NamedTemporaryFile(
@@ -862,9 +872,16 @@ async def process_draft(draft: dict, instantly_client: InstantlyClient) -> str:
             f.write(draft["draft_body"])
             tmp_path = f.name
         editor = os.environ.get("EDITOR", "vi")
-        os.system(f"{editor} {tmp_path}")
-        with open(tmp_path) as f:
-            edited_body = f.read()
+        editor_path = shutil.which(editor)
+        if editor_path is None:
+            logger.warning(
+                "EDITOR=%s not found on PATH; skipping interactive edit", editor
+            )
+            edited_body = draft["draft_body"]
+        else:
+            subprocess.run([editor_path, str(tmp_path)], check=False)
+            with open(tmp_path) as f:
+                edited_body = f.read()
         os.unlink(tmp_path)
         await instantly_client.reply_to_email(
             email_id=draft["email_id"],
