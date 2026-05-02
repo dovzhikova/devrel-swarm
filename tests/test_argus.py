@@ -11,11 +11,24 @@ from devrel_swarm.core.argus import (
     PerformanceMetric,
     PerformanceReport,
     Recommendation,
+    _score_metrics,
 )
 
 
 def _utc(year: int, month: int, day: int) -> datetime:
     return datetime(year, month, day, tzinfo=timezone.utc)
+
+
+def _metric(content_id: str, content_type: str, value: float) -> PerformanceMetric:
+    return PerformanceMetric(
+        content_id=content_id,
+        content_type=content_type,  # type: ignore[arg-type]
+        title=content_id,
+        url=None,
+        published_at=_utc(2026, 4, 1),
+        primary_metric=value,
+        metric_name="page_views",
+    )
 
 
 def test_performance_metric_defaults():
@@ -78,3 +91,45 @@ def test_performance_report_round_trip():
     assert report.insufficient_data is False
     assert report.llm_error is None
     assert report.sources_ok["instantly"] is False
+
+
+def test_scorer_assigns_percentile_within_content_type():
+    metrics = [
+        _metric("blog/a", "blog", 10.0),
+        _metric("blog/b", "blog", 50.0),
+        _metric("blog/c", "blog", 90.0),
+    ]
+    scored = _score_metrics(metrics, baseline_by_type={})
+    by_id = {m.content_id: m for m in scored}
+    assert by_id["blog/c"].percentile == pytest.approx(100.0, abs=1.0)
+    assert by_id["blog/a"].percentile == pytest.approx(0.0, abs=1.0)
+    assert 30.0 < by_id["blog/b"].percentile < 70.0
+
+
+def test_scorer_keeps_content_types_independent():
+    metrics = [
+        _metric("blog/a", "blog", 100.0),
+        _metric("email/x", "email", 5.0),
+    ]
+    scored = _score_metrics(metrics, baseline_by_type={})
+    by_id = {m.content_id: m for m in scored}
+    assert by_id["blog/a"].percentile == pytest.approx(100.0, abs=1.0)
+    assert by_id["email/x"].percentile == pytest.approx(100.0, abs=1.0)
+
+
+def test_scorer_flags_anomaly_when_zscore_high():
+    metrics = [_metric(f"blog/{i}", "blog", 10.0) for i in range(10)]
+    metrics.append(_metric("blog/spike", "blog", 1000.0))
+    scored = _score_metrics(metrics, baseline_by_type={})
+    spike = next(m for m in scored if m.content_id == "blog/spike")
+    assert spike.anomaly_flag is True
+
+
+def test_scorer_computes_wow_delta_against_baseline():
+    metrics = [_metric("blog/a", "blog", 200.0)]
+    scored = _score_metrics(
+        metrics,
+        baseline_by_type={"blog/a": 100.0},
+    )
+    a = scored[0]
+    assert a.wow_delta == pytest.approx(100.0)

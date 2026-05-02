@@ -12,11 +12,14 @@ post-publish watcher in the 13-agent pantheon.
 from __future__ import annotations
 
 import logging
+import statistics
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Literal
 
 logger = logging.getLogger(__name__)
+
+_ANOMALY_Z_THRESHOLD = 2.5
 
 ContentType = Literal["blog", "landing", "social", "email", "repo", "video"]
 RecAction = Literal[
@@ -67,3 +70,63 @@ class PerformanceReport:
     sources_ok: dict[str, bool]
     insufficient_data: bool = False
     llm_error: str | None = None
+
+
+def _score_metrics(
+    metrics: list[PerformanceMetric],
+    *,
+    baseline_by_type: dict[str, float],
+) -> list[PerformanceMetric]:
+    """Annotate each metric with percentile, wow_delta, and anomaly_flag.
+
+    Pure function — input metrics are not mutated; new instances are returned.
+
+    - percentile: rank within same content_type peers (0..100, 100 = best)
+    - wow_delta: % change vs baseline_by_type[content_id], None if no baseline
+    - anomaly_flag: |z-score| > _ANOMALY_Z_THRESHOLD against group mean/stdev
+    """
+    by_type: dict[str, list[PerformanceMetric]] = {}
+    for m in metrics:
+        by_type.setdefault(m.content_type, []).append(m)
+
+    out: list[PerformanceMetric] = []
+    for group in by_type.values():
+        values = [m.primary_metric for m in group]
+        n = len(values)
+        mean = statistics.fmean(values) if values else 0.0
+        stdev = statistics.pstdev(values) if n > 1 else 0.0
+
+        for m in group:
+            if n <= 1:
+                pct = 100.0
+            else:
+                lower = sum(1 for v in values if v < m.primary_metric)
+                pct = (lower / (n - 1)) * 100.0
+
+            baseline = baseline_by_type.get(m.content_id)
+            if baseline is None or baseline == 0:
+                wow = None
+            else:
+                wow = ((m.primary_metric - baseline) / baseline) * 100.0
+
+            anomaly = False
+            if stdev > 0:
+                z = (m.primary_metric - mean) / stdev
+                anomaly = abs(z) > _ANOMALY_Z_THRESHOLD
+
+            out.append(
+                PerformanceMetric(
+                    content_id=m.content_id,
+                    content_type=m.content_type,
+                    title=m.title,
+                    url=m.url,
+                    published_at=m.published_at,
+                    primary_metric=m.primary_metric,
+                    metric_name=m.metric_name,
+                    secondary_metrics=dict(m.secondary_metrics),
+                    percentile=round(pct, 2),
+                    wow_delta=round(wow, 2) if wow is not None else None,
+                    anomaly_flag=anomaly,
+                )
+            )
+    return out
