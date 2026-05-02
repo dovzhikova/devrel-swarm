@@ -116,7 +116,15 @@ class DesktopRecorder:
         finally:
             # Stop recording
             ffmpeg_process.terminate()
-            await ffmpeg_process.wait()
+            _stdout, stderr = await ffmpeg_process.communicate()
+            # FFmpeg returns non-zero when terminated mid-encode (rc=255 on SIGTERM
+            # is expected); log only when we have a genuine error code with stderr.
+            if ffmpeg_process.returncode not in (0, -15, 255) and stderr:
+                logger.error(
+                    "Desktop recorder FFmpeg failed (rc=%d). stderr:\n%s",
+                    ffmpeg_process.returncode,
+                    stderr.decode(errors="replace"),
+                )
 
         logger.info(f"Desktop step recorded: {output_path}")
         return output_path
@@ -152,7 +160,7 @@ class DesktopRecorder:
         process = await asyncio.create_subprocess_exec(
             *cmd,
             stdout=asyncio.subprocess.DEVNULL,
-            stderr=asyncio.subprocess.DEVNULL,
+            stderr=asyncio.subprocess.PIPE,
         )
         return process
 

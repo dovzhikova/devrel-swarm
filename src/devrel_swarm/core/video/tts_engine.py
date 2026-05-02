@@ -3,6 +3,7 @@ TTS engine — wraps OpenAI Text-to-Speech API for narration generation.
 Generates .mp3 audio files from narration text, one per tutorial step.
 """
 
+import asyncio
 import logging
 from pathlib import Path
 from typing import Optional
@@ -43,7 +44,12 @@ class TTSEngine:
         response = await self._client.audio.speech.create(
             model=self.model, voice=selected_voice, input=text
         )
-        response.stream_to_file(str(output_path))
+        loop = asyncio.get_event_loop()
+        await loop.run_in_executor(
+            None,
+            response.stream_to_file,
+            str(output_path),
+        )
         logger.info(f"TTS audio saved to {output_path}")
         return output_path
 
