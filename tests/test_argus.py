@@ -214,3 +214,74 @@ async def test_argus_run_marks_insufficient_data_when_all_empty():
     assert report.insufficient_data is True
     assert report.recommendations == []
     llm.generate.assert_not_called()
+
+
+# ───────────────── LLM interpreter (Task 9) ─────────────────
+
+
+@pytest.mark.asyncio
+async def test_argus_prompt_includes_content_type_breakdown_and_action_vocab():
+    posthog = MagicMock()
+    posthog.collect = AsyncMock(
+        return_value=[
+            PerformanceMetric(
+                content_id="blog/a", content_type="blog", title="A", url=None,
+                published_at=_utc(2026, 4, 30), primary_metric=500.0,
+                metric_name="page_views",
+            ),
+            PerformanceMetric(
+                content_id="email/c1", content_type="email", title="C1", url=None,
+                published_at=_utc(2026, 4, 30), primary_metric=0.05,
+                metric_name="reply_rate",
+            ),
+        ]
+    )
+    empty = MagicMock(); empty.collect = AsyncMock(return_value=[])
+
+    captured: dict[str, str] = {}
+
+    async def _capture_generate(*, system_prompt, user_prompt, **_):
+        captured["system"] = system_prompt
+        captured["user"] = user_prompt
+        return '{"recommendations": [], "trend_signals": []}'
+
+    llm = MagicMock(); llm.generate = AsyncMock(side_effect=_capture_generate)
+    argus = Argus(posthog, empty, empty, empty, llm_client=llm, state_db_path=None)
+    await argus.run(period_start=_utc(2026, 4, 25), period_end=_utc(2026, 5, 2))
+
+    sys_prompt = captured["system"]
+    user_prompt = captured["user"]
+    assert "Argus" in sys_prompt
+    for action in (
+        "double_down", "retire", "rewrite", "retest", "amplify", "investigate",
+    ):
+        assert action in sys_prompt
+    assert "blog" in user_prompt
+    assert "email" in user_prompt
+    assert "page_views" in user_prompt
+    assert "reply_rate" in user_prompt
+
+
+@pytest.mark.asyncio
+async def test_argus_handles_unparseable_llm_output_gracefully():
+    posthog = MagicMock()
+    posthog.collect = AsyncMock(
+        return_value=[
+            PerformanceMetric(
+                content_id="blog/a", content_type="blog", title="A", url=None,
+                published_at=_utc(2026, 4, 30), primary_metric=500.0,
+                metric_name="page_views",
+            ),
+        ]
+    )
+    empty = MagicMock(); empty.collect = AsyncMock(return_value=[])
+
+    llm = MagicMock()
+    llm.generate = AsyncMock(return_value="this is not json at all")
+
+    argus = Argus(posthog, empty, empty, empty, llm_client=llm, state_db_path=None)
+    report = await argus.run(period_start=_utc(2026, 4, 25), period_end=_utc(2026, 5, 2))
+
+    assert report.recommendations == []
+    assert report.llm_error is not None
+    assert len(report.top_performers) >= 1

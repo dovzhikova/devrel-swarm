@@ -20,7 +20,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Literal, Optional
 
-from devrel_swarm.core.base import strip_markdown_fences
+from devrel_swarm.core.base import load_agent_prompt, strip_markdown_fences
 
 logger = logging.getLogger(__name__)
 
@@ -259,18 +259,83 @@ class Argus:
         """Stub — populated in Task 10."""
         return
 
+    _DEFAULT_SYSTEM_PROMPT = """You are Argus, a content performance analyst. \
+Given a ranked leaderboard of content with engagement metrics, you produce \
+structured optimization recommendations.
+
+Your action vocabulary is closed. Use exactly one of:
+- double_down: theme/channel is winning; produce more of this kind of content
+- retire: content/theme is consistently underperforming; stop investing
+- rewrite: specific piece has potential but is poorly executed; redo it
+- retest: result is inconclusive; re-run with more samples or a different cohort
+- amplify: already-good content is under-distributed; push harder on existing channels
+- investigate: anomaly you cannot confidently explain; flag for human review
+
+Be evidence-based. Every recommendation must cite specific metrics with content_ids.
+Bias toward fewer, higher-confidence recommendations. Five strong recs beat fifteen weak ones.
+Confidence below 0.5 means "investigate" — do not recommend a directional action."""
+
+    @property
+    def SYSTEM_PROMPT(self) -> str:
+        return load_agent_prompt(
+            "argus", "system_prompt.txt", self._DEFAULT_SYSTEM_PROMPT,
+        )
+
     async def _generate_recommendations(
         self,
         scored: list[PerformanceMetric],
     ) -> tuple[list[Recommendation], list[str]]:
-        """Stub LLM call. Replaced with structured prompt in Task 9."""
-        leaderboard_summary = "\n".join(
-            f"- {m.content_id} ({m.content_type}): {m.primary_metric} {m.metric_name}"
-            for m in scored[:50]
-        )
+        """One Sonnet call. Returns (recommendations, trend_signals).
+
+        Bounded input: top 10 + bottom 5 per content type, capped at 50 lines.
+        Output: JSON with ``recommendations`` and ``trend_signals`` arrays.
+        """
+        by_type: dict[str, list[PerformanceMetric]] = {}
+        for m in scored:
+            by_type.setdefault(m.content_type, []).append(m)
+
+        sections: list[str] = []
+        total = 0
+        for ctype, group in by_type.items():
+            ranked = sorted(group, key=lambda m: m.primary_metric, reverse=True)
+            slice_ = ranked[:10] + (ranked[-5:] if len(ranked) > 10 else [])
+            metric_name = ranked[0].metric_name if ranked else "n/a"
+            section_lines = [
+                f"### {ctype.upper()} ({len(group)} items, primary metric: {metric_name})"
+            ]
+            for m in slice_:
+                if total >= 50:
+                    break
+                pct = f"p{m.percentile:.0f}" if m.percentile is not None else "p?"
+                wow = f", wow {m.wow_delta:+.1f}%" if m.wow_delta is not None else ""
+                anom = " [ANOMALY]" if m.anomaly_flag else ""
+                section_lines.append(
+                    f"- {m.content_id}: {m.primary_metric:g} {m.metric_name} "
+                    f"({pct}{wow}){anom} — {m.title}"
+                )
+                total += 1
+            sections.append("\n".join(section_lines))
+            if total >= 50:
+                break
+
+        leaderboard = "\n\n".join(sections)
+        user_prompt = f"""Period leaderboard (top 10 + bottom 5 per content type):
+
+{leaderboard}
+
+Return a JSON object with two top-level keys:
+- "recommendations": array of {{action, target, target_type, rationale, evidence, confidence}}
+- "trend_signals": array of short strings describing themes/channel patterns (3-7 items)
+
+action ∈ {{double_down, retire, rewrite, retest, amplify, investigate}}
+target_type ∈ {{content, theme, channel}}
+confidence ∈ [0.0, 1.0]; below 0.5 use action="investigate".
+
+Do not include any commentary outside the JSON."""
+
         raw = await self.llm_client.generate(
-            system_prompt="(temporary stub system prompt)",
-            user_prompt=f"Leaderboard:\n{leaderboard_summary}",
+            system_prompt=self.SYSTEM_PROMPT,
+            user_prompt=user_prompt,
             temperature=0.2,
             max_tokens=2048,
         )
