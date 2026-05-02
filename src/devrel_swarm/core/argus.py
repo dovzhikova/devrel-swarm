@@ -11,11 +11,16 @@ post-publish watcher in the 13-agent pantheon.
 
 from __future__ import annotations
 
+import asyncio
+import json
 import logging
 import statistics
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Literal
+from pathlib import Path
+from typing import Any, Literal, Optional
+
+from devrel_swarm.core.base import strip_markdown_fences
 
 logger = logging.getLogger(__name__)
 
@@ -130,3 +135,157 @@ def _score_metrics(
                 )
             )
     return out
+
+
+class Argus:
+    """Content performance analyst.
+
+    Orchestrates four collectors in parallel, scores metrics deterministically,
+    and asks a Sonnet LLM to generate structured Recommendation objects from
+    the ranked leaderboard. Per-collector failures are isolated and surfaced in
+    PerformanceReport.sources_ok rather than aborting the whole report.
+    """
+
+    def __init__(
+        self,
+        posthog_collector,
+        github_collector,
+        instantly_collector,
+        social_collector,
+        llm_client: Optional[Any] = None,
+        state_db_path: Optional[Path] = None,
+    ):
+        self._collectors = {
+            "posthog": posthog_collector,
+            "github": github_collector,
+            "instantly": instantly_collector,
+            "social": social_collector,
+        }
+        self.llm_client = llm_client
+        self.state_db_path = state_db_path
+
+    async def run(
+        self,
+        period_start: datetime,
+        period_end: datetime,
+    ) -> PerformanceReport:
+        """Pull, score, recommend, persist. Returns the PerformanceReport."""
+        period = (period_start, period_end)
+        all_metrics, sources_ok = await self._gather(period)
+
+        if not all_metrics:
+            return PerformanceReport(
+                period_start=period_start,
+                period_end=period_end,
+                top_performers=[],
+                bottom_performers=[],
+                trend_signals=[],
+                recommendations=[],
+                sources_ok=sources_ok,
+                insufficient_data=True,
+            )
+
+        baseline = self._load_baselines() if self.state_db_path else {}
+        scored = _score_metrics(all_metrics, baseline_by_type=baseline)
+
+        top, bottom = self._top_bottom(scored)
+
+        recs: list[Recommendation] = []
+        trend_signals: list[str] = []
+        llm_error: Optional[str] = None
+        if self.llm_client:
+            try:
+                recs, trend_signals = await self._generate_recommendations(scored)
+            except Exception as exc:  # noqa: BLE001
+                logger.warning("Argus LLM step failed: %s", exc)
+                llm_error = str(exc)
+
+        report = PerformanceReport(
+            period_start=period_start,
+            period_end=period_end,
+            top_performers=top,
+            bottom_performers=bottom,
+            trend_signals=trend_signals,
+            recommendations=recs,
+            sources_ok=sources_ok,
+            llm_error=llm_error,
+        )
+
+        if self.state_db_path:
+            self._persist(report)
+
+        return report
+
+    async def _gather(
+        self, period: tuple[datetime, datetime],
+    ) -> tuple[list[PerformanceMetric], dict[str, bool]]:
+        """Run all four collectors in parallel; isolate per-source failures."""
+        names = list(self._collectors.keys())
+        coros = [c.collect(period) for c in self._collectors.values()]
+        results = await asyncio.gather(*coros, return_exceptions=True)
+
+        all_metrics: list[PerformanceMetric] = []
+        sources_ok: dict[str, bool] = {}
+        for name, result in zip(names, results, strict=True):
+            if isinstance(result, Exception):
+                sources_ok[name] = False
+                logger.warning("Argus collector %s raised: %s", name, result)
+            else:
+                sources_ok[name] = True
+                all_metrics.extend(result)
+        return all_metrics, sources_ok
+
+    @staticmethod
+    def _top_bottom(
+        scored: list[PerformanceMetric],
+    ) -> tuple[list[PerformanceMetric], list[PerformanceMetric]]:
+        """Top 5 and bottom 3 per content_type, flattened."""
+        by_type: dict[str, list[PerformanceMetric]] = {}
+        for m in scored:
+            by_type.setdefault(m.content_type, []).append(m)
+        top: list[PerformanceMetric] = []
+        bottom: list[PerformanceMetric] = []
+        for group in by_type.values():
+            ranked = sorted(group, key=lambda m: m.primary_metric, reverse=True)
+            top.extend(ranked[:5])
+            bottom.extend(list(reversed(ranked[-3:])))
+        return top, bottom
+
+    def _load_baselines(self) -> dict[str, float]:
+        """Stub — populated in Task 10."""
+        return {}
+
+    def _persist(self, report: PerformanceReport) -> None:
+        """Stub — populated in Task 10."""
+        return
+
+    async def _generate_recommendations(
+        self,
+        scored: list[PerformanceMetric],
+    ) -> tuple[list[Recommendation], list[str]]:
+        """Stub LLM call. Replaced with structured prompt in Task 9."""
+        leaderboard_summary = "\n".join(
+            f"- {m.content_id} ({m.content_type}): {m.primary_metric} {m.metric_name}"
+            for m in scored[:50]
+        )
+        raw = await self.llm_client.generate(
+            system_prompt="(temporary stub system prompt)",
+            user_prompt=f"Leaderboard:\n{leaderboard_summary}",
+            temperature=0.2,
+            max_tokens=2048,
+        )
+        cleaned = strip_markdown_fences(raw).strip()
+        data = json.loads(cleaned)
+        recs = [
+            Recommendation(
+                action=r["action"],
+                target=r["target"],
+                target_type=r["target_type"],
+                rationale=r["rationale"],
+                evidence=list(r.get("evidence", [])),
+                confidence=float(r["confidence"]),
+            )
+            for r in data.get("recommendations", [])
+        ]
+        trend_signals = list(data.get("trend_signals", []))
+        return recs, trend_signals

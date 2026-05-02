@@ -133,3 +133,84 @@ def test_scorer_computes_wow_delta_against_baseline():
     )
     a = scored[0]
     assert a.wow_delta == pytest.approx(100.0)
+
+
+# ───────────────────────── Argus orchestration ─────────────────────────
+
+
+from unittest.mock import AsyncMock, MagicMock  # noqa: E402
+
+from devrel_swarm.core.argus import Argus  # noqa: E402
+
+
+@pytest.mark.asyncio
+async def test_argus_run_aggregates_collectors_and_marks_sources_ok():
+    posthog = MagicMock()
+    posthog.collect = AsyncMock(
+        return_value=[
+            PerformanceMetric(
+                content_id="blog/x", content_type="blog", title="X", url=None,
+                published_at=_utc(2026, 4, 30), primary_metric=100.0,
+                metric_name="page_views",
+            )
+        ]
+    )
+    github = MagicMock()
+    github.collect = AsyncMock(side_effect=RuntimeError("boom"))
+    instantly = MagicMock()
+    instantly.collect = AsyncMock(return_value=[])
+    social = MagicMock()
+    social.collect = AsyncMock(return_value=[])
+
+    llm = MagicMock()
+    llm.generate = AsyncMock(
+        return_value=(
+            '{"recommendations": [{"action": "investigate", '
+            '"target": "blog/x", "target_type": "content", '
+            '"rationale": "Only one data point.", '
+            '"evidence": ["blog/x: 100 views"], '
+            '"confidence": 0.5}], '
+            '"trend_signals": ["Insufficient corpus"]}'
+        )
+    )
+
+    argus = Argus(
+        posthog_collector=posthog,
+        github_collector=github,
+        instantly_collector=instantly,
+        social_collector=social,
+        llm_client=llm,
+        state_db_path=None,
+    )
+    report = await argus.run(
+        period_start=_utc(2026, 4, 25),
+        period_end=_utc(2026, 5, 2),
+    )
+
+    assert isinstance(report, PerformanceReport)
+    assert report.sources_ok["posthog"] is True
+    assert report.sources_ok["github"] is False
+    assert report.sources_ok["instantly"] is True
+    assert report.sources_ok["social"] is True
+    assert len(report.recommendations) == 1
+    assert report.recommendations[0].action == "investigate"
+
+
+@pytest.mark.asyncio
+async def test_argus_run_marks_insufficient_data_when_all_empty():
+    empty = MagicMock()
+    empty.collect = AsyncMock(return_value=[])
+    llm = MagicMock()
+    llm.generate = AsyncMock()
+
+    argus = Argus(
+        posthog_collector=empty, github_collector=empty,
+        instantly_collector=empty, social_collector=empty,
+        llm_client=llm, state_db_path=None,
+    )
+    report = await argus.run(
+        period_start=_utc(2026, 4, 25), period_end=_utc(2026, 5, 2),
+    )
+    assert report.insufficient_data is True
+    assert report.recommendations == []
+    llm.generate.assert_not_called()
