@@ -17,6 +17,38 @@ from devrel_swarm.tools.github_tools import GitHubIssue, GitHubTools
 logger = logging.getLogger(__name__)
 
 
+# Shared keyword vocabularies for triage classification. Single source of
+# truth — avoids divergence between sentiment, category, and priority logic.
+CHURN_SIGNALS: tuple[str, ...] = (
+    "switching to",
+    "give up",
+    "moving away",
+    "nth time",
+)
+
+FRUSTRATION_SIGNALS: tuple[str, ...] = (
+    "broken",
+    "terrible",
+    "worst",
+    "!!!",
+)
+
+BUG_KEYWORDS: tuple[str, ...] = (
+    "bug",
+    "error",
+    "crash",
+    "broken",
+    "fix",
+)
+
+CRITICAL_KEYWORDS: tuple[str, ...] = (
+    "data loss",
+    "security",
+    "vulnerability",
+    "crash",
+)
+
+
 class IssuePriority(Enum):
     CRITICAL = "critical"  # Data loss, security, complete breakage
     HIGH = "high"  # Feature broken, no workaround
@@ -286,12 +318,10 @@ Champion signals:
     def _analyze_sentiment(self, text: str) -> SentimentScore:
         """Rule-based sentiment pre-filter before LLM analysis."""
         text_lower = text.lower()
-        churn_signals = ["switching to", "give up", "moving away", "nth time"]
-        frustration_signals = ["broken", "terrible", "worst", "!!!"]
 
-        if any(signal in text_lower for signal in churn_signals):
+        if any(signal in text_lower for signal in CHURN_SIGNALS):
             return SentimentScore.CHURNING
-        if any(signal in text_lower for signal in frustration_signals):
+        if any(signal in text_lower for signal in FRUSTRATION_SIGNALS):
             return SentimentScore.FRUSTRATED
         if any(word in text_lower for word in ["love", "great", "awesome", "thanks"]):
             return SentimentScore.POSITIVE
@@ -300,7 +330,7 @@ Champion signals:
     def _categorize_issue(self, title: str, body: str) -> str:
         """Categorize issue type based on content."""
         text = f"{title} {body}".lower()
-        if any(w in text for w in ["bug", "error", "crash", "broken", "fix"]):
+        if any(w in text for w in BUG_KEYWORDS):
             return "bug"
         if any(w in text for w in ["feature", "request", "would be nice", "suggestion"]):
             return "feature_request"
@@ -356,7 +386,7 @@ Champion signals:
     def _score_priority(self, title: str, body: str, sentiment: SentimentScore) -> IssuePriority:
         """Score issue priority based on content and sentiment."""
         text = f"{title} {body}".lower()
-        if any(w in text for w in ["data loss", "security", "vulnerability", "crash"]):
+        if any(w in text for w in CRITICAL_KEYWORDS):
             return IssuePriority.CRITICAL
         if sentiment == SentimentScore.CHURNING:
             return IssuePriority.HIGH
