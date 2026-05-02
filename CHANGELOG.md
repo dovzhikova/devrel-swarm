@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.2.2 — 2026-05-01
+
+Wave 2 correctness gaps from the 2026-04-29 agent review. Each fix targets a silent diagnosability gap — wrong-but-plausible output that looked like success.
+
+### Fixed
+
+- **Atlas**: per-agent checkpoint flags + Stage 6 checkpoint. Resume from a partial-stage failure now re-runs only the failed agent (was: re-ran all agents in the stage). Instantly sync now checkpoints — a network failure after the brand audit no longer drops Mox/Pax campaign data.
+- **Watchdog**: real `output_age_hours` parsed from agent timestamps (was: always 0 or 999). Budget alert as % of cap (was: hardcoded 500k tokens with no link to budget).
+- **Sentinel**: split JSON-vs-API error logging — operators can now tell a malformed LLM response from a rate-limit error. Structural-audit scoring normalized to 1-100 scale (was: capped at ~70, incomparable with LLM path).
+- **Iris**: `SIMILARITY_THRESHOLD` promoted to module constant with calibration comment. `_find_content_opportunities` now produces actionable briefs incorporating the theme's top recommended action (was: title echoes).
+- **Nova**: funnel result includes `data_source` field marking values as `"default_estimates"` vs `"api"` (was: hardcoded mock counts presented as real).
+- **Kai**: exception path now sets `status="error"` + `content=""` (was: silent empty-content with `status="generated"`). Uses `logger.exception` for tracebacks.
+- **Mox**: `revision` schema unified with Kai's (`remaining_issues` key) — consistent contract across content agents.
+- **Pax**: `_load_prompt` migrated to shared `base.load_agent_prompt` (was: hardcoded source-relative path that broke outside the source tree). `_execute_campaign` now None-guards `llm_client` with a clear `"skipped"` status return.
+- **Dex**: class-body traversal switched to `ast.walk` so nested classes / decorated methods / staticmethods appear in symbol output. `repo_path` now defaults from `.devrel/` project root (was: process-cwd-dependent).
+- **Rex**: JSON parse failure sets `status="parse_error"` + preserves `raw_content` (was: stored raw string under `content`, breaking consumers expecting a dict).
+
 ## 0.2.1 — 2026-05-01
 
 Wave 1 bug sweep — 13 high-impact fixes from the 2026-04-29 agent review. Every fix targets a bug that ships to users today: silent broken features, race conditions under concurrent stages, dead alerting paths, and output collisions on parallel runs.
