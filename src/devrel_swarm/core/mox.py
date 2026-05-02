@@ -163,7 +163,7 @@ Never fake scarcity."""
 
     @property
     def SYSTEM_PROMPT(self) -> str:
-        return load_agent_prompt("mox", "system_prompt.txt", self._DEFAULT_SYSTEM_PROMPT)
+        return self._system_prompt
 
     CONTENT_KEYWORDS: dict[str, list[str]] = {
         "blog": ["blog", "seo", "article"],
@@ -197,6 +197,9 @@ Never fake scarcity."""
                 "write", "generate", "create", "blog", "post", "landing", "page",
                 "social", "media", "posts", "campaign", "press", "release",
             }),
+        )
+        self._system_prompt = load_agent_prompt(
+            "mox", "system_prompt.txt", self._DEFAULT_SYSTEM_PROMPT
         )
 
     def _parse_content_type(self, task: str) -> str:

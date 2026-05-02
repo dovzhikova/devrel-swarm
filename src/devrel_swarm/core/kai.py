@@ -74,7 +74,7 @@ Always cite which knowledge base documents you referenced."""
 
     @property
     def SYSTEM_PROMPT(self) -> str:
-        return load_agent_prompt("kai", "system_prompt.txt", self._DEFAULT_SYSTEM_PROMPT)
+        return self._system_prompt
 
     def __init__(
         self,
@@ -88,6 +88,9 @@ Always cite which knowledge base documents you referenced."""
         self.llm_client = llm_client
         self.search_tools = search_tools
         self.code_validator = CodeValidator()
+        self._system_prompt = load_agent_prompt(
+            "kai", "system_prompt.txt", self._DEFAULT_SYSTEM_PROMPT
+        )
         self._kb = get_kb_search(
             knowledge_base_path,
             extra_stop_words=frozenset({

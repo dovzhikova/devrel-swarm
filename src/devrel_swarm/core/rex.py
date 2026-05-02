@@ -142,7 +142,11 @@ class Rex:
 
     @property
     def SYSTEM_PROMPT_TEMPLATE(self) -> str:
-        return load_agent_prompt("rex", "system_prompt.txt", self._DEFAULT_SYSTEM_PROMPT)
+        return self._system_prompt_template
+
+    @property
+    def SYSTEM_PROMPT(self) -> str:
+        return self._system_prompt
 
     def __init__(
         self,
@@ -161,6 +165,12 @@ class Rex:
         self.product_name = product_name
         self._kb = get_kb_search(
             knowledge_base_path, extra_stop_words=REX_STOP_WORDS,
+        )
+        self._system_prompt_template = load_agent_prompt(
+            "rex", "system_prompt.txt", self._DEFAULT_SYSTEM_PROMPT
+        )
+        self._system_prompt = self._system_prompt_template.format(
+            product_name=self.product_name
         )
 
     # ------------------------------------------------------------------
@@ -466,9 +476,7 @@ Ground all analysis in the evidence provided above. Do not speculate.
 Return ONLY the JSON object.
 """
 
-        system_prompt = self.SYSTEM_PROMPT_TEMPLATE.format(
-            product_name=self.product_name,
-        )
+        system_prompt = self._system_prompt
 
         base_result: dict[str, Any] = {
             "agent": "rex",

@@ -141,7 +141,7 @@ assets, give away the strategy openly. Sell the done-for-you execution."""
 
     @property
     def SYSTEM_PROMPT(self) -> str:
-        return self._load_prompt("system_prompt.txt", self._DEFAULT_SYSTEM_PROMPT)
+        return self._system_prompt
 
     # Order matters: more specific types must come before generic ones.
     # "triage_replies" must precede "outreach" because tasks containing
@@ -252,6 +252,9 @@ Return JSON:
                 "generate", "create", "write", "outreach", "emails", "battle",
                 "card", "nurture", "sequence", "one-pager",
             }),
+        )
+        self._system_prompt = self._load_prompt(
+            "system_prompt.txt", self._DEFAULT_SYSTEM_PROMPT
         )
 
     def _collect_leads(
