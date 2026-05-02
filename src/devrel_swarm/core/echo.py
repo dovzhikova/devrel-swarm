@@ -160,11 +160,13 @@ class Echo:
         knowledge_base_path: Path,
         search_tools: Optional[SearchTools] = None,
         llm_client: Optional[LLMClient] = None,
+        search_limit: int = 20,
     ):
         self.api_client = api_client
         self.knowledge_base_path = knowledge_base_path
         self.search_tools = search_tools
         self.llm_client = llm_client
+        self.search_limit = search_limit
 
     async def execute(
         self,
@@ -275,7 +277,7 @@ class Echo:
         for platform, query_template in PLATFORM_QUERIES.items():
             try:
                 query = query_template.format(brand=brand)
-                results = await self.search_tools.web_search(query, limit=20)
+                results = await self.search_tools.web_search(query, limit=self.search_limit)
                 for result in results:
                     mention = self._parse_search_result(result, platform, known_aliases)
                     if mention:
