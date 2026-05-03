@@ -203,14 +203,14 @@ def _render_markdown(report: PerformanceReport) -> str:
 def _score_metrics(
     metrics: list[PerformanceMetric],
     *,
-    baseline_by_type: dict[str, float],
+    baseline_by_id: dict[str, float],
 ) -> list[PerformanceMetric]:
     """Annotate each metric with percentile, wow_delta, and anomaly_flag.
 
     Pure function — input metrics are not mutated; new instances are returned.
 
     - percentile: rank within same content_type peers (0..100, 100 = best)
-    - wow_delta: % change vs baseline_by_type[content_id], None if no baseline
+    - wow_delta: % change vs baseline_by_id[content_id], None if no baseline
     - anomaly_flag: |z-score| > _ANOMALY_Z_THRESHOLD against group mean/stdev
     """
     by_type: dict[str, list[PerformanceMetric]] = {}
@@ -231,7 +231,7 @@ def _score_metrics(
                 lower = sum(1 for v in values if v < m.primary_metric)
                 pct = (lower / (n - 1)) * 100.0
 
-            baseline = baseline_by_type.get(m.content_id)
+            baseline = baseline_by_id.get(m.content_id)
             if baseline is None or baseline == 0:
                 wow = None
             else:
@@ -309,7 +309,7 @@ class Argus:
             )
 
         baseline = self._load_baselines() if self.state_db_path else {}
-        scored = _score_metrics(all_metrics, baseline_by_type=baseline)
+        scored = _score_metrics(all_metrics, baseline_by_id=baseline)
 
         top, bottom = self._top_bottom(scored)
 
@@ -335,7 +335,7 @@ class Argus:
         )
 
         if self.state_db_path:
-            self._persist(report)
+            self._persist(report, scored)
 
         return report
 
@@ -377,8 +377,10 @@ class Argus:
     def _load_baselines(self) -> dict[str, float]:
         """Read the most recent prior report; map content_id -> primary_metric.
 
-        Used by ``_score_metrics`` for week-over-week deltas. Returns {} when
-        the DB has no prior reports or the table is missing.
+        Used by ``_score_metrics`` for week-over-week deltas. Looks first at
+        the persisted ``all_primary`` map (full corpus baseline) and falls
+        back to the top/bottom slices for reports written before that field
+        existed. Returns {} when the DB has no prior reports.
         """
         if not self.state_db_path or not self.state_db_path.is_file():
             return {}
@@ -397,6 +399,9 @@ class Argus:
             data = json.loads(row["report_json"])
         except json.JSONDecodeError:
             return {}
+        all_primary = data.get("all_primary")
+        if isinstance(all_primary, dict) and all_primary:
+            return {cid: float(v) for cid, v in all_primary.items()}
         baseline: dict[str, float] = {}
         for section in ("top_performers", "bottom_performers"):
             for entry in data.get(section, []):
@@ -405,10 +410,18 @@ class Argus:
                     baseline[cid] = float(entry.get("primary_metric", 0.0))
         return baseline
 
-    def _persist(self, report: PerformanceReport) -> None:
-        """Serialize the full report to ``analytics_reports``."""
+    def _persist(self, report: PerformanceReport, all_metrics: list[PerformanceMetric]) -> None:
+        """Serialize the full report to ``analytics_reports``.
+
+        ``all_metrics`` is the complete scored corpus for this period (not
+        just the top/bottom slices kept on the report). It is persisted as a
+        compact ``content_id -> primary_metric`` map so future runs can
+        compute WoW deltas for any content piece, not only the headline ones.
+        """
         if not self.state_db_path:
             return
+        payload = report.to_json()
+        payload["all_primary"] = {m.content_id: m.primary_metric for m in all_metrics}
         with sqlite3.connect(self.state_db_path) as conn:
             conn.execute(
                 "INSERT INTO analytics_reports "
@@ -416,7 +429,7 @@ class Argus:
                 (
                     report.period_start.isoformat(),
                     report.period_end.isoformat(),
-                    json.dumps(report.to_json()),
+                    json.dumps(payload),
                 ),
             )
             conn.commit()

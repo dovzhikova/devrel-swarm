@@ -126,10 +126,40 @@ def report_command(
 
     if push:
         try:
-            from devrel_swarm.tools.notifications import NotificationService
-            NotificationService.from_env().send_digest(
-                subject=f"Argus report — {end.date().isoformat()}",
-                body=report.to_markdown(),
-            )
+            asyncio.run(_push_report(report, end))
         except Exception as exc:  # noqa: BLE001
             err_console.print(f"[yellow]Push failed: {exc}[/yellow]")
+
+
+async def _push_report(report: PerformanceReport, end: datetime) -> None:
+    """Push the markdown report to Telegram + email if configured.
+
+    Builds a fresh NotificationConfig from env vars; matches how
+    devrel-swarm's other push paths construct the notification service.
+    """
+    import os
+
+    from devrel_swarm.tools.notifications import (
+        NotificationConfig,
+        NotificationService,
+    )
+
+    config = NotificationConfig(
+        telegram_bot_token=os.environ.get("TELEGRAM_BOT_TOKEN", ""),
+        telegram_chat_id=os.environ.get("TELEGRAM_CHAT_ID", ""),
+        email_sender=os.environ.get("EMAIL_SENDER", ""),
+        email_password=os.environ.get("EMAIL_PASSWORD", ""),
+        email_recipients=[
+            r.strip()
+            for r in os.environ.get("EMAIL_RECIPIENTS", "").split(",")
+            if r.strip()
+        ] or None,
+    )
+    svc = NotificationService(config)
+    try:
+        markdown = report.to_markdown()
+        subject = f"Argus report — {end.date().isoformat()}"
+        await svc.send_telegram(markdown[:4000])
+        await svc.send_email(subject, f"<pre>{markdown}</pre>")
+    finally:
+        await svc.close()

@@ -99,7 +99,7 @@ def test_scorer_assigns_percentile_within_content_type():
         _metric("blog/b", "blog", 50.0),
         _metric("blog/c", "blog", 90.0),
     ]
-    scored = _score_metrics(metrics, baseline_by_type={})
+    scored = _score_metrics(metrics, baseline_by_id={})
     by_id = {m.content_id: m for m in scored}
     assert by_id["blog/c"].percentile == pytest.approx(100.0, abs=1.0)
     assert by_id["blog/a"].percentile == pytest.approx(0.0, abs=1.0)
@@ -111,7 +111,7 @@ def test_scorer_keeps_content_types_independent():
         _metric("blog/a", "blog", 100.0),
         _metric("email/x", "email", 5.0),
     ]
-    scored = _score_metrics(metrics, baseline_by_type={})
+    scored = _score_metrics(metrics, baseline_by_id={})
     by_id = {m.content_id: m for m in scored}
     assert by_id["blog/a"].percentile == pytest.approx(100.0, abs=1.0)
     assert by_id["email/x"].percentile == pytest.approx(100.0, abs=1.0)
@@ -120,7 +120,7 @@ def test_scorer_keeps_content_types_independent():
 def test_scorer_flags_anomaly_when_zscore_high():
     metrics = [_metric(f"blog/{i}", "blog", 10.0) for i in range(10)]
     metrics.append(_metric("blog/spike", "blog", 1000.0))
-    scored = _score_metrics(metrics, baseline_by_type={})
+    scored = _score_metrics(metrics, baseline_by_id={})
     spike = next(m for m in scored if m.content_id == "blog/spike")
     assert spike.anomaly_flag is True
 
@@ -129,7 +129,7 @@ def test_scorer_computes_wow_delta_against_baseline():
     metrics = [_metric("blog/a", "blog", 200.0)]
     scored = _score_metrics(
         metrics,
-        baseline_by_type={"blog/a": 100.0},
+        baseline_by_id={"blog/a": 100.0},
     )
     a = scored[0]
     assert a.wow_delta == pytest.approx(100.0)

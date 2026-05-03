@@ -664,7 +664,8 @@ class Atlas:
 
         # Stage 5b: Argus content performance analyst (post-Sentinel, pre-OKR)
         if (
-            getattr(self.config, "analytics_in_run", True)
+            resume_stage <= 5
+            and getattr(self.config, "analytics_in_run", True)
             and "argus" not in completed_agents
         ):
             try:
@@ -677,6 +678,7 @@ class Atlas:
             except Exception as exc:  # noqa: BLE001
                 logger.warning("Argus stage failed (continuing): %s", exc)
                 self.context.argus_report = {"error": str(exc)}
+            self._checkpoint(5, completed_agents=completed_agents)
 
         # Stage 6: Instantly sync (analytics + reply triage)
         if (
