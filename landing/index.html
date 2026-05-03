@@ -155,10 +155,12 @@
 <body>
   <main>
     <section aria-labelledby="hero">
-      <h1 id="hero">Your DevRel motion shouldn't be a part-time job.</h1>
+      <h1 id="hero">Most AI marketing tools ship the first draft. This one ships the seventh.</h1>
       <p style="font-size: 1.15rem; color: var(--muted); margin-bottom: 2rem;">
-        Thirteen agents draft, audit, and measure your content from a single CLI.
-        Lives in your repo. ~$3 a week of Anthropic credit. No SaaS, no signup, no lock-in.
+        An opinionated 13-agent CLI for devtools founders. Eight editorial
+        critiques per piece, an indexed time-series of every metric, and
+        typed recommendations on what to kill. ~$3 a week of Anthropic
+        credit. The day you stop wanting it, you delete a folder.
       </p>
       <div class="install" data-copy="pipx install devrel-swarm">
         pipx install devrel-swarm<button type="button" aria-label="Copy install command">copy</button>
@@ -169,19 +171,23 @@
     </section>
 
     <section aria-labelledby="problem">
-      <h2 id="problem">If any of these sound familiar</h2>
-      <p>You ship product all week. Saturday you remember you haven't tweeted in a month.</p>
-      <p>Your last blog post was &ldquo;introducing v0.3&rdquo;. You're on v0.6.</p>
-      <p>You know which competitor just raised. You couldn't write a battlecard if your runway depended on it.</p>
-      <p>You shipped three tutorials this quarter. You have no idea which one anyone read.</p>
+      <h2 id="problem">Pick the ones that hurt</h2>
+      <p>It's Saturday. You haven't tweeted in three weeks. Your runway is also three weeks.</p>
+      <p>Your last blog post said &ldquo;introducing v0.3&rdquo;. You shipped v0.6 last Thursday. The post is still your top Google result.</p>
+      <p>A competitor announced a Series A. You'd write a battlecard if you could remember whether they're a YC company.</p>
+      <p>You shipped three tutorials this quarter. None of them have UTM tags. None of them are in your retention dashboard. You don't have a retention dashboard.</p>
     </section>
 
     <section aria-labelledby="shape">
-      <h2 id="shape">Your editorial contract belongs in <code>git</code></h2>
+      <h2 id="shape">Your editorial standards belong in <code>git</code>, not a prompt</h2>
       <p>
-        Voice samples, style targets, slop blocklist — three small files that
-        decide what &ldquo;on-brand&rdquo; means for your product. <code>devrel init</code>
-        drops them in <code>.devrel/</code> next to your source.
+        The standard answer to &ldquo;the AI is off-voice&rdquo; is to fiddle
+        with the system prompt until it isn't. That works for ten minutes,
+        until you forget what you changed. devrel-swarm puts the editorial
+        contract in three small files —
+        <code>voice.md</code>, <code>style.md</code>, <code>slop-blocklist.md</code> —
+        that live in <code>.devrel/</code> next to your source. Diff them.
+        Branch them. Review them like a PR.
       </p>
 <pre><code>$ devrel init --name myproduct --url https://myproduct.dev --github-repo me/myproduct
 + .devrel/
@@ -196,22 +202,24 @@
 + state.db
 Done. Edit voice.md / style.md / slop-blocklist.md, then run devrel doctor.</code></pre>
       <p>
-        When the output drifts off-voice, you don't tweak a prompt. You add a
-        sample to <code>voice.md</code> and commit. Every editorial decision
-        gets a hash. The system stays auditable as it scales to hundreds of
-        pieces — because all the things that make it sound like <em>you</em>
-        are version-controlled.
+        When the output drifts off-voice, you add a sample to
+        <code>voice.md</code> and commit. The next run picks it up. Every
+        editorial decision your project ever makes is a git hash with a diff.
+        Yes, this is exactly as obvious as it sounds. No, nothing else
+        does it.
       </p>
     </section>
 
     <section aria-labelledby="agents">
       <h2 id="agents">Thirteen specialists. None of them generalists.</h2>
       <p>
-        Hiring this stack costs roughly $400k loaded, and every hire takes
-        three months to ramp. The agents don't replace those people, but they
-        cover the work nobody on a 5-person team has time to do.
-        Atlas orchestrates; each specialist does one thing well and fails
-        gracefully when an integration is missing.
+        What a Series A devtools company hires for this work: a DevRel
+        ($180k), a content writer ($90k), a community manager ($70k), a
+        growth analyst ($110k). Plus three months of ramp on each. The
+        agents don't replace those people — they cover the work nobody on
+        a five-person team has time to do. Atlas orchestrates; each
+        specialist does one thing well; missing integrations log a warning
+        instead of crashing the cycle.
       </p>
       <div class="agents">
         <div>
@@ -248,8 +256,10 @@ Done. Edit voice.md / style.md / slop-blocklist.md, then run devrel doctor.</cod
     <section aria-labelledby="pipeline">
       <h2 id="pipeline">Eight critique stages, not one prompt</h2>
       <p>
-        Most AI marketing tools generate a draft and ship it. <code>devrel-swarm</code>
-        routes every piece through eight stages before it leaves the pipeline.
+        ChatGPT-style content tools generate a draft, run a vibes-check on
+        it, and ship. devrel-swarm routes every piece through eight discrete
+        stages with explicit pass/fail criteria, force-rewrite loops on
+        failure, and a complete revision trace.
       </p>
       <div class="pipeline">
         <strong>draft</strong> →
@@ -263,42 +273,56 @@ Done. Edit voice.md / style.md / slop-blocklist.md, then run devrel doctor.</cod
         final draft + <code>revision-trace.json</code>
       </div>
       <p style="margin-top: 1.5rem;">
-        Every stage's score and diff goes into a JSON trace. You can read what
-        the developmental editor flagged, what the persona scorer pushed back
-        on, which sentences the readability pass forced shorter. Slop doesn't
-        survive contact with seven critics.
+        Every stage's score and diff goes into a JSON trace. You can read
+        what the developmental editor flagged (&ldquo;hook is buried in
+        paragraph 4&rdquo;), what the persona scorer pushed back on
+        (&ldquo;you'd lose me at sentence two — too marketing&rdquo;), which
+        sentences the readability pass forced shorter. Slop doesn't survive
+        contact with seven critics. And you can prove it with a diff.
       </p>
       <p style="color: var(--muted); font-size: 0.9rem;">
-        Stages 1-4 use Sonnet; the cheaper stages use Haiku. Total cost lands
-        at roughly 2.5-4× a single revision loop.
+        Stages 1-4 use Sonnet; the cheaper stages use Haiku. Total cost
+        lands at roughly 2.5-4× a single revision loop.
       </p>
     </section>
 
     <section aria-labelledby="argus">
       <h2 id="argus">Argus tells you what's working — and what to kill</h2>
       <p>
-        Generating content is the easy half. Knowing which pieces deserve a
-        sequel and which should die quietly is the half that actually moves
-        the metric. Argus pulls performance data from PostHog, GitHub,
-        Instantly, and Echo, ranks it, and writes a typed recommendation per
-        piece every week.
+        Generating content is trivial. Knowing which pieces deserve a sequel
+        and which should die quietly is the half that actually moves the
+        metric — and the half Sonnet is bad at, because it has no project
+        history. Argus pulls per-piece metrics from PostHog (page views,
+        conversions), GitHub (stars delta, issue velocity), Instantly (reply
+        rates), and Echo's <code>social_mentions</code> table; ranks them
+        deterministically; and only then asks Sonnet for a typed
+        <code>Recommendation</code> per piece. The output is a dataclass,
+        not a paragraph of advice.
       </p>
       <ul>
         <li>
-          <strong>Closed action vocabulary.</strong> Recommendations come typed:
+          <strong>Closed action vocabulary.</strong> Six values:
           <code>double_down</code>, <code>retire</code>, <code>rewrite</code>,
           <code>retest</code>, <code>amplify</code>, <code>investigate</code>.
-          No vague &ldquo;optimize&rdquo; or &ldquo;explore&rdquo; suggestions.
+          No &ldquo;optimize&rdquo;, no &ldquo;explore opportunities&rdquo;,
+          no other LLM hand-waving. Below confidence 0.5 it's always
+          <code>investigate</code>; the prompt enforces it.
         </li>
         <li>
-          <strong>Calibration loop.</strong> Each rec is scored against subsequent
-          metric history. <code>devrel analytics calibration</code> shows whether
-          the model's confidence is actually predictive for your project.
+          <strong>Calibration over time.</strong> After a few cycles,
+          <code>devrel analytics calibration</code> reports per-action hit
+          rate, average confidence, and lift vs coin-flip — separately for
+          high-confidence (≥0.8) and low-confidence (&lt;0.5) recs. If the
+          model isn't predictive for your project, you'll see it in numbers,
+          not vibes.
         </li>
         <li>
-          <strong>Indexed time-series.</strong> Week-over-week deltas come from a
-          <code>metric_history</code> table, not an LLM guess. Drill into any
-          piece's trajectory with <code>devrel analytics history blog/x</code>.
+          <strong>Indexed per-piece time-series.</strong>
+          <code>metric_history(content_id, period_end, primary_metric)</code>
+          with PRIMARY KEY (content_id, period_end) and an index on
+          (content_id, period_end DESC). Week-over-week is one SELECT, not
+          an LLM guess. Drill in with
+          <code>devrel analytics history blog/x</code>.
         </li>
       </ul>
       <blockquote>
@@ -329,21 +353,36 @@ $ devrel analytics report --since 7d --push
 Wrote: .devrel/deliverables/analytics-2026-05-02.md (5 recs, 2 briefs)
 Pushed to Telegram + email.</code></pre>
       <p style="color: var(--muted);">
-        That's the whole thing. No dashboard, no SaaS account, no SOC2 review.
+        That's the whole thing. No dashboard, no onboarding call, no
+        &ldquo;enterprise tier&rdquo;, no SOC2 review. The process runs on
+        your laptop, in the shell you started it from.
       </p>
     </section>
 
     <section aria-labelledby="cost">
       <h2 id="cost">What it costs</h2>
-      <p>You bring your own Anthropic key. Concrete numbers:</p>
+      <p>You bring your own Anthropic key. That is the entire pricing model.</p>
       <ul>
-        <li><strong>Argus run</strong> — ~$0.03 per call (~$1.56/year on a weekly schedule)</li>
-        <li><strong>Full <code>devrel run</code> weekly cycle</strong> — ~$2-4 per cycle depending on content volume</li>
-        <li><strong>Budget cap</strong> — configurable in <code>.devrel/config.toml</code>; <code>BudgetGate</code> forces Haiku when exceeded so coverage stays bounded</li>
+        <li>
+          <strong>Argus weekly report</strong> — ~$0.03/call, ~$1.56/year on
+          a weekly cron. The cheapest tier of most &ldquo;AI marketing
+          platforms&rdquo; runs $1,500/year and writes worse.
+        </li>
+        <li>
+          <strong>Full <code>devrel run</code> weekly cycle</strong> — ~$2-4
+          per cycle, closer to $2 most weeks. ~$150/year if you run it every
+          week of the year.
+        </li>
+        <li>
+          <strong>Budget cap</strong> — set
+          <code>weekly_usd_cap</code> in <code>.devrel/config.toml</code>;
+          <code>BudgetGate</code> forces Haiku once exceeded. Coverage stays
+          bounded. You don't get a $4,000 surprise bill.
+        </li>
       </ul>
       <p>
-        No subscription. No seat licensing. The day you stop wanting this,
-        you delete a folder.
+        No subscription. No seat licensing. No &ldquo;contact sales&rdquo; tier.
+        The day you stop wanting this, you delete a folder.
       </p>
     </section>
 
@@ -388,7 +427,21 @@ Pushed to Telegram + email.</code></pre>
         <p>
           800 passing tests, multiple shipped versions, a 13-agent system
           maintained by one person. Kick the tires on a side project before
-          pointing it at your main repo.
+          pointing it at your main repo. It's also free, so the worst case
+          is you wasted an evening.
+        </p>
+      </details>
+      <details>
+        <summary>Is there an enterprise tier?</summary>
+        <p>No.</p>
+      </details>
+      <details>
+        <summary>How is this different from [shiny new AI marketing tool]?</summary>
+        <p>
+          The other ones are SaaS, write one draft per piece, and don't
+          measure performance. This is a CLI, runs eight critique stages
+          per piece, and ships a typed performance report. If those
+          differences don't matter to you, the other ones are fine.
         </p>
       </details>
     </section>
