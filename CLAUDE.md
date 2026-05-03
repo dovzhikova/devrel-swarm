@@ -4,7 +4,7 @@
 
 ## Identity
 
-This is **`devrel-swarm`**, a `pipx`-installable Python CLI that runs a 12-agent DevRel + Sales + Marketing system against any project repo. Operates on `cwd` like `git` / `npm` — `devrel init` scaffolds a `.devrel/` directory with config, voice/style/slop files, knowledge base, and state DB. Every CLI verb (`devrel run`, `devrel content draft`, `devrel triage`, etc.) wraps a single-agent or pipeline call.
+This is **`devrel-swarm`**, a `pipx`-installable Python CLI that runs a 13-agent DevRel + Sales + Marketing system against any project repo. Operates on `cwd` like `git` / `npm` — `devrel init` scaffolds a `.devrel/` directory with config, voice/style/slop files, knowledge base, and state DB. Every CLI verb (`devrel run`, `devrel content draft`, `devrel triage`, etc.) wraps a single-agent or pipeline call.
 
 Every piece of content flows through an 8-stage editorial quality pipeline (`quality.editorial.run_pipeline`) before being shipped: developmental edit → line edit → copy edit → anti-slop → reader-persona → readability → brand audit.
 
@@ -14,14 +14,16 @@ The system is retargetable per project: each `.devrel/config.toml` carries the p
 
 ## Architecture
 
-Hub-and-spoke with 12 agents. Atlas orchestrates, 11 specialists execute across three pipelines.
+Hub-and-spoke with 13 agents. Atlas orchestrates, 12 specialists execute across three pipelines.
 
 ```
 Atlas (Orchestrator)
 │
 ├── Health Pipeline
 │   ├── Watchdog → System Health (pre-flight checks, budget, integration status)
-│   └── Sentinel → Brand Auditor (post-pipeline voice, ICP, messaging audit)
+│   ├── Sentinel → Brand Auditor (pre-publish voice, ICP, messaging audit)
+│   └── Argus    → Content Performance Analyst (post-publish: PostHog, GitHub,
+│                  Instantly, Echo's social_mentions — structured Recommendations)
 │
 ├── DevRel Pipeline
 │   ├── Sage  → Community Manager (GitHub issue triage, sentiment, churn risk)
@@ -84,6 +86,9 @@ src/devrel_swarm/core/
   watchdog.py   — System Health. AgentHealthCheck, SystemHealthReport.
                    Checks output freshness, budget via per-agent TokenUsage,
                    integration connectivity. Pre-flight in weekly cycle.
+  argus.py      — Content Performance Analyst. PerformanceMetric/Recommendation/
+                   PerformanceReport dataclasses, deterministic _score_metrics,
+                   single-call Sonnet recommender with closed action vocab.
   sentinel.py   — Brand Auditor. AuditItem, BrandAuditReport.
                    LLM-powered 6-dimension audit (voice, ICP, accuracy, CTA,
                    formatting, consistency). Structural fallback without LLM.
@@ -135,6 +140,8 @@ src/devrel_swarm/tools/
   instantly_client.py — Instantly AI client. Parallel bulk lead upload with semaphore-bounded
                         concurrency (10 concurrent). Campaign CRUD, analytics, reply triage.
   apollo_client.py  — Apollo.io client. Organization enrichment, contact search/match.
+  analytics.py      — Argus collectors: PostHog, GitHub, Instantly, Social.
+                      Each isolates failures (returns []), Argus marks sources_ok.
   mcp_server.py     — MCP server. 14 tools via JSON-RPC over stdio transport.
 
 src/devrel_swarm/cli/      Typer app + per-command modules. 18 verb

@@ -5,6 +5,12 @@ A multi-agent system for autonomous developer advocacy,
 built on Claude Agent SDK and Model Context Protocol (MCP).
 """
 
+from devrel_swarm.core.argus import (
+    Argus,
+    PerformanceMetric,
+    PerformanceReport,
+    Recommendation,
+)
 from devrel_swarm.core.atlas import Atlas
 from devrel_swarm.core.dex import Dex
 from devrel_swarm.core.echo import Echo
@@ -20,6 +26,7 @@ from devrel_swarm.core.vox import Vox
 from devrel_swarm.core.watchdog import Watchdog
 
 __all__ = [
-    "Atlas", "Dex", "Echo", "Kai", "Mox", "Sage",
+    "Argus", "Atlas", "Dex", "Echo", "Kai", "Mox", "Sage",
     "Iris", "Nova", "Pax", "Rex", "Sentinel", "Vox", "Watchdog",
+    "PerformanceMetric", "PerformanceReport", "Recommendation",
 ]
