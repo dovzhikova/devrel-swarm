@@ -243,6 +243,58 @@ def test_analytics_calibration_handles_empty_db(project_dir):
     assert "No scored recommendations" in result.stdout
 
 
+def test_analytics_report_push_skipped_when_sources_partial(project_dir):
+    """If any source failed, --push must be skipped by default."""
+    partial = PerformanceReport(
+        period_start=datetime(2026, 4, 25, tzinfo=timezone.utc),
+        period_end=datetime(2026, 5, 2, tzinfo=timezone.utc),
+        top_performers=[], bottom_performers=[],
+        trend_signals=[], recommendations=[],
+        sources_ok={"posthog": True, "github": False, "instantly": True, "social": True},
+    )
+    with patch("devrel_swarm.cli.analytics._build_argus") as build, \
+         patch("devrel_swarm.tools.notifications.NotificationService") as svc_cls:
+        argus = build.return_value
+        argus.run = AsyncMock(return_value=partial)
+        svc = svc_cls.return_value
+        svc.send_telegram = AsyncMock()
+        svc.send_email = AsyncMock()
+        svc.close = AsyncMock()
+
+        result = runner.invoke(app, ["analytics", "report", "--push"])
+
+    assert result.exit_code == 0
+    svc.send_telegram.assert_not_awaited()
+    svc.send_email.assert_not_awaited()
+
+
+def test_analytics_report_push_on_partial_overrides_gate(project_dir):
+    """--push-on-partial bypasses the gate for ops use cases."""
+    partial = PerformanceReport(
+        period_start=datetime(2026, 4, 25, tzinfo=timezone.utc),
+        period_end=datetime(2026, 5, 2, tzinfo=timezone.utc),
+        top_performers=[], bottom_performers=[],
+        trend_signals=[], recommendations=[],
+        sources_ok={"posthog": False, "github": True, "instantly": True, "social": True},
+    )
+    with patch("devrel_swarm.cli.analytics._build_argus") as build, \
+         patch("devrel_swarm.tools.notifications.NotificationService") as svc_cls:
+        argus = build.return_value
+        argus.run = AsyncMock(return_value=partial)
+        svc = svc_cls.return_value
+        svc.send_telegram = AsyncMock(return_value=True)
+        svc.send_email = AsyncMock(return_value=True)
+        svc.close = AsyncMock()
+
+        result = runner.invoke(
+            app, ["analytics", "report", "--push", "--push-on-partial"]
+        )
+
+    assert result.exit_code == 0
+    svc.send_telegram.assert_awaited_once()
+    svc.send_email.assert_awaited_once()
+
+
 def test_analytics_report_push_failure_does_not_crash(project_dir):
     """If push raises, exit code stays 0 and a warning is printed to stderr."""
     with patch("devrel_swarm.cli.analytics._build_argus") as build, \

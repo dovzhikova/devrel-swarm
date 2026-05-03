@@ -308,6 +308,11 @@ def report_command(
     push: bool = typer.Option(
         False, "--push", help="Push the report to configured Slack/email."
     ),
+    push_on_partial: bool = typer.Option(
+        False,
+        "--push-on-partial",
+        help="Override the all-green push gate. Push even if some sources failed.",
+    ),
 ) -> None:
     """Produce an Argus performance report for the last `--since` window."""
     paths = find_paths_or_exit(console)
@@ -337,10 +342,17 @@ def report_command(
         sys.stdout.write(report.to_markdown())
 
     if push:
-        try:
-            asyncio.run(_push_report(report, end))
-        except Exception as exc:  # noqa: BLE001
-            err_console.print(f"[yellow]Push failed: {exc}[/yellow]")
+        failed_sources = [k for k, v in report.sources_ok.items() if not v]
+        if failed_sources and not push_on_partial:
+            err_console.print(
+                f"[yellow]Skipping push: data is partial (failed sources: "
+                f"{', '.join(failed_sources)}). Pass --push-on-partial to override.[/yellow]"
+            )
+        else:
+            try:
+                asyncio.run(_push_report(report, end))
+            except Exception as exc:  # noqa: BLE001
+                err_console.print(f"[yellow]Push failed: {exc}[/yellow]")
 
 
 async def _push_report(report: PerformanceReport, end: datetime) -> None:
