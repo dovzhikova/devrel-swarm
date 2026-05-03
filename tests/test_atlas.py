@@ -1,7 +1,7 @@
 """Tests for Atlas orchestrator module."""
 
 import json
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -347,3 +347,73 @@ class TestAtlasWeeklyCycleRex:
         assert "rex" in call_order
         # Rex should run after sage/echo but before iris
         assert call_order.index("rex") < call_order.index("iris")
+
+
+class TestAtlasArgusStage:
+    """Test Argus is wired into the weekly cycle behind the analytics_in_run gate."""
+
+    @pytest.mark.asyncio
+    async def test_argus_called_when_analytics_in_run_true(
+        self, posthog_client, knowledge_base_path, tmp_path
+    ):
+        atlas = Atlas(
+            api_client=posthog_client,
+            knowledge_base_path=knowledge_base_path,
+            archive_dir=tmp_path / "archive",
+        )
+        atlas.config.analytics_in_run = True
+
+        from devrel_swarm.core.argus import PerformanceReport
+        from datetime import datetime, timezone
+
+        fake_report = PerformanceReport(
+            period_start=datetime(2026, 4, 25, tzinfo=timezone.utc),
+            period_end=datetime(2026, 5, 2, tzinfo=timezone.utc),
+            top_performers=[], bottom_performers=[],
+            trend_signals=[], recommendations=[],
+            sources_ok={"posthog": True, "github": True, "instantly": True, "social": True},
+        )
+        fake_argus = MagicMock()
+        fake_argus.run = AsyncMock(return_value=fake_report)
+        atlas._build_argus = MagicMock(return_value=fake_argus)
+
+        await atlas.run_weekly_cycle()
+        fake_argus.run.assert_called_once()
+        assert atlas.context.argus_report["sources_ok"]["posthog"] is True
+
+    @pytest.mark.asyncio
+    async def test_argus_skipped_when_analytics_in_run_false(
+        self, posthog_client, knowledge_base_path, tmp_path
+    ):
+        atlas = Atlas(
+            api_client=posthog_client,
+            knowledge_base_path=knowledge_base_path,
+            archive_dir=tmp_path / "archive",
+        )
+        atlas.config.analytics_in_run = False
+
+        fake_argus = MagicMock()
+        fake_argus.run = AsyncMock()
+        atlas._build_argus = MagicMock(return_value=fake_argus)
+
+        await atlas.run_weekly_cycle()
+        fake_argus.run.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_argus_failure_does_not_abort_cycle(
+        self, posthog_client, knowledge_base_path, tmp_path
+    ):
+        atlas = Atlas(
+            api_client=posthog_client,
+            knowledge_base_path=knowledge_base_path,
+            archive_dir=tmp_path / "archive",
+        )
+        atlas.config.analytics_in_run = True
+
+        fake_argus = MagicMock()
+        fake_argus.run = AsyncMock(side_effect=RuntimeError("argus down"))
+        atlas._build_argus = MagicMock(return_value=fake_argus)
+
+        ctx = await atlas.run_weekly_cycle()
+        assert ctx is not None
+        assert atlas.context.argus_report.get("error") == "argus down"

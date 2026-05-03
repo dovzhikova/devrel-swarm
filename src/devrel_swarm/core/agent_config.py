@@ -36,6 +36,7 @@ class AgentConfig:
     retry_settings: dict[str, Any] = field(default_factory=lambda: dict(DEFAULT_RETRY))
     api_clients: dict[str, Any] = field(default_factory=dict)
     logging_config: dict[str, Any] = field(default_factory=dict)
+    analytics_in_run: bool = True
 
     def get_agent_config(self, agent_name: str) -> dict[str, Any]:
         """Get config for a specific agent, merging with defaults."""
@@ -62,4 +63,5 @@ def load_config(path: Path) -> AgentConfig:
         retry_settings={**DEFAULT_RETRY, **raw.get("retry_settings", {})},
         api_clients=raw.get("api_clients", {}),
         logging_config=raw.get("logging", {}),
+        analytics_in_run=raw.get("orchestration", {}).get("analytics_in_run", True),
     )

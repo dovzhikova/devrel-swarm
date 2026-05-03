@@ -14,7 +14,7 @@ import shutil
 import subprocess
 from contextlib import nullcontext as _nullcontext
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Optional
 
@@ -34,6 +34,7 @@ from devrel_swarm.core.pax import Pax
 from devrel_swarm.core.rex import Rex
 from devrel_swarm.core.sage import Sage
 from devrel_swarm.core.sentinel import Sentinel
+from devrel_swarm.core.argus import Argus
 from devrel_swarm.core.vox import Vox
 from devrel_swarm.core.watchdog import Watchdog
 from devrel_swarm.tools.api_client import PostHogClient
@@ -123,6 +124,7 @@ class SharedContext:
     instantly_campaigns: dict[str, Any] = field(default_factory=dict)
     instantly_analytics: dict[str, Any] = field(default_factory=dict)
     instantly_replies: dict[str, Any] = field(default_factory=dict)
+    argus_report: dict[str, Any] = field(default_factory=dict)
     previous_weeks: list[WeeklyMemory] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
@@ -142,6 +144,7 @@ class SharedContext:
             "instantly_campaigns": self.instantly_campaigns,
             "instantly_analytics": self.instantly_analytics,
             "instantly_replies": self.instantly_replies,
+            "argus_report": self.argus_report,
         }
         # previous_weeks included as serialized dicts for downstream agents
         # (not persisted into context archive — save() uses this dict minus previous_weeks)
@@ -256,6 +259,7 @@ class Atlas:
         self.llm_client = llm_client
         self.instantly_client = instantly_client
         self.apollo_client = apollo_client
+        self.project_paths = project_paths
         self.config = config or AgentConfig()
         self.context = SharedContext(week_of=datetime.now().strftime("%Y-W%U"))
 
@@ -658,6 +662,22 @@ class Atlas:
                 completed_agents.add("sentinel")
             self._checkpoint(5, completed_agents=completed_agents)
 
+        # Stage 5b: Argus content performance analyst (post-Sentinel, pre-OKR)
+        if (
+            getattr(self.config, "analytics_in_run", True)
+            and "argus" not in completed_agents
+        ):
+            try:
+                argus = self._build_argus()
+                end = datetime.now(timezone.utc)
+                start = end - timedelta(days=7)
+                argus_report = await argus.run(period_start=start, period_end=end)
+                self.context.argus_report = argus_report.to_json()
+                completed_agents.add("argus")
+            except Exception as exc:  # noqa: BLE001
+                logger.warning("Argus stage failed (continuing): %s", exc)
+                self.context.argus_report = {"error": str(exc)}
+
         # Stage 6: Instantly sync (analytics + reply triage)
         if (
             resume_stage <= 6
@@ -804,6 +824,55 @@ class Atlas:
         )
         if triage_result.success:
             self.context.instantly_replies = triage_result.output
+
+    def _build_argus(self) -> Argus:
+        """Construct an Argus instance for the optional Stage 5b call.
+
+        Uses the project state DB (from project_paths) for persistence and WoW
+        baselines when available; otherwise runs without persistence.
+        """
+        from devrel_swarm.tools.analytics import (
+            GitHubCollector,
+            InstantlyCollector,
+            PostHogCollector,
+            SocialCollector,
+        )
+
+        state_db = (
+            self.project_paths.state_db
+            if (self.project_paths and self.project_paths.state_db.is_file())
+            else None
+        )
+        social_db = state_db if state_db else Path("/dev/null")
+
+        return Argus(
+            posthog_collector=PostHogCollector(self.api_client),
+            github_collector=GitHubCollector(self._dummy_github_client()),
+            instantly_collector=InstantlyCollector(
+                self.instantly_client or self._dummy_instantly_client()
+            ),
+            social_collector=SocialCollector(social_db),
+            llm_client=self.llm_client,
+            state_db_path=state_db,
+        )
+
+    @staticmethod
+    def _dummy_github_client():
+        class _Dummy:
+            repo_full_name = "unknown/unknown"
+
+            async def get_repo_stats(self):
+                raise RuntimeError("github client not configured")
+
+        return _Dummy()
+
+    @staticmethod
+    def _dummy_instantly_client():
+        class _Dummy:
+            async def list_campaigns_with_analytics(self):
+                raise RuntimeError("instantly client not configured")
+
+        return _Dummy()
 
     def _compile_okrs(self) -> dict[str, Any]:
         """Compile weekly OKR progress from all agent outputs."""
