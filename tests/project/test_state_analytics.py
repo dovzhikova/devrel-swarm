@@ -1,4 +1,4 @@
-"""Migration: schema v1 -> v2 adds analytics_reports table for Argus."""
+"""Schema migration tests for Argus tables (analytics_reports, metric_history)."""
 
 from __future__ import annotations
 
@@ -12,8 +12,10 @@ from devrel_swarm.project.state import (
 )
 
 
-def test_schema_version_is_2():
-    assert SCHEMA_VERSION == 2
+def test_schema_version_is_at_least_2():
+    """analytics_reports landed in v2; metric_history in v3. Both must exist
+    in any current schema, so the version is whatever ships now."""
+    assert SCHEMA_VERSION >= 3
 
 
 def test_init_db_creates_analytics_reports_on_fresh_db(tmp_path):
@@ -46,7 +48,7 @@ def test_init_db_is_idempotent_on_existing_v1_db(tmp_path):
 
     init_db(db)
 
-    assert get_schema_version(db) == 2
+    assert get_schema_version(db) == SCHEMA_VERSION
     with open_db(db) as conn:
         rows = conn.execute("SELECT id FROM jobs").fetchall()
         assert [r["id"] for r in rows] == ["job-1"]
