@@ -559,6 +559,45 @@ async def test_argus_two_runs_use_metric_history_for_wow(tmp_path):
     assert a.wow_delta == pytest.approx(100.0)
 
 
+def test_write_recommendation_briefs_skips_non_actionable(tmp_path):
+    """Briefs are only written for double_down / amplify / rewrite —
+    retire/investigate/retest do not become content tasks."""
+    from devrel_swarm.core.argus import write_recommendation_briefs
+
+    report = PerformanceReport(
+        period_start=_utc(2026, 4, 25), period_end=_utc(2026, 5, 2),
+        top_performers=[], bottom_performers=[],
+        trend_signals=[], sources_ok={"posthog": True},
+        recommendations=[
+            Recommendation(
+                action="double_down", target="theme:python", target_type="theme",
+                rationale="3x baseline", evidence=["blog/a: p95"],
+                confidence=0.9, source_ids=["blog/a", "blog/b"],
+            ),
+            Recommendation(
+                action="retire", target="blog/x", target_type="content",
+                rationale="bottom decile 4 weeks", evidence=["blog/x: p5"],
+                confidence=0.8, source_ids=["blog/x"],
+            ),
+            Recommendation(
+                action="rewrite", target="blog/y", target_type="content",
+                rationale="weak hero", evidence=["blog/y: p20"],
+                confidence=0.75, source_ids=["blog/y"],
+            ),
+        ],
+    )
+    paths_written = write_recommendation_briefs(report, tmp_path)
+    assert len(paths_written) == 2  # double_down + rewrite, NOT retire
+
+    # Brief content includes target + rationale + Next step block
+    dd_brief = next(p for p in paths_written if "double-down" in p.name)
+    text = dd_brief.read_text()
+    assert "theme:python" in text
+    assert "3x baseline" in text
+    assert "Next step" in text
+    assert "devrel content draft" in text  # double_down → draft command
+
+
 def test_to_markdown_groups_recs_by_action():
     metric = PerformanceMetric(
         content_id="blog/a", content_type="blog", title="A", url=None,

@@ -18,7 +18,11 @@ import typer
 from rich.console import Console
 
 from devrel_swarm.cli._common import find_paths_or_exit
-from devrel_swarm.core.argus import Argus, PerformanceReport
+from devrel_swarm.core.argus import (
+    Argus,
+    PerformanceReport,
+    write_recommendation_briefs,
+)
 
 console = Console()
 err_console = Console(stderr=True)
@@ -272,6 +276,12 @@ def report_command(
 
     out_path = _write_markdown_deliverable(report, paths.deliverables_dir)
     err_console.print(f"[dim]Wrote deliverable: {out_path}[/dim]")
+
+    brief_paths = write_recommendation_briefs(report, paths.deliverables_dir)
+    if brief_paths:
+        err_console.print(
+            f"[dim]Wrote {len(brief_paths)} content brief(s) for actionable recs[/dim]"
+        )
 
     if format_ == "json":
         sys.stdout.write(json.dumps(report.to_json(), indent=2, default=str))

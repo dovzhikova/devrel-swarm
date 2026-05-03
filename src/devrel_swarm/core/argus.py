@@ -137,6 +137,102 @@ _REC_ACTION_ORDER: tuple[str, ...] = (
     "double_down", "amplify", "rewrite", "retest", "retire", "investigate",
 )
 
+# Recommendations that warrant a downstream content brief (a Mox/Kai-ready
+# prompt staged on disk). Excluded: retire/investigate (not actionable as
+# a content task) and retest (Nova's domain, separate artifact).
+_BRIEF_ACTIONS: frozenset[str] = frozenset({"double_down", "amplify", "rewrite"})
+
+
+def _action_to_brief_intent(action: str) -> str:
+    return {
+        "double_down": "Produce a new piece in the same theme/format.",
+        "amplify": "Re-distribute this piece on additional channels (social, email).",
+        "rewrite": "Rewrite this piece with a stronger hook, clearer CTA, and tighter structure.",
+    }.get(action, "Take action on the recommendation below.")
+
+
+def write_recommendation_briefs(
+    report: PerformanceReport, briefs_dir: Path,
+) -> list[Path]:
+    """For each actionable recommendation in ``report``, stage a Mox-ready
+    content brief on disk.
+
+    The brief is intentionally human-reviewable, not auto-executed: it gives
+    a one-click handoff between Argus's recommendation and Mox's content
+    pipeline. Recommendations with action ∈ {retire, investigate, retest}
+    are skipped (not content tasks).
+
+    Returns the list of file paths written.
+    """
+    briefs_dir.mkdir(parents=True, exist_ok=True)
+    paths: list[Path] = []
+    period = report.period_end.date().isoformat()
+    for i, rec in enumerate(report.recommendations):
+        if rec.action not in _BRIEF_ACTIONS:
+            continue
+        # Slugify target for filename; keep readable
+        slug = _slugify_target(rec.target)
+        out = briefs_dir / f"argus-brief-{period}-{rec.action}-{slug}.md"
+        out.write_text(_render_brief(rec, period), encoding="utf-8")
+        paths.append(out)
+        if i >= 100:  # safety cap so a runaway LLM can't fill the disk
+            break
+    return paths
+
+
+def _slugify_target(target: str) -> str:
+    """Turn 'theme:python-testing' or 'blog/cli-launch' into a safe filename slug."""
+    import re as _re
+    return _re.sub(r"[^a-z0-9]+", "-", target.lower()).strip("-")[:60] or "rec"
+
+
+def _render_brief(rec: Recommendation, period: str) -> str:
+    intent = _action_to_brief_intent(rec.action)
+    lines: list[str] = []
+    lines.append(f"# Argus brief — {rec.action}: `{rec.target}`")
+    lines.append("")
+    lines.append(f"**Period:** {period}")
+    lines.append(f"**Action:** `{rec.action}` ({rec.target_type})")
+    lines.append(f"**Confidence:** {rec.confidence:.2f}")
+    lines.append("")
+    lines.append("## Intent")
+    lines.append(intent)
+    lines.append("")
+    lines.append("## Why")
+    lines.append(rec.rationale)
+    lines.append("")
+    if rec.evidence:
+        lines.append("## Evidence")
+        for ev in rec.evidence:
+            lines.append(f"- {ev}")
+        lines.append("")
+    if rec.source_ids:
+        lines.append("## Source content")
+        for sid in rec.source_ids:
+            lines.append(f"- `{sid}`")
+        lines.append("")
+    lines.append("## Next step")
+    lines.append(
+        "Hand this brief to Mox or Kai. The content pipeline can consume the "
+        "intent + evidence directly:"
+    )
+    lines.append("")
+    lines.append("```bash")
+    if rec.action == "double_down":
+        lines.append(
+            f"devrel content draft '{rec.target} — follow-up post' --type tutorial"
+        )
+    elif rec.action == "rewrite":
+        lines.append(
+            f"devrel content audit deliverables/<file>  # then redraft based on findings"
+        )
+    elif rec.action == "amplify":
+        lines.append(
+            f"devrel marketing social '{rec.target}' --channels reddit,hn,twitter"
+        )
+    lines.append("```")
+    return "\n".join(lines) + "\n"
+
 
 def _render_markdown(report: PerformanceReport) -> str:
     lines: list[str] = []
