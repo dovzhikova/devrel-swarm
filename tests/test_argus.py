@@ -590,7 +590,7 @@ def test_write_recommendation_briefs_skips_non_actionable(tmp_path):
     assert len(paths_written) == 2  # double_down + rewrite, NOT retire
 
     # Brief content includes target + rationale + Next step block
-    dd_brief = next(p for p in paths_written if "double-down" in p.name)
+    dd_brief = next(p for p in paths_written if "double_down" in p.name)
     text = dd_brief.read_text()
     assert "theme:python" in text
     assert "3x baseline" in text
