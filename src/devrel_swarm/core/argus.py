@@ -311,7 +311,7 @@ class Argus:
                 insufficient_data=True,
             )
 
-        baseline = self._load_baselines() if self.state_db_path else {}
+        baseline = await self._load_baselines() if self.state_db_path else {}
         scored = _score_metrics(all_metrics, baseline_by_id=baseline)
 
         top, bottom = self._top_bottom(scored)
@@ -338,7 +338,7 @@ class Argus:
         )
 
         if self.state_db_path:
-            self._persist(report, scored)
+            await self._persist(report, scored)
 
         return report
 
@@ -377,7 +377,13 @@ class Argus:
             bottom.extend(list(reversed(ranked[-3:])))
         return top, bottom
 
-    def _load_baselines(self) -> dict[str, float]:
+    async def _load_baselines(self) -> dict[str, float]:
+        """Async wrapper that delegates SQLite read to a thread."""
+        if not self.state_db_path or not self.state_db_path.is_file():
+            return {}
+        return await asyncio.to_thread(self._load_baselines_sync)
+
+    def _load_baselines_sync(self) -> dict[str, float]:
         """Read the most recent prior report; map content_id -> primary_metric.
 
         Used by ``_score_metrics`` for week-over-week deltas. Looks first at
@@ -385,8 +391,6 @@ class Argus:
         back to the top/bottom slices for reports written before that field
         existed. Returns {} when the DB has no prior reports.
         """
-        if not self.state_db_path or not self.state_db_path.is_file():
-            return {}
         try:
             with sqlite3.connect(self.state_db_path) as conn:
                 conn.row_factory = sqlite3.Row
@@ -413,7 +417,17 @@ class Argus:
                     baseline[cid] = float(entry.get("primary_metric", 0.0))
         return baseline
 
-    def _persist(self, report: PerformanceReport, all_metrics: list[PerformanceMetric]) -> None:
+    async def _persist(
+        self, report: PerformanceReport, all_metrics: list[PerformanceMetric],
+    ) -> None:
+        """Async wrapper that delegates the SQLite write to a thread."""
+        if not self.state_db_path:
+            return
+        await asyncio.to_thread(self._persist_sync, report, all_metrics)
+
+    def _persist_sync(
+        self, report: PerformanceReport, all_metrics: list[PerformanceMetric],
+    ) -> None:
         """Serialize the full report to ``analytics_reports``.
 
         ``all_metrics`` is the complete scored corpus for this period (not
@@ -421,8 +435,6 @@ class Argus:
         compact ``content_id -> primary_metric`` map so future runs can
         compute WoW deltas for any content piece, not only the headline ones.
         """
-        if not self.state_db_path:
-            return
         payload = report.to_json()
         payload["all_primary"] = {m.content_id: m.primary_metric for m in all_metrics}
         with sqlite3.connect(self.state_db_path) as conn:

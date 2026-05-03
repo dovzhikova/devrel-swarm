@@ -8,6 +8,7 @@ and an empty list is returned, so Argus can mark the source unhealthy in
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import sqlite3
 from datetime import datetime
@@ -199,27 +200,37 @@ class SocialCollector:
     def __init__(self, state_db_path: Path):
         self.state_db_path = state_db_path
 
+    def _read_rows(self, start_iso: str, end_iso: str):
+        """Synchronous SQLite read; called via asyncio.to_thread to avoid
+        stalling the event loop. Returns None on any failure (the async
+        wrapper translates that to an empty result + logs)."""
+        try:
+            with sqlite3.connect(self.state_db_path) as conn:
+                conn.row_factory = sqlite3.Row
+                return conn.execute(
+                    "SELECT platform, post_id, title, url, posted_at, "
+                    "upvotes, comments, engagement_score "
+                    "FROM social_mentions "
+                    "WHERE is_own_post = 1 AND posted_at >= ? AND posted_at <= ?",
+                    (start_iso, end_iso),
+                ).fetchall()
+        except sqlite3.OperationalError as exc:
+            logger.info("SocialCollector: %s", exc)
+            return None
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("SocialCollector failed: %s", exc)
+            return None
+
     async def collect(self, period: Period) -> list[PerformanceMetric]:
         start, end = period
         if not self.state_db_path.is_file():
             logger.info("SocialCollector: state.db not present, skipping")
             return []
 
-        try:
-            with sqlite3.connect(self.state_db_path) as conn:
-                conn.row_factory = sqlite3.Row
-                rows = conn.execute(
-                    "SELECT platform, post_id, title, url, posted_at, "
-                    "upvotes, comments, engagement_score "
-                    "FROM social_mentions "
-                    "WHERE is_own_post = 1 AND posted_at >= ? AND posted_at <= ?",
-                    (start.isoformat(), end.isoformat()),
-                ).fetchall()
-        except sqlite3.OperationalError as exc:
-            logger.info("SocialCollector: %s", exc)
-            return []
-        except Exception as exc:  # noqa: BLE001
-            logger.warning("SocialCollector failed: %s", exc)
+        rows = await asyncio.to_thread(
+            self._read_rows, start.isoformat(), end.isoformat(),
+        )
+        if rows is None:
             return []
 
         metrics: list[PerformanceMetric] = []
