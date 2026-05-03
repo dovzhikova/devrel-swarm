@@ -300,6 +300,14 @@ class Argus:
         all_metrics, sources_ok = await self._gather(period)
 
         if not all_metrics:
+            logger.info(
+                "argus.run: insufficient_data — no metrics from any source",
+                extra={
+                    "period_start": period_start.isoformat(),
+                    "period_end": period_end.isoformat(),
+                    "sources_ok": sources_ok,
+                },
+            )
             return PerformanceReport(
                 period_start=period_start,
                 period_end=period_end,
@@ -312,7 +320,20 @@ class Argus:
             )
 
         baseline = await self._load_baselines() if self.state_db_path else {}
+        logger.info(
+            "argus.baselines_loaded",
+            extra={"baseline_count": len(baseline)},
+        )
         scored = _score_metrics(all_metrics, baseline_by_id=baseline)
+        anomaly_count = sum(1 for m in scored if m.anomaly_flag)
+        logger.info(
+            "argus.scored",
+            extra={
+                "scored_count": len(scored),
+                "anomaly_count": anomaly_count,
+                "content_types": sorted({m.content_type for m in scored}),
+            },
+        )
 
         top, bottom = self._top_bottom(scored)
 
@@ -325,6 +346,14 @@ class Argus:
             except Exception as exc:  # noqa: BLE001
                 logger.warning("Argus LLM step failed: %s", exc)
                 llm_error = str(exc)
+        logger.info(
+            "argus.recommendations_generated",
+            extra={
+                "recs_count": len(recs),
+                "trend_signals_count": len(trend_signals),
+                "llm_error": llm_error,
+            },
+        )
 
         report = PerformanceReport(
             period_start=period_start,
@@ -339,6 +368,13 @@ class Argus:
 
         if self.state_db_path:
             await self._persist(report, scored)
+            logger.info(
+                "argus.persisted",
+                extra={
+                    "period_end": period_end.isoformat(),
+                    "metric_history_rows": len(scored),
+                },
+            )
 
         return report
 
@@ -359,6 +395,14 @@ class Argus:
             else:
                 sources_ok[name] = True
                 all_metrics.extend(result)
+        logger.info(
+            "argus.gather_complete",
+            extra={
+                "ok_sources": sorted(k for k, v in sources_ok.items() if v),
+                "failed_sources": sorted(k for k, v in sources_ok.items() if not v),
+                "total_metrics": len(all_metrics),
+            },
+        )
         return all_metrics, sources_ok
 
     @staticmethod
