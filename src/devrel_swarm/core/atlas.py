@@ -665,7 +665,7 @@ class Atlas:
         # Stage 5b: Argus content performance analyst (post-Sentinel, pre-OKR)
         if (
             resume_stage <= 5
-            and getattr(self.config, "analytics_in_run", True)
+            and self.config.analytics_in_run
             and "argus" not in completed_agents
         ):
             try:

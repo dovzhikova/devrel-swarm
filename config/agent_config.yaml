@@ -65,6 +65,10 @@ orchestration:
   max_concurrent_tasks: 3
   task_timeout_seconds: 300
 
+  # Run Argus (post-publish content performance analyst) as Stage 5b of the
+  # weekly cycle. ~$0.03/cycle in LLM cost. Set to false to disable.
+  analytics_in_run: true
+
 retry_settings:
   max_retries: 3
   initial_delay_seconds: 5
