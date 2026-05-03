@@ -123,19 +123,37 @@ class GitHubCollector:
         ]
 
 
+def _row_in_period(row: dict, start: datetime, end: datetime) -> bool:
+    """True if row's created_at/updated_at falls in [start, end].
+
+    Falls back to True (include the row) when neither timestamp is present —
+    older Instantly campaigns may not include either field. Without this
+    filter, --since 7d and --since 90d return identical metrics.
+    """
+    raw = row.get("created_at") or row.get("updated_at")
+    if not raw:
+        return True
+    try:
+        when = datetime.fromisoformat(str(raw).replace("Z", "+00:00"))
+    except ValueError:
+        return True
+    return start <= when <= end
+
+
 class InstantlyCollector:
     """One PerformanceMetric per email campaign; reply_rate is primary KPI.
 
     Wrapped client is expected to expose
     ``async list_campaigns_with_analytics() -> list[dict]`` with at minimum
-    ``id, name, sent, opens, clicks, replies, open_rate, reply_rate``.
+    ``id, name, sent, opens, clicks, replies, open_rate, reply_rate``,
+    and optionally ``created_at`` / ``updated_at`` for period filtering.
     """
 
     def __init__(self, client):
         self.client = client
 
     async def collect(self, period: Period) -> list[PerformanceMetric]:
-        _start, end = period
+        start, end = period
         try:
             rows = await self.client.list_campaigns_with_analytics()
         except Exception as exc:  # noqa: BLE001
@@ -146,6 +164,8 @@ class InstantlyCollector:
         for row in rows:
             cid = row.get("id") or ""
             if not cid:
+                continue
+            if not _row_in_period(row, start, end):
                 continue
             metrics.append(
                 PerformanceMetric(

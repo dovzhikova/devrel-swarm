@@ -178,6 +178,60 @@ async def test_instantly_collector_returns_empty_on_error():
     assert metrics == []
 
 
+@pytest.mark.asyncio
+async def test_instantly_collector_filters_campaigns_outside_period():
+    """Campaigns whose created_at is outside the period should be excluded.
+
+    Without this filter, --since 7d and --since 90d return identical metrics.
+    """
+    end = datetime(2026, 5, 2, tzinfo=timezone.utc)
+    start = end - timedelta(days=7)
+    fake = MagicMock()
+    fake.list_campaigns_with_analytics = AsyncMock(
+        return_value=[
+            {
+                "id": "in-window", "name": "Q2 outbound", "sent": 100,
+                "opens": 30, "clicks": 8, "replies": 5,
+                "open_rate": 0.30, "reply_rate": 0.05,
+                "created_at": "2026-04-29T10:00:00+00:00",
+            },
+            {
+                "id": "old-camp", "name": "ancient", "sent": 1000,
+                "opens": 200, "clicks": 50, "replies": 100,
+                "open_rate": 0.20, "reply_rate": 0.10,
+                "created_at": "2025-12-01T10:00:00+00:00",
+            },
+            {
+                "id": "future-camp", "name": "future", "sent": 0,
+                "opens": 0, "clicks": 0, "replies": 0,
+                "open_rate": 0.0, "reply_rate": 0.0,
+                "created_at": "2026-06-01T10:00:00+00:00",
+            },
+        ]
+    )
+    collector = InstantlyCollector(fake)
+    metrics = await collector.collect((start, end))
+    ids = {m.content_id for m in metrics}
+    assert ids == {"email/in-window"}
+
+
+@pytest.mark.asyncio
+async def test_instantly_collector_includes_rows_without_created_at():
+    """When the row has no created_at, fall back to including it (graceful)."""
+    end = datetime(2026, 5, 2, tzinfo=timezone.utc)
+    start = end - timedelta(days=7)
+    fake = MagicMock()
+    fake.list_campaigns_with_analytics = AsyncMock(
+        return_value=[
+            {"id": "no-date", "name": "legacy", "sent": 50, "opens": 10,
+             "clicks": 2, "replies": 1, "open_rate": 0.20, "reply_rate": 0.02},
+        ]
+    )
+    collector = InstantlyCollector(fake)
+    metrics = await collector.collect((start, end))
+    assert {m.content_id for m in metrics} == {"email/no-date"}
+
+
 # ───────────────────────── SocialCollector ─────────────────────────
 
 
