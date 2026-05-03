@@ -286,6 +286,9 @@ class Argus:
         }
         self.llm_client = llm_client
         self.state_db_path = state_db_path
+        self._system_prompt = load_agent_prompt(
+            "argus", "system_prompt.txt", self._DEFAULT_SYSTEM_PROMPT,
+        )
 
     async def run(
         self,
@@ -452,9 +455,7 @@ Confidence below 0.5 means "investigate" — do not recommend a directional acti
 
     @property
     def SYSTEM_PROMPT(self) -> str:
-        return load_agent_prompt(
-            "argus", "system_prompt.txt", self._DEFAULT_SYSTEM_PROMPT,
-        )
+        return self._system_prompt
 
     async def _generate_recommendations(
         self,
