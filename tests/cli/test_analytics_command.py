@@ -65,3 +65,39 @@ def test_analytics_report_json_format_emits_json(project_dir):
     assert result.exit_code == 0
     payload = json.loads(result.stdout)
     assert payload["sources_ok"]["posthog"] is True
+
+
+def test_analytics_report_push_calls_notification_service(project_dir):
+    """--push flow should construct NotificationService and call telegram + email."""
+    with patch("devrel_swarm.cli.analytics._build_argus") as build, \
+         patch("devrel_swarm.tools.notifications.NotificationService") as svc_cls:
+        argus = build.return_value
+        argus.run = AsyncMock(return_value=_stub_report())
+        svc = svc_cls.return_value
+        svc.send_telegram = AsyncMock(return_value=True)
+        svc.send_email = AsyncMock(return_value=True)
+        svc.close = AsyncMock()
+
+        result = runner.invoke(app, ["analytics", "report", "--push"])
+
+    assert result.exit_code == 0
+    svc.send_telegram.assert_awaited_once()
+    svc.send_email.assert_awaited_once()
+    svc.close.assert_awaited_once()
+
+
+def test_analytics_report_push_failure_does_not_crash(project_dir):
+    """If push raises, exit code stays 0 and a warning is printed to stderr."""
+    with patch("devrel_swarm.cli.analytics._build_argus") as build, \
+         patch("devrel_swarm.tools.notifications.NotificationService") as svc_cls:
+        argus = build.return_value
+        argus.run = AsyncMock(return_value=_stub_report())
+        svc = svc_cls.return_value
+        svc.send_telegram = AsyncMock(side_effect=RuntimeError("telegram api 503"))
+        svc.send_email = AsyncMock(return_value=True)
+        svc.close = AsyncMock()
+
+        result = runner.invoke(app, ["analytics", "report", "--push"])
+
+    assert result.exit_code == 0  # graceful — push failure must not break the verb
+    svc.close.assert_awaited_once()  # finally: still ran
