@@ -27,6 +27,7 @@ from devrel_swarm.cli.deliverables import deliverables_app
 from devrel_swarm.cli.config import config_app
 from devrel_swarm.cli.docs import docs_app
 from devrel_swarm.cli.video import video_app
+from devrel_swarm.cli.analytics import analytics_app
 
 
 app = typer.Typer(
@@ -75,6 +76,7 @@ app.add_typer(deliverables_app, name="deliverables")
 app.add_typer(config_app, name="config")
 app.add_typer(docs_app, name="docs")
 app.add_typer(video_app, name="video")
+app.add_typer(analytics_app, name="analytics")
 
 
 if __name__ == "__main__":
