@@ -384,16 +384,32 @@ class Argus:
         return await asyncio.to_thread(self._load_baselines_sync)
 
     def _load_baselines_sync(self) -> dict[str, float]:
-        """Read the most recent prior report; map content_id -> primary_metric.
+        """Read the most recent prior period's primary_metric per content_id.
 
-        Used by ``_score_metrics`` for week-over-week deltas. Looks first at
-        the persisted ``all_primary`` map (full corpus baseline) and falls
-        back to the top/bottom slices for reports written before that field
-        existed. Returns {} when the DB has no prior reports.
+        Used by ``_score_metrics`` for week-over-week deltas. Reads from the
+        indexed ``metric_history`` table when available (single SELECT, no
+        JSON deserialization). Falls back to the legacy ``all_primary`` blob
+        and then to top/bottom slices for reports written before either
+        existed. Returns {} when the DB has no prior data.
         """
         try:
             with sqlite3.connect(self.state_db_path) as conn:
                 conn.row_factory = sqlite3.Row
+                # Prefer indexed metric_history. Pick the most recent period
+                # and pull all content_id rows from it.
+                latest = conn.execute(
+                    "SELECT MAX(period_end) AS p FROM metric_history"
+                ).fetchone()
+                if latest and latest["p"]:
+                    rows = conn.execute(
+                        "SELECT content_id, primary_metric FROM metric_history "
+                        "WHERE period_end = ?",
+                        (latest["p"],),
+                    ).fetchall()
+                    if rows:
+                        return {r["content_id"]: float(r["primary_metric"]) for r in rows}
+
+                # Fallback: legacy blob in analytics_reports.
                 row = conn.execute(
                     "SELECT report_json FROM analytics_reports "
                     "ORDER BY period_end DESC LIMIT 1"
@@ -428,24 +444,35 @@ class Argus:
     def _persist_sync(
         self, report: PerformanceReport, all_metrics: list[PerformanceMetric],
     ) -> None:
-        """Serialize the full report to ``analytics_reports``.
+        """Serialize the full report to ``analytics_reports`` AND write each
+        metric to the indexed ``metric_history`` table.
 
-        ``all_metrics`` is the complete scored corpus for this period (not
-        just the top/bottom slices kept on the report). It is persisted as a
-        compact ``content_id -> primary_metric`` map so future runs can
-        compute WoW deltas for any content piece, not only the headline ones.
+        The JSON blob in ``analytics_reports`` is the human-readable archive;
+        ``metric_history`` is the indexed time-series used for WoW baseline
+        lookups. Both writes happen in a single transaction.
         """
         payload = report.to_json()
         payload["all_primary"] = {m.content_id: m.primary_metric for m in all_metrics}
+        period_end_iso = report.period_end.isoformat()
         with sqlite3.connect(self.state_db_path) as conn:
             conn.execute(
                 "INSERT INTO analytics_reports "
                 "(period_start, period_end, report_json) VALUES (?, ?, ?)",
                 (
                     report.period_start.isoformat(),
-                    report.period_end.isoformat(),
+                    period_end_iso,
                     json.dumps(payload),
                 ),
+            )
+            conn.executemany(
+                "INSERT OR REPLACE INTO metric_history "
+                "(content_id, period_end, primary_metric, metric_name, content_type) "
+                "VALUES (?, ?, ?, ?, ?)",
+                [
+                    (m.content_id, period_end_iso, m.primary_metric,
+                     m.metric_name, m.content_type)
+                    for m in all_metrics
+                ],
             )
             conn.commit()
 

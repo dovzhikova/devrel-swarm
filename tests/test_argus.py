@@ -379,6 +379,55 @@ async def test_argus_loads_baselines_from_previous_report(tmp_path):
     assert a.wow_delta == pytest.approx(100.0)
 
 
+@pytest.mark.asyncio
+async def test_argus_two_runs_use_metric_history_for_wow(tmp_path):
+    """End-to-end: first run persists metric_history; second run's WoW
+    delta comes from the indexed table, not the legacy JSON blob fallback."""
+    db = tmp_path / "state.db"
+    init_db(db)
+
+    posthog_run1 = MagicMock()
+    posthog_run1.collect = AsyncMock(
+        return_value=[
+            PerformanceMetric(
+                content_id="blog/a", content_type="blog", title="A", url=None,
+                published_at=_utc(2026, 4, 25), primary_metric=100.0,
+                metric_name="page_views",
+            )
+        ]
+    )
+    empty_c = MagicMock(); empty_c.collect = AsyncMock(return_value=[])
+    llm = MagicMock()
+    llm.generate = AsyncMock(return_value='{"recommendations": [], "trend_signals": []}')
+
+    argus1 = Argus(posthog_run1, empty_c, empty_c, empty_c, llm_client=llm, state_db_path=db)
+    await argus1.run(_utc(2026, 4, 18), _utc(2026, 4, 25))
+
+    with open_db(db) as conn:
+        rows = conn.execute(
+            "SELECT content_id, primary_metric FROM metric_history"
+        ).fetchall()
+    assert len(rows) == 1
+    assert rows[0]["content_id"] == "blog/a"
+    assert rows[0]["primary_metric"] == 100.0
+
+    posthog_run2 = MagicMock()
+    posthog_run2.collect = AsyncMock(
+        return_value=[
+            PerformanceMetric(
+                content_id="blog/a", content_type="blog", title="A", url=None,
+                published_at=_utc(2026, 5, 2), primary_metric=200.0,
+                metric_name="page_views",
+            )
+        ]
+    )
+    argus2 = Argus(posthog_run2, empty_c, empty_c, empty_c, llm_client=llm, state_db_path=db)
+    report = await argus2.run(_utc(2026, 4, 25), _utc(2026, 5, 2))
+
+    a = next(m for m in report.top_performers if m.content_id == "blog/a")
+    assert a.wow_delta == pytest.approx(100.0)
+
+
 def test_to_markdown_groups_recs_by_action():
     metric = PerformanceMetric(
         content_id="blog/a", content_type="blog", title="A", url=None,

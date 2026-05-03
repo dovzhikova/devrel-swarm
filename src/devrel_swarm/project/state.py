@@ -15,7 +15,7 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Iterator
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS schema_meta (
@@ -65,6 +65,18 @@ CREATE TABLE IF NOT EXISTS analytics_reports (
 
 CREATE INDEX IF NOT EXISTS idx_analytics_reports_period
     ON analytics_reports(period_end);
+
+CREATE TABLE IF NOT EXISTS metric_history (
+    content_id TEXT NOT NULL,
+    period_end TEXT NOT NULL,
+    primary_metric REAL NOT NULL,
+    metric_name TEXT NOT NULL,
+    content_type TEXT NOT NULL,
+    PRIMARY KEY (content_id, period_end)
+);
+
+CREATE INDEX IF NOT EXISTS idx_metric_history_content_period
+    ON metric_history(content_id, period_end DESC);
 """
 
 

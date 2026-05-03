@@ -27,7 +27,10 @@ def test_init_db_creates_file_and_tables(tmp_path):
                 "AND name NOT LIKE 'sqlite_%' ORDER BY name"
             )
         )
-    assert names == ["analytics_reports", "checkpoints", "costs", "jobs", "schema_meta"]
+    assert names == [
+        "analytics_reports", "checkpoints", "costs", "jobs",
+        "metric_history", "schema_meta",
+    ]
 
 
 def test_init_db_creates_parent_dir(tmp_path):
