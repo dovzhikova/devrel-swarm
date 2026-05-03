@@ -21,6 +21,7 @@ from devrel_swarm.cli._common import find_paths_or_exit
 from devrel_swarm.core.argus import (
     Argus,
     PerformanceReport,
+    compute_calibration,
     write_recommendation_briefs,
 )
 
@@ -247,6 +248,52 @@ def diff_command(
         b_disp = f"{r['b']:g}" if r["b"] is not None else "—"
         d_disp = f"{r['delta_pct']:+.1f}%" if r["delta_pct"] is not None else "—"
         lines.append(f"| {r['content_id']} | {r['kind']} | {a_disp} | {b_disp} | {d_disp} |")
+    sys.stdout.write("\n".join(lines) + "\n")
+
+
+@analytics_app.command("calibration")
+def calibration_command(
+    format_: str = typer.Option("md", "--format", help="md or json."),
+) -> None:
+    """Show how well past Argus recommendations have actually panned out.
+
+    Scores each historical double_down/retire recommendation against the
+    metric_history observations recorded after first_seen_period. Other
+    actions are counted as 'unscored' (no clean post-hoc test).
+    """
+    paths = find_paths_or_exit(console)
+    if format_ not in {"md", "json"}:
+        raise typer.BadParameter("--format must be 'md' or 'json'")
+
+    if not paths.state_db.is_file():
+        console.print("[yellow]No state.db. Run 'devrel analytics report' first.[/yellow]")
+        raise typer.Exit(code=1)
+
+    cal = compute_calibration(paths.state_db)
+    if format_ == "json":
+        sys.stdout.write(json.dumps(cal, indent=2))
+        sys.stdout.write("\n")
+        return
+
+    lines = ["# Argus calibration", ""]
+    lines.append(f"- scored recommendations: **{cal['scored_recs']}**")
+    lines.append(f"- unscored (insufficient post-period data or non-scoreable action): {cal['unscored_recs']}")
+    if cal.get("high_conf_rate") is not None:
+        lines.append(f"- high-confidence (≥0.8) hit rate: {cal['high_conf_rate']:.0%}")
+    if cal.get("low_conf_rate") is not None:
+        lines.append(f"- low-confidence (<0.5) hit rate: {cal['low_conf_rate']:.0%}")
+    lines.append("")
+    if not cal["by_action"]:
+        lines.append("_No scored recommendations yet. Calibration needs at least one rec with metric_history rows after its first_seen_period._")
+    else:
+        lines.append("| action | n | panned_out | rate | avg_conf | lift vs coin-flip |")
+        lines.append("|---|---|---|---|---|---|")
+        for action, stats in sorted(cal["by_action"].items()):
+            lines.append(
+                f"| {action} | {stats['n']} | {stats['panned_out']} | "
+                f"{stats['rate']:.0%} | {stats['avg_confidence']:.2f} | "
+                f"{stats['calibrated_lift']:+.2f} |"
+            )
     sys.stdout.write("\n".join(lines) + "\n")
 
 

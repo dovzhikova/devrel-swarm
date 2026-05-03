@@ -151,6 +151,167 @@ def _action_to_brief_intent(action: str) -> str:
     }.get(action, "Take action on the recommendation below.")
 
 
+def compute_calibration(state_db_path: Path) -> dict:
+    """Score how well past recommendations actually panned out.
+
+    For each historical recommendation that has at least one metric_history
+    observation strictly after its first_seen_period, decide whether the
+    action's prediction held. Currently scores only ``double_down`` and
+    ``retire`` (the actions with a clear post-hoc test). Other actions are
+    counted as "unscored".
+
+    Returns::
+
+        {
+          "scored_recs": int,
+          "unscored_recs": int,
+          "by_action": {
+            "double_down": {"n": int, "panned_out": int, "rate": float,
+                            "avg_confidence": float, "calibrated_lift": float},
+            ...
+          },
+          "high_conf_rate": float | None,    # rate for recs with conf >= 0.8
+          "low_conf_rate": float | None,     # rate for recs with conf <  0.5
+        }
+
+    "calibrated_lift" is the rate minus 0.5 (the chance baseline) — positive
+    means Argus's recs in this action are better than coin-flip. A negative
+    value means the action class is consistently wrong; treat with suspicion.
+    """
+    if not state_db_path.is_file():
+        return {"scored_recs": 0, "unscored_recs": 0, "by_action": {}}
+
+    with sqlite3.connect(state_db_path) as conn:
+        conn.row_factory = sqlite3.Row
+        try:
+            recs = conn.execute(
+                "SELECT id, action, target, source_ids_json, confidence, "
+                "first_seen_period FROM analytics_recommendations"
+            ).fetchall()
+        except sqlite3.OperationalError:
+            return {"scored_recs": 0, "unscored_recs": 0, "by_action": {}}
+
+        results: dict[str, dict] = {}
+        scored = 0
+        unscored = 0
+        high_conf_hits = 0
+        high_conf_total = 0
+        low_conf_hits = 0
+        low_conf_total = 0
+
+        for r in recs:
+            action = r["action"]
+            confidence = float(r["confidence"])
+            first_seen = r["first_seen_period"]
+            source_ids = json.loads(r["source_ids_json"] or "[]")
+            if not source_ids or action not in {"double_down", "retire"}:
+                unscored += 1
+                continue
+
+            # Pull post-period observations for source content
+            placeholders = ",".join("?" for _ in source_ids)
+            obs = conn.execute(
+                f"SELECT content_id, period_end, primary_metric "
+                f"FROM metric_history "
+                f"WHERE content_id IN ({placeholders}) AND period_end > ?",
+                (*source_ids, first_seen),
+            ).fetchall()
+            if not obs:
+                unscored += 1
+                continue
+
+            # Anchor: each source content's metric AT first_seen
+            anchors = {
+                row["content_id"]: float(row["primary_metric"])
+                for row in conn.execute(
+                    f"SELECT content_id, primary_metric FROM metric_history "
+                    f"WHERE content_id IN ({placeholders}) AND period_end = ?",
+                    (*source_ids, first_seen),
+                ).fetchall()
+            }
+            if not anchors:
+                unscored += 1
+                continue
+
+            # Decision rule
+            # double_down: prediction holds if subsequent avg >= 0.9 * anchor
+            # retire: prediction holds if subsequent max <= 1.1 * anchor (didn't recover)
+            held = _decide_panned_out(action, anchors, obs)
+
+            scored += 1
+            bucket = results.setdefault(
+                action, {"n": 0, "panned_out": 0, "_conf_sum": 0.0},
+            )
+            bucket["n"] += 1
+            bucket["_conf_sum"] += confidence
+            if held:
+                bucket["panned_out"] += 1
+                if confidence >= 0.8:
+                    high_conf_hits += 1
+                if confidence < 0.5:
+                    low_conf_hits += 1
+            if confidence >= 0.8:
+                high_conf_total += 1
+            if confidence < 0.5:
+                low_conf_total += 1
+
+    by_action: dict[str, dict] = {}
+    for action, b in results.items():
+        rate = b["panned_out"] / b["n"] if b["n"] else 0.0
+        by_action[action] = {
+            "n": b["n"],
+            "panned_out": b["panned_out"],
+            "rate": round(rate, 3),
+            "avg_confidence": round(b["_conf_sum"] / b["n"], 3) if b["n"] else 0.0,
+            "calibrated_lift": round(rate - 0.5, 3),
+        }
+    return {
+        "scored_recs": scored,
+        "unscored_recs": unscored,
+        "by_action": by_action,
+        "high_conf_rate": (
+            round(high_conf_hits / high_conf_total, 3) if high_conf_total else None
+        ),
+        "low_conf_rate": (
+            round(low_conf_hits / low_conf_total, 3) if low_conf_total else None
+        ),
+    }
+
+
+def _decide_panned_out(
+    action: str, anchors: dict[str, float], obs: list,
+) -> bool:
+    """Did the action's prediction hold for these source content observations?
+
+    For each source content_id, average its primary_metric across all
+    post-anchor observations. Then aggregate across source ids:
+
+    - ``double_down``: held if AVG(post_avg / anchor) >= 0.9 (held steady or grew)
+    - ``retire``: held if AVG(post_avg / anchor) <= 1.1 (did not recover)
+    """
+    by_content: dict[str, list[float]] = {}
+    for row in obs:
+        by_content.setdefault(row["content_id"], []).append(
+            float(row["primary_metric"])
+        )
+
+    ratios: list[float] = []
+    for cid, vals in by_content.items():
+        anchor = anchors.get(cid, 0.0)
+        if anchor <= 0:
+            continue
+        avg = sum(vals) / len(vals)
+        ratios.append(avg / anchor)
+    if not ratios:
+        return False
+    overall = sum(ratios) / len(ratios)
+    if action == "double_down":
+        return overall >= 0.9
+    if action == "retire":
+        return overall <= 1.1
+    return False
+
+
 def write_recommendation_briefs(
     report: PerformanceReport, briefs_dir: Path,
 ) -> list[Path]:

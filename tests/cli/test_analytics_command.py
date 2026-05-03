@@ -190,6 +190,59 @@ def test_analytics_diff_json_format(project_dir):
     assert payload[0]["delta_pct"] == 100.0
 
 
+def test_analytics_calibration_scores_double_down_recs(project_dir):
+    """Seed a double_down rec at period 1 + post-period metrics that grew →
+    calibration must score it as panned_out."""
+    from devrel_swarm.project.state import open_db
+    db = project_dir / ".devrel" / "state.db"
+    with open_db(db) as conn:
+        # Seed a report row (FK target)
+        conn.execute(
+            "INSERT INTO analytics_reports (id, period_start, period_end, report_json) "
+            "VALUES (1, ?, ?, ?)",
+            ("2026-04-25T00:00:00+00:00", "2026-05-02T00:00:00+00:00", '{}'),
+        )
+        # Anchor metric at first_seen_period
+        conn.execute(
+            "INSERT INTO metric_history "
+            "(content_id, period_end, primary_metric, metric_name, content_type) "
+            "VALUES (?, ?, ?, ?, ?)",
+            ("blog/winner", "2026-05-02T00:00:00+00:00", 100.0, "page_views", "blog"),
+        )
+        # Subsequent observation grew → double_down prediction held
+        conn.execute(
+            "INSERT INTO metric_history "
+            "(content_id, period_end, primary_metric, metric_name, content_type) "
+            "VALUES (?, ?, ?, ?, ?)",
+            ("blog/winner", "2026-05-09T00:00:00+00:00", 200.0, "page_views", "blog"),
+        )
+        # The recommendation
+        conn.execute(
+            "INSERT INTO analytics_recommendations "
+            "(report_id, period_end, action, target, target_type, rationale, "
+            "confidence, source_ids_json, evidence_json, first_seen_period) "
+            "VALUES (1, ?, 'double_down', 'theme:winner', 'theme', 'rationale', "
+            "0.9, ?, '[]', ?)",
+            ("2026-05-02T00:00:00+00:00", '["blog/winner"]', "2026-05-02T00:00:00+00:00"),
+        )
+        conn.commit()
+
+    result = runner.invoke(app, ["analytics", "calibration", "--format", "json"])
+    assert result.exit_code == 0
+    cal = json.loads(result.stdout)
+    assert cal["scored_recs"] == 1
+    assert cal["by_action"]["double_down"]["n"] == 1
+    assert cal["by_action"]["double_down"]["panned_out"] == 1
+    assert cal["by_action"]["double_down"]["rate"] == 1.0
+
+
+def test_analytics_calibration_handles_empty_db(project_dir):
+    result = runner.invoke(app, ["analytics", "calibration"])
+    assert result.exit_code == 0
+    assert "0" in result.stdout  # scored count is 0
+    assert "No scored recommendations" in result.stdout
+
+
 def test_analytics_report_push_failure_does_not_crash(project_dir):
     """If push raises, exit code stays 0 and a warning is printed to stderr."""
     with patch("devrel_swarm.cli.analytics._build_argus") as build, \
