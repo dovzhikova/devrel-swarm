@@ -158,6 +158,94 @@ def history_command(
     sys.stdout.write("\n".join(lines) + "\n")
 
 
+@analytics_app.command("diff")
+def diff_command(
+    period_a: str = typer.Argument(..., help="Earlier period (YYYY-MM-DD or full ISO)."),
+    period_b: str = typer.Argument(..., help="Later period (YYYY-MM-DD or full ISO)."),
+    format_: str = typer.Option("md", "--format", help="md or json."),
+    limit: int = typer.Option(20, "--limit", help="Top N changes by absolute delta."),
+) -> None:
+    """Compare two periods side-by-side. Shows the top movers (gainers + losers).
+
+    Periods are matched against metric_history.period_end with a prefix
+    match: '2026-04-25' matches any timestamp starting with that date.
+    """
+    paths = find_paths_or_exit(console)
+    if format_ not in {"md", "json"}:
+        raise typer.BadParameter("--format must be 'md' or 'json'")
+
+    from devrel_swarm.project.state import open_db
+    if not paths.state_db.is_file():
+        console.print("[yellow]No state.db. Run 'devrel analytics report' first.[/yellow]")
+        raise typer.Exit(code=1)
+
+    with open_db(paths.state_db) as conn:
+        a_rows = conn.execute(
+            "SELECT content_id, primary_metric, metric_name, content_type "
+            "FROM metric_history WHERE period_end LIKE ?",
+            (f"{period_a}%",),
+        ).fetchall()
+        b_rows = conn.execute(
+            "SELECT content_id, primary_metric, metric_name, content_type "
+            "FROM metric_history WHERE period_end LIKE ?",
+            (f"{period_b}%",),
+        ).fetchall()
+
+    if not a_rows or not b_rows:
+        console.print(
+            f"[yellow]No history for one or both periods (a={len(a_rows)}, b={len(b_rows)}).[/yellow]"
+        )
+        raise typer.Exit(code=1)
+
+    a_by_id = {r["content_id"]: r for r in a_rows}
+    b_by_id = {r["content_id"]: r for r in b_rows}
+
+    rows: list[dict] = []
+    for cid in set(a_by_id) | set(b_by_id):
+        a_val = a_by_id.get(cid, {"primary_metric": None})["primary_metric"]
+        b_val = b_by_id.get(cid, {"primary_metric": None})["primary_metric"]
+        if a_val is None and b_val is not None:
+            kind, delta_pct = "new", None
+            sort_key = b_val
+        elif a_val is not None and b_val is None:
+            kind, delta_pct = "gone", None
+            sort_key = a_val
+        else:
+            kind = "changed"
+            delta_pct = (
+                ((b_val - a_val) / a_val * 100.0) if a_val else 0.0
+            )
+            sort_key = abs(delta_pct)
+        rows.append({
+            "content_id": cid,
+            "kind": kind,
+            "a": a_val,
+            "b": b_val,
+            "delta_pct": delta_pct,
+            "_sort": sort_key,
+            "metric_name": (a_by_id.get(cid) or b_by_id[cid])["metric_name"],
+        })
+
+    rows.sort(key=lambda r: r["_sort"] or 0, reverse=True)
+    rows = rows[:limit]
+
+    if format_ == "json":
+        payload = [{k: v for k, v in r.items() if not k.startswith("_")} for r in rows]
+        sys.stdout.write(json.dumps(payload, indent=2))
+        sys.stdout.write("\n")
+        return
+
+    lines = [f"# Diff: {period_a} → {period_b}", ""]
+    lines.append("| content_id | kind | a | b | delta |")
+    lines.append("|---|---|---|---|---|")
+    for r in rows:
+        a_disp = f"{r['a']:g}" if r["a"] is not None else "—"
+        b_disp = f"{r['b']:g}" if r["b"] is not None else "—"
+        d_disp = f"{r['delta_pct']:+.1f}%" if r["delta_pct"] is not None else "—"
+        lines.append(f"| {r['content_id']} | {r['kind']} | {a_disp} | {b_disp} | {d_disp} |")
+    sys.stdout.write("\n".join(lines) + "\n")
+
+
 @analytics_app.command("report")
 def report_command(
     since: str = typer.Option(
