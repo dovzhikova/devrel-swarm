@@ -124,6 +124,13 @@ class SharedContext:
     instantly_campaigns: dict[str, Any] = field(default_factory=dict)
     instantly_analytics: dict[str, Any] = field(default_factory=dict)
     instantly_replies: dict[str, Any] = field(default_factory=dict)
+    # Argus content performance report (Stage 5b output). Shape mirrors
+    # PerformanceReport.to_json() — keys: period_start, period_end,
+    # top_performers (list of metric dicts), bottom_performers, trend_signals
+    # (list of strings), recommendations (list of {action, target, target_type,
+    # rationale, evidence, confidence, source_ids}), sources_ok (dict[str, bool]),
+    # insufficient_data (bool), llm_error (str | None), all_primary
+    # (dict[content_id, primary_metric]). On Argus failure: {"error": "<reason>"}.
     argus_report: dict[str, Any] = field(default_factory=dict)
     previous_weeks: list[WeeklyMemory] = field(default_factory=list)
 
