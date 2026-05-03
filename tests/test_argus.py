@@ -263,6 +263,50 @@ async def test_argus_prompt_includes_content_type_breakdown_and_action_vocab():
 
 
 @pytest.mark.asyncio
+async def test_argus_prompt_surfaces_truncation_when_over_50_items():
+    """When total > 50 LLM-prompt lines, both partial-section omits and
+    fully-dropped content types must be flagged in the prompt so the LLM
+    knows context is incomplete."""
+    # 4 content types of 15 items each = 60 slice items > 50 cap.
+    # Plus a 5th tiny type that should get fully dropped.
+    metrics = []
+    for ctype in ("blog", "landing", "social", "email"):
+        for i in range(15):
+            metrics.append(PerformanceMetric(
+                content_id=f"{ctype}/{i}", content_type=ctype,  # type: ignore[arg-type]
+                title=f"{ctype}-{i}", url=None,
+                published_at=_utc(2026, 4, 30), primary_metric=float(100 - i),
+                metric_name="page_views",
+            ))
+    # Tiny 5th type that should get fully dropped
+    metrics.append(PerformanceMetric(
+        content_id="repo/devrel-swarm", content_type="repo", title="repo", url=None,
+        published_at=_utc(2026, 4, 30), primary_metric=42.0, metric_name="stars_delta",
+    ))
+
+    posthog = MagicMock()
+    posthog.collect = AsyncMock(return_value=metrics)
+    empty_c = MagicMock(); empty_c.collect = AsyncMock(return_value=[])
+    captured: dict[str, str] = {}
+
+    async def _capture(*, system_prompt, user_prompt, **_):
+        captured["user"] = user_prompt
+        return '{"recommendations": [], "trend_signals": []}'
+
+    llm = MagicMock(); llm.generate = AsyncMock(side_effect=_capture)
+    argus = Argus(posthog, empty_c, empty_c, empty_c, llm_client=llm, state_db_path=None)
+    await argus.run(_utc(2026, 4, 25), _utc(2026, 5, 2))
+
+    user_prompt = captured["user"]
+    # Two truncation paths must surface:
+    # 1. Some section was partially truncated — "more ... omitted from this section"
+    # 2. The repo type with 1 item never made it in — listed under TRUNCATED
+    assert "omitted from this section" in user_prompt
+    assert "TRUNCATED" in user_prompt
+    assert "repo" in user_prompt.lower()
+
+
+@pytest.mark.asyncio
 async def test_argus_handles_unparseable_llm_output_gracefully():
     posthog = MagicMock()
     posthog.collect = AsyncMock(

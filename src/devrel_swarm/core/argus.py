@@ -511,13 +511,19 @@ Confidence below 0.5 means "investigate" — do not recommend a directional acti
 
         sections: list[str] = []
         total = 0
+        types_dropped: list[tuple[str, int]] = []  # (content_type, item_count)
         for ctype, group in by_type.items():
+            if total >= 50:
+                # Whole content type dropped — record so the prompt notes it
+                types_dropped.append((ctype, len(group)))
+                continue
             ranked = sorted(group, key=lambda m: m.primary_metric, reverse=True)
             slice_ = ranked[:10] + (ranked[-5:] if len(ranked) > 10 else [])
             metric_name = ranked[0].metric_name if ranked else "n/a"
             section_lines = [
                 f"### {ctype.upper()} ({len(group)} items, primary metric: {metric_name})"
             ]
+            shown = 0
             for m in slice_:
                 if total >= 50:
                     break
@@ -529,9 +535,23 @@ Confidence below 0.5 means "investigate" — do not recommend a directional acti
                     f"({pct}{wow}){anom} — {m.title}"
                 )
                 total += 1
+                shown += 1
+            if shown < len(slice_):
+                # Partial section — note how many were truncated
+                omitted = len(slice_) - shown
+                section_lines.append(
+                    f"- ... ({omitted} more {ctype} items omitted from this section)"
+                )
             sections.append("\n".join(section_lines))
-            if total >= 50:
-                break
+
+        if types_dropped:
+            dropped_summary = ", ".join(
+                f"{ctype} ({n} items)" for ctype, n in types_dropped
+            )
+            sections.append(
+                f"### TRUNCATED\nEntire content types omitted from prompt: "
+                f"{dropped_summary}"
+            )
 
         leaderboard = "\n\n".join(sections)
         user_prompt = f"""Period leaderboard (top 10 + bottom 5 per content type):
