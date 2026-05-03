@@ -465,6 +465,52 @@ async def test_argus_loads_baselines_from_previous_report(tmp_path):
 
 
 @pytest.mark.asyncio
+async def test_argus_persists_recommendations_to_analytics_recommendations_table(tmp_path):
+    """Persisting a report writes one row per Recommendation into the
+    analytics_recommendations table, with applied_at NULL (v2 routing bus)."""
+    db = tmp_path / "state.db"
+    init_db(db)
+
+    posthog = MagicMock()
+    posthog.collect = AsyncMock(return_value=[
+        PerformanceMetric(
+            content_id="blog/x", content_type="blog", title="X", url=None,
+            published_at=_utc(2026, 4, 30), primary_metric=100.0,
+            metric_name="page_views",
+        )
+    ])
+    empty_c = MagicMock(); empty_c.collect = AsyncMock(return_value=[])
+    llm = MagicMock()
+    llm.generate = AsyncMock(return_value=(
+        '{"recommendations": ['
+        '{"action": "rewrite", "target": "blog/x", "target_type": "content", '
+        '"rationale": "weak hero", "evidence": ["blog/x: p20"], '
+        '"confidence": 0.8, "source_ids": ["blog/x"]},'
+        '{"action": "double_down", "target": "theme:python", '
+        '"target_type": "theme", "rationale": "trending up", '
+        '"evidence": ["blog/y: p95"], "confidence": 0.9, "source_ids": ["blog/y"]}'
+        '], "trend_signals": []}'
+    ))
+
+    argus = Argus(posthog, empty_c, empty_c, empty_c, llm_client=llm, state_db_path=db)
+    await argus.run(_utc(2026, 4, 25), _utc(2026, 5, 2))
+
+    with open_db(db) as conn:
+        rows = conn.execute(
+            "SELECT action, target, source_ids_json, applied_at, first_seen_period "
+            "FROM analytics_recommendations ORDER BY id"
+        ).fetchall()
+    assert len(rows) == 2
+    assert rows[0]["action"] == "rewrite"
+    assert rows[0]["target"] == "blog/x"
+    assert rows[0]["applied_at"] is None  # v1 leaves it NULL
+    assert rows[0]["first_seen_period"] == "2026-05-02T00:00:00+00:00"
+    import json as _j
+    assert _j.loads(rows[0]["source_ids_json"]) == ["blog/x"]
+    assert rows[1]["action"] == "double_down"
+
+
+@pytest.mark.asyncio
 async def test_argus_two_runs_use_metric_history_for_wow(tmp_path):
     """End-to-end: first run persists metric_history; second run's WoW
     delta comes from the indexed table, not the legacy JSON blob fallback."""

@@ -498,18 +498,22 @@ class Argus:
     def _persist_sync(
         self, report: PerformanceReport, all_metrics: list[PerformanceMetric],
     ) -> None:
-        """Serialize the full report to ``analytics_reports`` AND write each
-        metric to the indexed ``metric_history`` table.
+        """Serialize the full report to three tables in one transaction:
 
-        The JSON blob in ``analytics_reports`` is the human-readable archive;
-        ``metric_history`` is the indexed time-series used for WoW baseline
-        lookups. Both writes happen in a single transaction.
+        - ``analytics_reports``: human-readable JSON archive
+        - ``metric_history``: indexed (content_id, period_end) time-series for
+          baseline lookups
+        - ``analytics_recommendations``: per-rec rows for v2 routing
+          (queryable by action/target without parsing the report blob)
+
+        ``first_seen_period`` is set to this report's period_end on insert;
+        a future "lifecycle" pass will fold in earlier first-seen values.
         """
         payload = report.to_json()
         payload["all_primary"] = {m.content_id: m.primary_metric for m in all_metrics}
         period_end_iso = report.period_end.isoformat()
         with sqlite3.connect(self.state_db_path) as conn:
-            conn.execute(
+            cur = conn.execute(
                 "INSERT INTO analytics_reports "
                 "(period_start, period_end, report_json) VALUES (?, ?, ?)",
                 (
@@ -518,6 +522,7 @@ class Argus:
                     json.dumps(payload),
                 ),
             )
+            report_id = cur.lastrowid
             conn.executemany(
                 "INSERT OR REPLACE INTO metric_history "
                 "(content_id, period_end, primary_metric, metric_name, content_type) "
@@ -528,6 +533,25 @@ class Argus:
                     for m in all_metrics
                 ],
             )
+            if report.recommendations:
+                conn.executemany(
+                    "INSERT INTO analytics_recommendations "
+                    "(report_id, period_end, action, target, target_type, "
+                    "rationale, confidence, source_ids_json, evidence_json, "
+                    "first_seen_period) "
+                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    [
+                        (
+                            report_id, period_end_iso,
+                            r.action, r.target, r.target_type,
+                            r.rationale, r.confidence,
+                            json.dumps(list(r.source_ids)),
+                            json.dumps(list(r.evidence)),
+                            period_end_iso,
+                        )
+                        for r in report.recommendations
+                    ],
+                )
             conn.commit()
 
     _DEFAULT_SYSTEM_PROMPT = """You are Argus, a content performance analyst. \
