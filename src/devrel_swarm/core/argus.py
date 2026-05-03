@@ -68,6 +68,7 @@ class Recommendation:
     evidence: list[str]
     confidence: float
     source_ids: list[str] = field(default_factory=list)
+    first_seen_period: str | None = None  # set by _persist_sync; ISO timestamp
 
 
 @dataclass
@@ -116,6 +117,7 @@ def _rec_to_jsonable(r: Recommendation) -> dict:
         "evidence": list(r.evidence),
         "confidence": r.confidence,
         "source_ids": list(r.source_ids),
+        "first_seen_period": r.first_seen_period,
     }
 
 
@@ -456,8 +458,19 @@ def _render_markdown(report: PerformanceReport) -> str:
                 continue
             lines.append(f"### {action} ({len(bucket)})")
             for r in bucket:
+                stale_tag = ""
+                if r.first_seen_period:
+                    try:
+                        first = datetime.fromisoformat(
+                            r.first_seen_period.replace("Z", "+00:00")
+                        )
+                        weeks = (report.period_end - first).days // 7
+                        if weeks >= 2:
+                            stale_tag = f" [STALE {weeks}w]"
+                    except (ValueError, TypeError):
+                        pass
                 lines.append(
-                    f"- **{r.target}** (conf {r.confidence:.2f}) — {r.rationale}"
+                    f"- **{r.target}** (conf {r.confidence:.2f}){stale_tag} — {r.rationale}"
                 )
                 if r.source_ids:
                     lines.append(f"  - sources: {', '.join(r.source_ids)}")
@@ -763,13 +776,15 @@ class Argus:
         - ``analytics_recommendations``: per-rec rows for v2 routing
           (queryable by action/target without parsing the report blob)
 
-        ``first_seen_period`` is set to this report's period_end on insert;
-        a future "lifecycle" pass will fold in earlier first-seen values.
+        Lifecycle: when (action, target) re-emerges from a prior report,
+        ``first_seen_period`` carries over the earliest value so 'staleness'
+        accumulates across runs.
         """
         payload = report.to_json()
         payload["all_primary"] = {m.content_id: m.primary_metric for m in all_metrics}
         period_end_iso = report.period_end.isoformat()
         with sqlite3.connect(self.state_db_path) as conn:
+            conn.row_factory = sqlite3.Row
             cur = conn.execute(
                 "INSERT INTO analytics_reports "
                 "(period_start, period_end, report_json) VALUES (?, ?, ?)",
@@ -791,23 +806,37 @@ class Argus:
                 ],
             )
             if report.recommendations:
+                # Lifecycle: if (action, target) was seen in a prior report,
+                # carry over the earliest first_seen_period so 'staleness'
+                # accumulates across runs.
+                rec_rows: list[tuple] = []
+                for r in report.recommendations:
+                    prior = conn.execute(
+                        "SELECT MIN(first_seen_period) AS first FROM analytics_recommendations "
+                        "WHERE action = ? AND target = ?",
+                        (r.action, r.target),
+                    ).fetchone()
+                    first_seen = (
+                        prior["first"] if prior and prior["first"]
+                        else period_end_iso
+                    )
+                    # Stamp on the in-memory rec too so to_json/to_markdown see it
+                    r.first_seen_period = first_seen
+                    rec_rows.append((
+                        report_id, period_end_iso,
+                        r.action, r.target, r.target_type,
+                        r.rationale, r.confidence,
+                        json.dumps(list(r.source_ids)),
+                        json.dumps(list(r.evidence)),
+                        first_seen,
+                    ))
                 conn.executemany(
                     "INSERT INTO analytics_recommendations "
                     "(report_id, period_end, action, target, target_type, "
                     "rationale, confidence, source_ids_json, evidence_json, "
                     "first_seen_period) "
                     "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                    [
-                        (
-                            report_id, period_end_iso,
-                            r.action, r.target, r.target_type,
-                            r.rationale, r.confidence,
-                            json.dumps(list(r.source_ids)),
-                            json.dumps(list(r.evidence)),
-                            period_end_iso,
-                        )
-                        for r in report.recommendations
-                    ],
+                    rec_rows,
                 )
             conn.commit()
 

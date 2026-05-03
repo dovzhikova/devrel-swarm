@@ -465,6 +465,48 @@ async def test_argus_loads_baselines_from_previous_report(tmp_path):
 
 
 @pytest.mark.asyncio
+async def test_argus_recommendation_lifecycle_carries_first_seen_period(tmp_path):
+    """When the same (action, target) re-emerges in a later report,
+    first_seen_period must come from the earliest occurrence."""
+    db = tmp_path / "state.db"
+    init_db(db)
+
+    posthog = MagicMock()
+    posthog.collect = AsyncMock(return_value=[
+        PerformanceMetric(
+            content_id="blog/x", content_type="blog", title="X", url=None,
+            published_at=_utc(2026, 4, 25), primary_metric=100.0,
+            metric_name="page_views",
+        )
+    ])
+    empty_c = MagicMock(); empty_c.collect = AsyncMock(return_value=[])
+    same_rec_payload = (
+        '{"recommendations": ['
+        '{"action": "rewrite", "target": "blog/x", "target_type": "content", '
+        '"rationale": "weak hero", "evidence": ["blog/x: p20"], '
+        '"confidence": 0.8, "source_ids": ["blog/x"]}'
+        '], "trend_signals": []}'
+    )
+    llm = MagicMock()
+    llm.generate = AsyncMock(return_value=same_rec_payload)
+
+    # Run 1 — first time we see this rec
+    argus1 = Argus(posthog, empty_c, empty_c, empty_c, llm_client=llm, state_db_path=db)
+    report1 = await argus1.run(_utc(2026, 4, 18), _utc(2026, 4, 25))
+    assert report1.recommendations[0].first_seen_period == "2026-04-25T00:00:00+00:00"
+
+    # Run 2 — three weeks later, same rec re-emerges
+    argus2 = Argus(posthog, empty_c, empty_c, empty_c, llm_client=llm, state_db_path=db)
+    report2 = await argus2.run(_utc(2026, 5, 9), _utc(2026, 5, 16))
+    # first_seen carries over from run 1
+    assert report2.recommendations[0].first_seen_period == "2026-04-25T00:00:00+00:00"
+
+    # Markdown surfaces a [STALE Nw] tag
+    md = report2.to_markdown()
+    assert "[STALE" in md
+
+
+@pytest.mark.asyncio
 async def test_argus_persists_recommendations_to_analytics_recommendations_table(tmp_path):
     """Persisting a report writes one row per Recommendation into the
     analytics_recommendations table, with applied_at NULL (v2 routing bus)."""
