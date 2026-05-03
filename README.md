@@ -2,7 +2,7 @@
 
 **A developer-first CLI for AI-powered DevRel, sales, and marketing.**
 
-`devrel-swarm` is a `pipx`-installable command-line tool that runs a 12-agent system against any project — community triage, social listening, theme extraction, growth experiments, content production, video tutorials, documentation, competitive intel, sales outreach, and brand-consistent campaigns. Operates on a project repo the way `git`, `npm`, and `cargo` do.
+`devrel-swarm` is a `pipx`-installable command-line tool that runs a 13-agent system against any project — community triage, social listening, theme extraction, growth experiments, content production, video tutorials, documentation, competitive intel, sales outreach, brand-consistent campaigns, and post-publish content performance analysis. Operates on a project repo the way `git`, `npm`, and `cargo` do.
 
 Every piece of content the system produces flows through an 8-stage editorial pipeline (developmental edit → line edit → copy edit → anti-slop → reader-persona test → readability check → brand audit) so output reads like senior-editor work, not generic AI prose.
 
@@ -94,6 +94,13 @@ devrel schedule install | list | remove
 # Outputs
 devrel deliverables list
 devrel deliverables show NAME
+
+# Analytics (Argus)
+devrel analytics report [--since 7d] [--push] [--push-on-partial]
+devrel analytics history CONTENT_ID
+devrel analytics diff PERIOD_A PERIOD_B
+devrel analytics calibration
+devrel analytics summary [--root PATH]
 ```
 
 Global flags on most verbs: `--json` (machine-readable output) and `--quiet`.
@@ -125,11 +132,11 @@ Stages 5-7 use Haiku for cost; stages 2-4 use Sonnet. Total cost ≈ 2.5-4× a s
 
 ## How it works internally
 
-Hub-and-spoke with 12 agents. Atlas orchestrates; specialists execute across three pipelines.
+Hub-and-spoke with 13 agents. Atlas orchestrates; specialists execute across three pipelines.
 
 ```
 Atlas (Orchestrator)
-├── Health: Watchdog (pre-flight) + Sentinel (post-pipeline brand audit)
+├── Health: Watchdog (pre-flight) + Sentinel (pre-publish brand audit) + Argus (post-publish performance analyst)
 ├── DevRel: Sage, Echo, Iris, Nova, Kai, Vox, Dex
 └── Sales:  Rex, Pax, Mox
 ```
@@ -143,8 +150,11 @@ Stage 2: Rex + Iris            parallel
 Stage 3: Nova + Kai            parallel (Kai routes through quality pipeline)
 Stage 4: Vox
 Stage 5: Sentinel              brand audit
+Stage 5b: Argus                post-publish content performance analysis
 Stage 6: Instantly sync, OKR compilation, Sheets publish, digest
 ```
+
+Argus is config-gated by `[orchestration].analytics_in_run` (default `true`); set to `false` to skip the stage. Standalone use via `devrel analytics report` is unaffected.
 
 The `Atlas.delegate()` API also dispatches single-agent tasks, which is what every non-`run` verb wraps. So `devrel triage` is `Atlas.delegate("sage", "Triage GitHub issues from the last 7 days")` — the agents never appear in the public CLI surface, only the verbs.
 
@@ -202,6 +212,19 @@ devrel run
 ```
 
 The agent system is product-agnostic. Per-project config + KB + voice files do all the targeting.
+
+---
+
+## Documentation
+
+The user-facing docs live in [`docs/`](docs/):
+
+- [`docs/quickstart.md`](docs/quickstart.md) — bootstrap a project and run your first weekly cycle in 5 minutes
+- [`docs/agents/argus.md`](docs/agents/argus.md) — content performance analyst, the 13th agent
+- [`docs/cli/analytics.md`](docs/cli/analytics.md) — full reference for the `devrel analytics` subgroup
+- [`docs/cookbook.md`](docs/cookbook.md) — common recipes (calibration, weekly cron, multi-project rollups)
+
+Internal docs (architecture specs, implementation plans) live in [`docs/superpowers/`](docs/superpowers/).
 
 ---
 

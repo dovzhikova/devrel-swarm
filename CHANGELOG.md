@@ -1,5 +1,50 @@
 # Changelog
 
+## 0.2.4 — 2026-05-03
+
+Argus — the 13th agent, plus a 20-item enhancement pass derived from a multi-lens code review of the v1 ship.
+
+### Added
+
+- **Argus**: post-publish content performance analyst. Pulls metrics from PostHog, GitHub, Instantly, and Echo's `social_mentions` table; ranks deterministically; emits structured `Recommendation` objects via a single Sonnet call with a closed action vocab (`double_down`, `retire`, `rewrite`, `retest`, `amplify`, `investigate`). Sits beside Watchdog (infra) and Sentinel (pre-publish quality) as the post-publish watcher.
+- **`devrel analytics report`**: produce a performance report for the last `--since` window. `--push` sends to configured Telegram + email; `--push-on-partial` overrides the all-sources-green gate.
+- **`devrel analytics history CONTENT_ID`**: metric trajectory of one piece of content across all reports. Markdown table or `--format json`.
+- **`devrel analytics diff PERIOD_A PERIOD_B`**: side-by-side comparison of two reports, sorted by absolute %-delta. Surfaces top movers, plus `new` and `gone` classifications.
+- **`devrel analytics calibration`**: scores past `double_down`/`retire` recommendations against subsequent metric history. Reports per-action hit rate, avg confidence, lift vs coin-flip, and high/low confidence calibration.
+- **`devrel analytics summary`**: cross-project rollup. Walks every `.devrel/state.db` under `--root` (default `$HOME`) and aggregates total recommendations, metric history rows, last report period, and Argus spend per project.
+- **Schema v3**: `metric_history(content_id, period_end, primary_metric, metric_name, content_type)` with composite PK and a `(content_id, period_end DESC)` index. Indexed time-series for week-over-week baselines; replaces O(N) JSON-blob deserialization.
+- **Schema v4**: `analytics_recommendations(report_id, action, target, source_ids_json, confidence, first_seen_period, applied_at, ...)`. Per-rec rows queryable by action/target without parsing report blobs. The v2 closed-loop routing bus.
+- **Recommendation lifecycle**: when `(action, target)` re-emerges in a later report, `first_seen_period` carries over from the earliest match. The markdown report tags recommendations stale ≥2 weeks as `[STALE Nw]`.
+- **Content brief generation**: for each `double_down`/`amplify`/`rewrite` recommendation, Argus stages a Mox-ready brief at `.devrel/deliverables/argus-brief-<period>-<action>-<target>.md` with rationale, evidence, source IDs, and a tailored next-step shell command.
+- **Optional Atlas Stage 5b**: `[orchestration].analytics_in_run = true|false` (default `true`) gates Argus inside `devrel run`. Failures surface as `argus_report = {"error": "<reason>"}` rather than aborting the cycle.
+- **Structured logs**: five `logger.info` events at `gather_complete`, `baselines_loaded`, `scored`, `recommendations_generated`, `persisted`. An operator can reconstruct any run from log events alone.
+- **Documentation**: new `docs/` tree — quickstart, Argus agent reference, analytics CLI reference, cookbook.
+
+### Changed
+
+- **InstantlyCollector**: now filters campaigns by `created_at` (or `updated_at`) within the requested period. Without this filter, `--since 7d` and `--since 90d` returned identical email metrics.
+- **CLI cost-sink**: `devrel analytics report` standalone runs now register the cost-sink so `devrel cost` accurately reflects Argus spend.
+- **Argus system prompt**: cached at `__init__` instead of re-read on every LLM call (matches the Phase 8 Kai/Mox/Pax/Rex pattern).
+- **Argus SQLite I/O**: `_persist`, `_load_baselines`, and `SocialCollector.collect` now wrap blocking calls with `asyncio.to_thread`. Eliminates event-loop stalls during the weekly cycle.
+- **`Recommendation.source_ids`**: new `list[str]` field (default `[]`) carrying the `content_id` values backing each recommendation.
+- **Echo schema contract**: `SocialCollector` now `PRAGMA table_info`-checks `social_mentions` on first read. Schema drift now warns instead of silently producing partial data.
+- **LLM prompt truncation**: when the 50-line cap fires, partial sections append `...(N more X items omitted)` and fully-dropped content types are listed under `### TRUNCATED`.
+- **`AgentConfig.analytics_in_run`**: promoted from `getattr` fallback to a typed dataclass field with TOML-key documentation in `config/agent_config.yaml`.
+
+### Fixed
+
+- `--push` flow now constructs `NotificationService` via `NotificationConfig` from env vars (the previous `from_env()` and `send_digest(subject=, body=)` calls would have raised `AttributeError` and `TypeError` at runtime).
+- `--push` is now gated on `sources_ok` all-green by default, with `--push-on-partial` to override.
+- Atlas Stage 5b honors the `resume_stage` guard and writes a checkpoint, so a crash between Stage 5b and Stage 6 doesn't re-run Sentinel on resume.
+
+### Performance
+
+- **Baselines lookup**: O(N) JSON blob deserialization replaced with a single indexed `SELECT` against `metric_history`. At 2k content IDs the prior approach allocated ~500 KB per call; the new path scales linearly with N.
+
+### Tests
+
+- 800 pass / 21 baseline fail — exact parity with the documented Phase 7-8 baseline (no new failures introduced; +33 tests for Argus + collectors + CLI + Atlas in v1, +23 more in v2).
+
 ## 0.2.3 — 2026-05-01
 
 Wave 3 polish — final batch from the 2026-04-29 agent code review. No behavior changes; pure cleanup of papercuts the next round of feature work would otherwise re-discover.
