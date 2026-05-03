@@ -86,6 +86,54 @@ def test_analytics_report_push_calls_notification_service(project_dir):
     svc.close.assert_awaited_once()
 
 
+def test_analytics_history_renders_metric_trajectory(project_dir):
+    """history verb reads metric_history and produces a markdown table."""
+    from devrel_swarm.project.state import open_db
+    db = project_dir / ".devrel" / "state.db"
+    with open_db(db) as conn:
+        conn.executemany(
+            "INSERT INTO metric_history "
+            "(content_id, period_end, primary_metric, metric_name, content_type) "
+            "VALUES (?, ?, ?, ?, ?)",
+            [
+                ("blog/cli", "2026-04-18T00:00:00+00:00", 100.0, "page_views", "blog"),
+                ("blog/cli", "2026-04-25T00:00:00+00:00", 150.0, "page_views", "blog"),
+                ("blog/cli", "2026-05-02T00:00:00+00:00", 300.0, "page_views", "blog"),
+            ],
+        )
+        conn.commit()
+
+    result = runner.invoke(app, ["analytics", "history", "blog/cli"])
+    assert result.exit_code == 0
+    assert "blog/cli" in result.stdout
+    assert "2026-04-18" in result.stdout
+    assert "+50.0%" in result.stdout  # delta from 100 to 150
+    assert "+100.0%" in result.stdout  # delta from 150 to 300
+
+
+def test_analytics_history_json_format(project_dir):
+    from devrel_swarm.project.state import open_db
+    db = project_dir / ".devrel" / "state.db"
+    with open_db(db) as conn:
+        conn.execute(
+            "INSERT INTO metric_history "
+            "(content_id, period_end, primary_metric, metric_name, content_type) "
+            "VALUES (?, ?, ?, ?, ?)",
+            ("blog/x", "2026-05-02T00:00:00+00:00", 42.0, "page_views", "blog"),
+        )
+        conn.commit()
+
+    result = runner.invoke(app, ["analytics", "history", "blog/x", "--format", "json"])
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert payload[0]["primary_metric"] == 42.0
+
+
+def test_analytics_history_unknown_content_id_exits_with_code_1(project_dir):
+    result = runner.invoke(app, ["analytics", "history", "blog/never"])
+    assert result.exit_code == 1
+
+
 def test_analytics_report_push_failure_does_not_crash(project_dir):
     """If push raises, exit code stays 0 and a warning is printed to stderr."""
     with patch("devrel_swarm.cli.analytics._build_argus") as build, \

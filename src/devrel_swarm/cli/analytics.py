@@ -94,6 +94,70 @@ def _write_markdown_deliverable(
     return out
 
 
+@analytics_app.command("history")
+def history_command(
+    content_id: str = typer.Argument(
+        ..., help="Content ID to show history for (e.g., 'blog/cli-launch')."
+    ),
+    format_: str = typer.Option(
+        "md", "--format", help="md or json."
+    ),
+) -> None:
+    """Show the metric trajectory of one piece of content across reports."""
+    paths = find_paths_or_exit(console)
+    if format_ not in {"md", "json"}:
+        raise typer.BadParameter("--format must be 'md' or 'json'")
+
+    from devrel_swarm.project.state import open_db
+    if not paths.state_db.is_file():
+        console.print("[yellow]No state.db yet. Run 'devrel analytics report' first.[/yellow]")
+        raise typer.Exit(code=1)
+
+    with open_db(paths.state_db) as conn:
+        rows = conn.execute(
+            "SELECT period_end, primary_metric, metric_name, content_type "
+            "FROM metric_history WHERE content_id = ? ORDER BY period_end ASC",
+            (content_id,),
+        ).fetchall()
+
+    if not rows:
+        console.print(f"[yellow]No history for content_id={content_id}[/yellow]")
+        raise typer.Exit(code=1)
+
+    if format_ == "json":
+        sys.stdout.write(json.dumps(
+            [
+                {
+                    "period_end": r["period_end"],
+                    "primary_metric": r["primary_metric"],
+                    "metric_name": r["metric_name"],
+                    "content_type": r["content_type"],
+                }
+                for r in rows
+            ],
+            indent=2,
+        ))
+        sys.stdout.write("\n")
+        return
+
+    # Markdown
+    lines = [f"# History for `{content_id}` ({rows[0]['content_type']})", ""]
+    metric_name = rows[0]["metric_name"]
+    lines.append(f"| period_end | {metric_name} | delta |")
+    lines.append("|---|---|---|")
+    prev = None
+    for r in rows:
+        v = r["primary_metric"]
+        if prev is None:
+            delta = "—"
+        else:
+            d = ((v - prev) / prev * 100) if prev else 0.0
+            delta = f"{d:+.1f}%"
+        lines.append(f"| {r['period_end'][:10]} | {v:g} | {delta} |")
+        prev = v
+    sys.stdout.write("\n".join(lines) + "\n")
+
+
 @analytics_app.command("report")
 def report_command(
     since: str = typer.Option(
