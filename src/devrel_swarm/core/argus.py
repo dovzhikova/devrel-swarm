@@ -14,6 +14,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import sqlite3
 import statistics
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -75,6 +76,128 @@ class PerformanceReport:
     sources_ok: dict[str, bool]
     insufficient_data: bool = False
     llm_error: str | None = None
+
+    def to_json(self) -> dict:
+        return _report_to_jsonable(self)
+
+    def to_markdown(self) -> str:
+        return _render_markdown(self)
+
+
+def _metric_to_jsonable(m: PerformanceMetric) -> dict:
+    return {
+        "content_id": m.content_id,
+        "content_type": m.content_type,
+        "title": m.title,
+        "url": m.url,
+        "published_at": m.published_at.isoformat(),
+        "primary_metric": m.primary_metric,
+        "metric_name": m.metric_name,
+        "secondary_metrics": dict(m.secondary_metrics),
+        "percentile": m.percentile,
+        "wow_delta": m.wow_delta,
+        "anomaly_flag": m.anomaly_flag,
+    }
+
+
+def _rec_to_jsonable(r: Recommendation) -> dict:
+    return {
+        "action": r.action,
+        "target": r.target,
+        "target_type": r.target_type,
+        "rationale": r.rationale,
+        "evidence": list(r.evidence),
+        "confidence": r.confidence,
+    }
+
+
+def _report_to_jsonable(r: PerformanceReport) -> dict:
+    return {
+        "period_start": r.period_start.isoformat(),
+        "period_end": r.period_end.isoformat(),
+        "top_performers": [_metric_to_jsonable(m) for m in r.top_performers],
+        "bottom_performers": [_metric_to_jsonable(m) for m in r.bottom_performers],
+        "trend_signals": list(r.trend_signals),
+        "recommendations": [_rec_to_jsonable(rec) for rec in r.recommendations],
+        "sources_ok": dict(r.sources_ok),
+        "insufficient_data": r.insufficient_data,
+        "llm_error": r.llm_error,
+    }
+
+
+_REC_ACTION_ORDER: tuple[str, ...] = (
+    "double_down", "amplify", "rewrite", "retest", "retire", "investigate",
+)
+
+
+def _render_markdown(report: PerformanceReport) -> str:
+    lines: list[str] = []
+    start = report.period_start.date().isoformat()
+    end = report.period_end.date().isoformat()
+    lines.append(f"# Argus Performance Report — {start} to {end}")
+    lines.append("")
+
+    lines.append("## Source health")
+    for source, ok in report.sources_ok.items():
+        lines.append(f"- {source}: {'ok' if ok else 'failed'}")
+    if report.llm_error:
+        lines.append(f"- llm: failed ({report.llm_error})")
+    if report.insufficient_data:
+        lines.append("")
+        lines.append(
+            "> **Insufficient data** — too little signal for trustworthy recommendations."
+        )
+    lines.append("")
+
+    lines.append("## Top performers")
+    if not report.top_performers:
+        lines.append("_None this period._")
+    for m in report.top_performers:
+        pct = f"p{m.percentile:.0f}" if m.percentile is not None else "p?"
+        lines.append(
+            f"- **{m.content_id}** ({m.content_type}) — "
+            f"{m.primary_metric:g} {m.metric_name} ({pct})"
+        )
+    lines.append("")
+
+    lines.append("## Bottom performers")
+    if not report.bottom_performers:
+        lines.append("_None this period._")
+    for m in report.bottom_performers:
+        pct = f"p{m.percentile:.0f}" if m.percentile is not None else "p?"
+        lines.append(
+            f"- **{m.content_id}** ({m.content_type}) — "
+            f"{m.primary_metric:g} {m.metric_name} ({pct})"
+        )
+    lines.append("")
+
+    lines.append("## Trend signals")
+    if not report.trend_signals:
+        lines.append("_None._")
+    for sig in report.trend_signals:
+        lines.append(f"- {sig}")
+    lines.append("")
+
+    lines.append("## Recommendations")
+    if not report.recommendations:
+        lines.append("_No recommendations this period._")
+    else:
+        grouped: dict[str, list[Recommendation]] = {}
+        for r in report.recommendations:
+            grouped.setdefault(r.action, []).append(r)
+        for action in _REC_ACTION_ORDER:
+            bucket = grouped.get(action, [])
+            if not bucket:
+                continue
+            lines.append(f"### {action} ({len(bucket)})")
+            for r in bucket:
+                lines.append(
+                    f"- **{r.target}** (conf {r.confidence:.2f}) — {r.rationale}"
+                )
+                for ev in r.evidence:
+                    lines.append(f"  - evidence: {ev}")
+            lines.append("")
+    return "\n".join(lines).rstrip() + "\n"
 
 
 def _score_metrics(
@@ -252,12 +375,51 @@ class Argus:
         return top, bottom
 
     def _load_baselines(self) -> dict[str, float]:
-        """Stub — populated in Task 10."""
-        return {}
+        """Read the most recent prior report; map content_id -> primary_metric.
+
+        Used by ``_score_metrics`` for week-over-week deltas. Returns {} when
+        the DB has no prior reports or the table is missing.
+        """
+        if not self.state_db_path or not self.state_db_path.is_file():
+            return {}
+        try:
+            with sqlite3.connect(self.state_db_path) as conn:
+                conn.row_factory = sqlite3.Row
+                row = conn.execute(
+                    "SELECT report_json FROM analytics_reports "
+                    "ORDER BY period_end DESC LIMIT 1"
+                ).fetchone()
+        except sqlite3.OperationalError:
+            return {}
+        if not row:
+            return {}
+        try:
+            data = json.loads(row["report_json"])
+        except json.JSONDecodeError:
+            return {}
+        baseline: dict[str, float] = {}
+        for section in ("top_performers", "bottom_performers"):
+            for entry in data.get(section, []):
+                cid = entry.get("content_id")
+                if cid:
+                    baseline[cid] = float(entry.get("primary_metric", 0.0))
+        return baseline
 
     def _persist(self, report: PerformanceReport) -> None:
-        """Stub — populated in Task 10."""
-        return
+        """Serialize the full report to ``analytics_reports``."""
+        if not self.state_db_path:
+            return
+        with sqlite3.connect(self.state_db_path) as conn:
+            conn.execute(
+                "INSERT INTO analytics_reports "
+                "(period_start, period_end, report_json) VALUES (?, ?, ?)",
+                (
+                    report.period_start.isoformat(),
+                    report.period_end.isoformat(),
+                    json.dumps(report.to_json()),
+                ),
+            )
+            conn.commit()
 
     _DEFAULT_SYSTEM_PROMPT = """You are Argus, a content performance analyst. \
 Given a ranked leaderboard of content with engagement metrics, you produce \

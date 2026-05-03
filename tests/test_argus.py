@@ -285,3 +285,126 @@ async def test_argus_handles_unparseable_llm_output_gracefully():
     assert report.recommendations == []
     assert report.llm_error is not None
     assert len(report.top_performers) >= 1
+
+
+# ───────────────── Persistence + markdown (Task 10) ─────────────────
+
+
+import json as _json  # noqa: E402
+
+from devrel_swarm.project.state import init_db, open_db  # noqa: E402
+
+
+@pytest.mark.asyncio
+async def test_argus_persists_report_to_state_db(tmp_path):
+    db = tmp_path / "state.db"
+    init_db(db)
+
+    posthog = MagicMock()
+    posthog.collect = AsyncMock(
+        return_value=[
+            PerformanceMetric(
+                content_id="blog/a", content_type="blog", title="A", url=None,
+                published_at=_utc(2026, 4, 30), primary_metric=500.0,
+                metric_name="page_views",
+            )
+        ]
+    )
+    empty = MagicMock(); empty.collect = AsyncMock(return_value=[])
+    llm = MagicMock()
+    llm.generate = AsyncMock(return_value='{"recommendations": [], "trend_signals": []}')
+
+    argus = Argus(posthog, empty, empty, empty, llm_client=llm, state_db_path=db)
+    report = await argus.run(_utc(2026, 4, 25), _utc(2026, 5, 2))
+    assert report is not None  # silence unused
+
+    with open_db(db) as conn:
+        rows = conn.execute(
+            "SELECT period_start, period_end, report_json FROM analytics_reports"
+        ).fetchall()
+    assert len(rows) == 1
+    payload = _json.loads(rows[0]["report_json"])
+    assert payload["sources_ok"]["posthog"] is True
+    assert payload["top_performers"][0]["content_id"] == "blog/a"
+
+
+@pytest.mark.asyncio
+async def test_argus_loads_baselines_from_previous_report(tmp_path):
+    db = tmp_path / "state.db"
+    init_db(db)
+
+    prior = {
+        "period_start": "2026-04-18T00:00:00+00:00",
+        "period_end": "2026-04-25T00:00:00+00:00",
+        "top_performers": [
+            {
+                "content_id": "blog/a", "content_type": "blog", "title": "A",
+                "url": None, "published_at": "2026-04-23T00:00:00+00:00",
+                "primary_metric": 100.0, "metric_name": "page_views",
+                "secondary_metrics": {}, "percentile": 100.0,
+                "wow_delta": None, "anomaly_flag": False,
+            }
+        ],
+        "bottom_performers": [],
+        "trend_signals": [], "recommendations": [],
+        "sources_ok": {"posthog": True, "github": True, "instantly": True, "social": True},
+        "insufficient_data": False, "llm_error": None,
+    }
+    with open_db(db) as conn:
+        conn.execute(
+            "INSERT INTO analytics_reports (period_start, period_end, report_json) "
+            "VALUES (?,?,?)",
+            (prior["period_start"], prior["period_end"], _json.dumps(prior)),
+        )
+        conn.commit()
+
+    posthog = MagicMock()
+    posthog.collect = AsyncMock(
+        return_value=[
+            PerformanceMetric(
+                content_id="blog/a", content_type="blog", title="A", url=None,
+                published_at=_utc(2026, 4, 30), primary_metric=200.0,
+                metric_name="page_views",
+            )
+        ]
+    )
+    empty = MagicMock(); empty.collect = AsyncMock(return_value=[])
+    llm = MagicMock()
+    llm.generate = AsyncMock(return_value='{"recommendations": [], "trend_signals": []}')
+
+    argus = Argus(posthog, empty, empty, empty, llm_client=llm, state_db_path=db)
+    report = await argus.run(_utc(2026, 4, 25), _utc(2026, 5, 2))
+
+    a = next(m for m in report.top_performers if m.content_id == "blog/a")
+    assert a.wow_delta == pytest.approx(100.0)
+
+
+def test_to_markdown_groups_recs_by_action():
+    metric = PerformanceMetric(
+        content_id="blog/a", content_type="blog", title="A", url=None,
+        published_at=_utc(2026, 4, 30), primary_metric=500.0,
+        metric_name="page_views", percentile=95.0,
+    )
+    recs = [
+        Recommendation(
+            action="double_down", target="theme:python", target_type="theme",
+            rationale="Python content rules.", evidence=["blog/a: p95"], confidence=0.9,
+        ),
+        Recommendation(
+            action="retire", target="blog/x", target_type="content",
+            rationale="Bottom decile 4 weeks running.", evidence=["blog/x: p5"],
+            confidence=0.8,
+        ),
+    ]
+    report = PerformanceReport(
+        period_start=_utc(2026, 4, 25), period_end=_utc(2026, 5, 2),
+        top_performers=[metric], bottom_performers=[],
+        trend_signals=["Python +30% WoW"], recommendations=recs,
+        sources_ok={"posthog": True, "github": False, "instantly": True, "social": True},
+    )
+    md = report.to_markdown()
+    assert "Argus Performance Report" in md
+    assert "double_down" in md
+    assert "retire" in md
+    assert "Python +30% WoW" in md
+    assert "github: failed" in md
