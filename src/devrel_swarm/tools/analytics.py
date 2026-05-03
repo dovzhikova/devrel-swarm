@@ -197,8 +197,44 @@ class SocialCollector:
     yields no rows. Does not raise.
     """
 
+    # Pinned schema contract: these columns MUST exist on Echo's
+    # social_mentions table. If a future Echo migration renames any of
+    # these, _verify_schema logs a clear warning and the collector returns
+    # [] rather than silently producing partial data.
+    _REQUIRED_COLUMNS: frozenset[str] = frozenset(
+        {"platform", "post_id", "title", "url", "posted_at",
+         "upvotes", "comments", "engagement_score", "is_own_post"}
+    )
+
     def __init__(self, state_db_path: Path):
         self.state_db_path = state_db_path
+        self._schema_verified = False
+
+    def _verify_schema(self, conn: sqlite3.Connection) -> bool:
+        """Confirm social_mentions has all required columns.
+
+        Cached per instance via ``self._schema_verified`` so we only PRAGMA
+        once. Logs a single clear warning if columns are missing/renamed.
+        """
+        if self._schema_verified:
+            return True
+        try:
+            cols = {
+                row[1]
+                for row in conn.execute("PRAGMA table_info(social_mentions)")
+            }
+        except sqlite3.OperationalError:
+            return False  # table doesn't exist yet
+        missing = self._REQUIRED_COLUMNS - cols
+        if missing:
+            logger.warning(
+                "SocialCollector: Echo's social_mentions table is missing "
+                "required columns: %s. Argus will return no social metrics "
+                "until the schema is updated.", sorted(missing),
+            )
+            return False
+        self._schema_verified = True
+        return True
 
     def _read_rows(self, start_iso: str, end_iso: str):
         """Synchronous SQLite read; called via asyncio.to_thread to avoid
@@ -207,6 +243,8 @@ class SocialCollector:
         try:
             with sqlite3.connect(self.state_db_path) as conn:
                 conn.row_factory = sqlite3.Row
+                if not self._verify_schema(conn):
+                    return None
                 return conn.execute(
                     "SELECT platform, post_id, title, url, posted_at, "
                     "upvotes, comments, engagement_score "

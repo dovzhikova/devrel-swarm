@@ -306,3 +306,37 @@ async def test_social_collector_returns_empty_when_table_missing(tmp_path):
     collector = SocialCollector(db)
     metrics = await collector.collect((_utc_now() - timedelta(days=7), _utc_now()))
     assert metrics == []
+
+
+@pytest.mark.asyncio
+async def test_social_collector_returns_empty_when_schema_drifted(tmp_path, caplog):
+    """If Echo renames a required column (silent contract drift), the
+    collector returns [] and logs a clear warning instead of producing
+    partial data or crashing on a SELECT."""
+    import logging as _logging
+
+    db = tmp_path / "state.db"
+    with _sqlite3.connect(db) as conn:
+        conn.execute(
+            """
+            CREATE TABLE social_mentions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                platform TEXT NOT NULL,
+                post_id TEXT NOT NULL,
+                title TEXT,
+                url TEXT,
+                posted_at TEXT NOT NULL,
+                upvotes INTEGER DEFAULT 0,
+                comments INTEGER DEFAULT 0,
+                score REAL DEFAULT 0,            -- WRONG: should be engagement_score
+                is_own_post INTEGER DEFAULT 0
+            )
+            """
+        )
+        conn.commit()
+
+    collector = SocialCollector(db)
+    with caplog.at_level(_logging.WARNING, logger="devrel_swarm.tools.analytics"):
+        metrics = await collector.collect((_utc_now() - timedelta(days=7), _utc_now()))
+    assert metrics == []
+    assert any("engagement_score" in rec.message for rec in caplog.records)
