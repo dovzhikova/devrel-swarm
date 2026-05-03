@@ -155,9 +155,10 @@
 <body>
   <main>
     <section aria-labelledby="hero">
-      <h1 id="hero">A 13-agent DevRel team that lives in your repo.</h1>
+      <h1 id="hero">Your DevRel motion shouldn't be a part-time job.</h1>
       <p style="font-size: 1.15rem; color: var(--muted); margin-bottom: 2rem;">
-        Run content, sales, and analytics from a single CLI. Bring your own Anthropic key.
+        Thirteen agents draft, audit, and measure your content from a single CLI.
+        Lives in your repo. ~$3 a week of Anthropic credit. No SaaS, no signup, no lock-in.
       </p>
       <div class="install" data-copy="pipx install devrel-swarm">
         pipx install devrel-swarm<button type="button" aria-label="Copy install command">copy</button>
@@ -168,18 +169,19 @@
     </section>
 
     <section aria-labelledby="problem">
-      <h2 id="problem">The problem</h2>
-      <p>You ship product all week. Saturday morning you remember you haven't tweeted in a month.</p>
-      <p>Your last blog post was &ldquo;introducing v0.3&rdquo; — three releases ago.</p>
-      <p>You know which competitor just raised but couldn't write a battlecard if your runway depended on it.</p>
+      <h2 id="problem">If any of these sound familiar</h2>
+      <p>You ship product all week. Saturday you remember you haven't tweeted in a month.</p>
+      <p>Your last blog post was &ldquo;introducing v0.3&rdquo;. You're on v0.6.</p>
+      <p>You know which competitor just raised. You couldn't write a battlecard if your runway depended on it.</p>
+      <p>You shipped three tutorials this quarter. You have no idea which one anyone read.</p>
     </section>
 
     <section aria-labelledby="shape">
-      <h2 id="shape">It's <code>git</code> for DevRel</h2>
+      <h2 id="shape">Your editorial contract belongs in <code>git</code></h2>
       <p>
-        Operates on your repo the way <code>git</code> does. <code>devrel init</code>
-        bootstraps a <code>.devrel/</code> directory with the editorial contract and
-        state DB. Diff voice and style like any other source.
+        Voice samples, style targets, slop blocklist — three small files that
+        decide what &ldquo;on-brand&rdquo; means for your product. <code>devrel init</code>
+        drops them in <code>.devrel/</code> next to your source.
       </p>
 <pre><code>$ devrel init --name myproduct --url https://myproduct.dev --github-repo me/myproduct
 + .devrel/
@@ -194,18 +196,22 @@
 + state.db
 Done. Edit voice.md / style.md / slop-blocklist.md, then run devrel doctor.</code></pre>
       <p>
-        The four marked <code>(commit)</code> are the editorial contract.
-        Diff them, review them, branch them — they're how the agents stay on-brand
-        across hundreds of generated pieces.
+        When the output drifts off-voice, you don't tweak a prompt. You add a
+        sample to <code>voice.md</code> and commit. Every editorial decision
+        gets a hash. The system stays auditable as it scales to hundreds of
+        pieces — because all the things that make it sound like <em>you</em>
+        are version-controlled.
       </p>
     </section>
 
     <section aria-labelledby="agents">
-      <h2 id="agents">Thirteen specialists, one orchestrator</h2>
+      <h2 id="agents">Thirteen specialists. None of them generalists.</h2>
       <p>
-        Atlas coordinates twelve specialist agents across three pipelines.
-        Each agent has one clear job and degrades gracefully when its
-        integrations are missing.
+        Hiring this stack costs roughly $400k loaded, and every hire takes
+        three months to ramp. The agents don't replace those people, but they
+        cover the work nobody on a 5-person team has time to do.
+        Atlas orchestrates; each specialist does one thing well and fails
+        gracefully when an integration is missing.
       </p>
       <div class="agents">
         <div>
@@ -257,17 +263,25 @@ Done. Edit voice.md / style.md / slop-blocklist.md, then run devrel doctor.</cod
         final draft + <code>revision-trace.json</code>
       </div>
       <p style="margin-top: 1.5rem;">
-        Each stage's score and diff is captured in the trace, so you can audit any
-        piece end-to-end. Stages 1-4 use Sonnet; the cheaper stages use Haiku.
-        Total cost lands at roughly 2.5-4× a single revision loop.
+        Every stage's score and diff goes into a JSON trace. You can read what
+        the developmental editor flagged, what the persona scorer pushed back
+        on, which sentences the readability pass forced shorter. Slop doesn't
+        survive contact with seven critics.
+      </p>
+      <p style="color: var(--muted); font-size: 0.9rem;">
+        Stages 1-4 use Sonnet; the cheaper stages use Haiku. Total cost lands
+        at roughly 2.5-4× a single revision loop.
       </p>
     </section>
 
     <section aria-labelledby="argus">
-      <h2 id="argus">Argus tells you what's working</h2>
+      <h2 id="argus">Argus tells you what's working — and what to kill</h2>
       <p>
-        Most AI marketing tools generate content. The 13th agent measures
-        what shipped and tells you which to retire.
+        Generating content is the easy half. Knowing which pieces deserve a
+        sequel and which should die quietly is the half that actually moves
+        the metric. Argus pulls performance data from PostHog, GitHub,
+        Instantly, and Echo, ranks it, and writes a typed recommendation per
+        piece every week.
       </p>
       <ul>
         <li>
@@ -288,7 +302,8 @@ Done. Edit voice.md / style.md / slop-blocklist.md, then run devrel doctor.</cod
         </li>
       </ul>
       <blockquote>
-        Most AI marketing tools generate content. This one tells you which to retire.
+        Most AI marketing tools tell you what to make next. This one tells
+        you what to kill.
       </blockquote>
     </section>
 
@@ -326,7 +341,10 @@ Pushed to Telegram + email.</code></pre>
         <li><strong>Full <code>devrel run</code> weekly cycle</strong> — ~$2-4 per cycle depending on content volume</li>
         <li><strong>Budget cap</strong> — configurable in <code>.devrel/config.toml</code>; <code>BudgetGate</code> forces Haiku when exceeded so coverage stays bounded</li>
       </ul>
-      <p>No subscription. No seat licensing. No vendor lock-in.</p>
+      <p>
+        No subscription. No seat licensing. The day you stop wanting this,
+        you delete a folder.
+      </p>
     </section>
 
     <section aria-labelledby="faq">
