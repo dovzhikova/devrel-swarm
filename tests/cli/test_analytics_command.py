@@ -243,6 +243,53 @@ def test_analytics_calibration_handles_empty_db(project_dir):
     assert "No scored recommendations" in result.stdout
 
 
+def test_analytics_summary_aggregates_across_projects(tmp_path, monkeypatch):
+    """Build two fake projects with state.db files; summary aggregates both."""
+    from devrel_swarm.project.state import init_db, open_db
+
+    proj_a = tmp_path / "project-a"
+    (proj_a / ".devrel").mkdir(parents=True)
+    init_db(proj_a / ".devrel" / "state.db")
+    with open_db(proj_a / ".devrel" / "state.db") as conn:
+        conn.execute(
+            "INSERT INTO analytics_reports (period_start, period_end, report_json) "
+            "VALUES (?, ?, ?)",
+            ("2026-04-25T00:00:00+00:00", "2026-05-02T00:00:00+00:00", "{}"),
+        )
+        conn.execute(
+            "INSERT INTO costs (agent, model, cost_usd) VALUES ('argus', 'sonnet', 0.03)"
+        )
+        conn.commit()
+
+    proj_b = tmp_path / "project-b"
+    (proj_b / ".devrel").mkdir(parents=True)
+    init_db(proj_b / ".devrel" / "state.db")
+    # No reports in project-b — should still appear with totals=0
+
+    # Cd somewhere outside; use --root flag explicitly
+    monkeypatch.chdir(tmp_path)
+    result = runner.invoke(
+        app, ["analytics", "summary", "--root", str(tmp_path), "--format", "json"]
+    )
+    assert result.exit_code == 0, result.stdout
+    payload = json.loads(result.stdout)
+    projects = {p["project"]: p for p in payload}
+    assert str(proj_a) in projects
+    assert str(proj_b) in projects
+    assert projects[str(proj_a)]["spend_usd"] == 0.03
+    assert projects[str(proj_a)]["last_report"] == "2026-05-02T00:00:00+00:00"
+    assert projects[str(proj_b)]["spend_usd"] == 0.0
+
+
+def test_analytics_summary_empty_root_returns_zero_projects(tmp_path):
+    """A root with no .devrel/ trees should produce an empty project list."""
+    result = runner.invoke(
+        app, ["analytics", "summary", "--root", str(tmp_path), "--format", "json"]
+    )
+    assert result.exit_code == 0
+    assert json.loads(result.stdout) == []
+
+
 def test_analytics_report_push_skipped_when_sources_partial(project_dir):
     """If any source failed, --push must be skipped by default."""
     partial = PerformanceReport(

@@ -99,6 +99,114 @@ def _write_markdown_deliverable(
     return out
 
 
+@analytics_app.command("summary")
+def summary_command(
+    root: str = typer.Option(
+        "~", "--root", help="Root to scan for .devrel/ directories. Default: $HOME."
+    ),
+    format_: str = typer.Option("md", "--format", help="md or json."),
+    max_depth: int = typer.Option(
+        4, "--max-depth", help="Max directory depth to descend (avoids slow $HOME walks)."
+    ),
+) -> None:
+    """Aggregate Argus reports across every .devrel/ project under a root.
+
+    Walks the filesystem looking for ``.devrel/state.db`` files (capped at
+    --max-depth) and reports total spend, total recommendations, and the
+    most recent report per project.
+    """
+    root_path = Path(root).expanduser().resolve()
+    if not root_path.is_dir():
+        console.print(f"[red]{root_path} is not a directory.[/red]")
+        raise typer.Exit(code=1)
+
+    projects: list[dict] = []
+    for state_db in _walk_for_state_dbs(root_path, max_depth):
+        info = _summarize_project_db(state_db)
+        if info:
+            projects.append(info)
+
+    if format_ == "json":
+        sys.stdout.write(json.dumps(projects, indent=2, default=str))
+        sys.stdout.write("\n")
+        return
+
+    if format_ != "md":
+        raise typer.BadParameter("--format must be 'md' or 'json'")
+
+    lines = [f"# Argus cross-project summary — {len(projects)} projects under {root_path}", ""]
+    if not projects:
+        lines.append("_No .devrel/state.db files found._")
+        sys.stdout.write("\n".join(lines) + "\n")
+        return
+    lines.append("| project | last_report | total_recs | total_metrics | spend_usd |")
+    lines.append("|---|---|---|---|---|")
+    for p in sorted(projects, key=lambda x: x["last_report"] or "", reverse=True):
+        lines.append(
+            f"| {p['project']} | {(p['last_report'] or '—')[:10]} | "
+            f"{p['total_recs']} | {p['total_metrics']} | ${p['spend_usd']:.2f} |"
+        )
+    sys.stdout.write("\n".join(lines) + "\n")
+
+
+def _walk_for_state_dbs(root: Path, max_depth: int):
+    """Yield every state.db at root/**/.devrel/state.db up to max_depth.
+
+    Skips dot-directories other than .devrel (so ~/.cache, ~/.config etc
+    don't slow the walk to a crawl)."""
+    def _walk(dir_: Path, depth: int):
+        if depth > max_depth:
+            return
+        try:
+            entries = list(dir_.iterdir())
+        except PermissionError:
+            return
+        for child in entries:
+            if not child.is_dir():
+                continue
+            if child.name == ".devrel":
+                state_db = child / "state.db"
+                if state_db.is_file():
+                    yield state_db
+                continue
+            if child.name.startswith("."):
+                continue
+            yield from _walk(child, depth + 1)
+    yield from _walk(root, 0)
+
+
+def _summarize_project_db(state_db: Path) -> dict | None:
+    """Return per-project rollup or None if the DB has no Argus tables."""
+    try:
+        from devrel_swarm.project.state import open_db
+        with open_db(state_db) as conn:
+            try:
+                last_row = conn.execute(
+                    "SELECT MAX(period_end) AS p FROM analytics_reports"
+                ).fetchone()
+                rec_row = conn.execute(
+                    "SELECT COUNT(*) AS c FROM analytics_recommendations"
+                ).fetchone()
+                hist_row = conn.execute(
+                    "SELECT COUNT(*) AS c FROM metric_history"
+                ).fetchone()
+            except Exception:  # noqa: BLE001 — table missing means not an Argus project
+                return None
+            cost_row = conn.execute(
+                "SELECT COALESCE(SUM(cost_usd), 0.0) AS total FROM costs WHERE agent = 'argus'"
+            ).fetchone()
+    except Exception:  # noqa: BLE001
+        return None
+
+    return {
+        "project": str(state_db.parent.parent),
+        "last_report": last_row["p"] if last_row else None,
+        "total_recs": int(rec_row["c"]) if rec_row else 0,
+        "total_metrics": int(hist_row["c"]) if hist_row else 0,
+        "spend_usd": float(cost_row["total"]) if cost_row else 0.0,
+    }
+
+
 @analytics_app.command("history")
 def history_command(
     content_id: str = typer.Argument(
