@@ -53,7 +53,13 @@ class PerformanceMetric:
 
 @dataclass
 class Recommendation:
-    """One optimization recommendation tied to one target."""
+    """One optimization recommendation tied to one target.
+
+    ``source_ids`` is the list of ``content_id`` values that back this
+    recommendation. v1 uses these only for display; v2 (closed-loop routing)
+    uses them so Iris/Mox/Nova can resolve the rec to actionable artifacts
+    without re-parsing the free-text ``target``.
+    """
 
     action: RecAction
     target: str
@@ -61,6 +67,7 @@ class Recommendation:
     rationale: str
     evidence: list[str]
     confidence: float
+    source_ids: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -108,6 +115,7 @@ def _rec_to_jsonable(r: Recommendation) -> dict:
         "rationale": r.rationale,
         "evidence": list(r.evidence),
         "confidence": r.confidence,
+        "source_ids": list(r.source_ids),
     }
 
 
@@ -194,6 +202,8 @@ def _render_markdown(report: PerformanceReport) -> str:
                 lines.append(
                     f"- **{r.target}** (conf {r.confidence:.2f}) — {r.rationale}"
                 )
+                if r.source_ids:
+                    lines.append(f"  - sources: {', '.join(r.source_ids)}")
                 for ev in r.evidence:
                     lines.append(f"  - evidence: {ev}")
             lines.append("")
@@ -603,12 +613,15 @@ Confidence below 0.5 means "investigate" — do not recommend a directional acti
 {leaderboard}
 
 Return a JSON object with two top-level keys:
-- "recommendations": array of {{action, target, target_type, rationale, evidence, confidence}}
+- "recommendations": array of {{action, target, target_type, rationale, evidence, confidence, source_ids}}
 - "trend_signals": array of short strings describing themes/channel patterns (3-7 items)
 
 action ∈ {{double_down, retire, rewrite, retest, amplify, investigate}}
 target_type ∈ {{content, theme, channel}}
 confidence ∈ [0.0, 1.0]; below 0.5 use action="investigate".
+source_ids: array of content_id strings from the leaderboard above that back this
+recommendation (use the exact content_id values; min 1, max 5). For target_type="theme"
+or "channel", list the exemplary content_ids that motivated the recommendation.
 
 Do not include any commentary outside the JSON."""
 
@@ -628,6 +641,7 @@ Do not include any commentary outside the JSON."""
                 rationale=r["rationale"],
                 evidence=list(r.get("evidence", [])),
                 confidence=float(r["confidence"]),
+                source_ids=list(r.get("source_ids", [])),
             )
             for r in data.get("recommendations", [])
         ]

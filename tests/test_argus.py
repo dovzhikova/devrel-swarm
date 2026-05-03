@@ -59,6 +59,47 @@ def test_recommendation_required_fields():
     d = asdict(r)
     assert d["action"] == "double_down"
     assert d["confidence"] == 0.85
+    # source_ids defaults to empty list (v2 routing field, optional in v1)
+    assert d["source_ids"] == []
+
+
+def test_recommendation_carries_source_ids():
+    r = Recommendation(
+        action="rewrite",
+        target="blog/cli-launch",
+        target_type="content",
+        rationale="Bottom decile but anomalously low for the topic.",
+        evidence=["blog/cli-launch: 30 views (p4)"],
+        confidence=0.7,
+        source_ids=["blog/cli-launch"],
+    )
+    assert r.source_ids == ["blog/cli-launch"]
+
+
+@pytest.mark.asyncio
+async def test_argus_propagates_source_ids_from_llm_to_report():
+    posthog = MagicMock()
+    posthog.collect = AsyncMock(return_value=[
+        PerformanceMetric(
+            content_id="blog/x", content_type="blog", title="X", url=None,
+            published_at=_utc(2026, 4, 30), primary_metric=100.0,
+            metric_name="page_views",
+        )
+    ])
+    empty_c = MagicMock(); empty_c.collect = AsyncMock(return_value=[])
+    llm = MagicMock()
+    llm.generate = AsyncMock(return_value=(
+        '{"recommendations": [{"action": "rewrite", "target": "blog/x", '
+        '"target_type": "content", "rationale": "weak hero", '
+        '"evidence": ["blog/x: p20"], "confidence": 0.8, '
+        '"source_ids": ["blog/x"]}], "trend_signals": []}'
+    ))
+
+    argus = Argus(posthog, empty_c, empty_c, empty_c, llm_client=llm, state_db_path=None)
+    report = await argus.run(_utc(2026, 4, 25), _utc(2026, 5, 2))
+    assert report.recommendations[0].source_ids == ["blog/x"]
+    # JSON serialization includes source_ids
+    assert report.to_json()["recommendations"][0]["source_ids"] == ["blog/x"]
 
 
 def test_performance_report_round_trip():
