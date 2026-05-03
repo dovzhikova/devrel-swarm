@@ -71,6 +71,9 @@ def _build_argus(state_db_path: Path) -> Argus:
 
     llm = LLMClient(api_key=os.environ.get("ANTHROPIC_API_KEY", ""))
     llm.set_agent("argus")
+    if state_db_path.is_file():
+        from devrel_swarm.project.cost_sink import make_sqlite_sink
+        llm.set_cost_sink(make_sqlite_sink(state_db_path))
 
     return Argus(
         posthog_collector=PostHogCollector(posthog_client),
