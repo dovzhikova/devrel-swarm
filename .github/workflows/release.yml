@@ -1,0 +1,83 @@
+name: Release
+
+# Triggered when a v* tag is pushed (e.g. `git tag v0.2.4 && git push --tags`).
+# Builds sdist + wheel, runs twine check, then uploads to PyPI via OIDC
+# (PyPI trusted publisher). No PYPI_API_TOKEN needed in repo secrets.
+#
+# Setup required once on PyPI side:
+#   pypi.org → Account → Publishing → Add a new pending publisher
+#     PyPI Project Name: devrel-swarm
+#     Owner:             dovzhikova
+#     Repository name:   devrel-swarm
+#     Workflow name:     release.yml
+#     Environment name:  pypi
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build distributions
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install build tooling
+        run: pip install build twine
+      - name: Build sdist + wheel
+        run: python -m build
+      - name: Twine check
+        run: twine check dist/*
+      - name: Upload distributions
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+  publish:
+    name: Publish to PyPI
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/p/devrel-swarm
+    permissions:
+      id-token: write  # required for OIDC trusted publisher
+    steps:
+      - name: Download distributions
+        uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+
+  github-release:
+    name: Create GitHub release
+    needs: publish
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download distributions
+        uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+      - name: Create release with artifacts
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${GITHUB_REF#refs/tags/}"
+          gh release create "$TAG" \
+            --title "$TAG" \
+            --notes "See [CHANGELOG.md](https://github.com/dovzhikova/devrel-swarm/blob/main/CHANGELOG.md) for full release notes." \
+            dist/*
