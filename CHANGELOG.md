@@ -1,9 +1,10 @@
 # Changelog
 
-## Unreleased — 2026-05-04 (pre-publish polish for 0.2.4)
+## 0.2.4 — pre-publish polish (2026-05-04)
 
-Final pre-publish pass across linting, packaging, and dependency footprint.
-No agent or pipeline behavior changes for pipx end users.
+Final pre-publish pass across linting, packaging, and dependency footprint
+landed the day of the PyPI tag. No agent or pipeline behavior changes for
+pipx end users; the headline change is a lighter default install.
 
 ### Changed
 
