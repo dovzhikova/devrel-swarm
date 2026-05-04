@@ -193,10 +193,23 @@ Never fake scarcity."""
         self.code_validator = CodeValidator()
         self._kb = get_kb_search(
             knowledge_base_path,
-            extra_stop_words=frozenset({
-                "write", "generate", "create", "blog", "post", "landing", "page",
-                "social", "media", "posts", "campaign", "press", "release",
-            }),
+            extra_stop_words=frozenset(
+                {
+                    "write",
+                    "generate",
+                    "create",
+                    "blog",
+                    "post",
+                    "landing",
+                    "page",
+                    "social",
+                    "media",
+                    "posts",
+                    "campaign",
+                    "press",
+                    "release",
+                }
+            ),
         )
         self._system_prompt = load_agent_prompt(
             "mox", "system_prompt.txt", self._DEFAULT_SYSTEM_PROMPT
@@ -211,7 +224,8 @@ Never fake scarcity."""
         return "blog"  # default
 
     def _extract_upstream_context(
-        self, context: dict[str, Any] | None,
+        self,
+        context: dict[str, Any] | None,
     ) -> dict[str, Any]:
         """Extract marketing-relevant data from SharedContext."""
         extracted: dict[str, Any] = {
@@ -269,9 +283,15 @@ Never fake scarcity."""
     ) -> dict[str, Any]:
         """Fetch and aggregate analytics for active campaigns."""
         empty = {
-            "total_campaigns": 0, "total_sent": 0, "total_opened": 0,
-            "total_replied": 0, "total_bounced": 0, "avg_open_rate": 0.0,
-            "avg_reply_rate": 0.0, "avg_bounce_rate": 0.0, "per_campaign": [],
+            "total_campaigns": 0,
+            "total_sent": 0,
+            "total_opened": 0,
+            "total_replied": 0,
+            "total_bounced": 0,
+            "avg_open_rate": 0.0,
+            "avg_reply_rate": 0.0,
+            "avg_bounce_rate": 0.0,
+            "per_campaign": [],
         }
         if not self.instantly_client:
             return empty
@@ -335,8 +355,7 @@ Never fake scarcity."""
             for c in upstream["competitors"][:5]:
                 if isinstance(c, dict):
                     competitive_section += (
-                        f"- {c.get('name', '?')}: "
-                        f"strengths={c.get('strengths', [])}\n"
+                        f"- {c.get('name', '?')}: strengths={c.get('strengths', [])}\n"
                     )
 
         pain_section = ""
@@ -345,8 +364,7 @@ Never fake scarcity."""
             for pp in upstream["pain_points"][:5]:
                 if isinstance(pp, dict):
                     pain_section += (
-                        f"- {pp.get('title', '?')} "
-                        f"(severity: {pp.get('severity', '?')})\n"
+                        f"- {pp.get('title', '?')} (severity: {pp.get('severity', '?')})\n"
                     )
 
         existing_section = ""
@@ -360,13 +378,13 @@ Never fake scarcity."""
 Content type: {content_type}
 
 ## Knowledge Base
-{kb_context if kb_context else 'No relevant KB docs found.'}
+{kb_context if kb_context else "No relevant KB docs found."}
 
 ## Competitive Intelligence
-{competitive_section if competitive_section else 'No competitive data available.'}
+{competitive_section if competitive_section else "No competitive data available."}
 
 ## Developer Pain Points
-{pain_section if pain_section else 'No pain point data available.'}
+{pain_section if pain_section else "No pain point data available."}
 
 {existing_section}
 
@@ -456,9 +474,7 @@ Each email should sell one next step. 3-5 emails in the sequence."""
                         "Unmapped content_type %r — defaulting to blog_post pipeline",
                         content_type,
                     )
-                pipeline_content_type = PIPELINE_CONTENT_TYPE_MAP.get(
-                    content_type, "blog_post"
-                )
+                pipeline_content_type = PIPELINE_CONTENT_TYPE_MAP.get(content_type, "blog_post")
                 raw, strengths, issues = await generate_with_pipeline(
                     llm_client=self.llm_client,
                     system_prompt=self.SYSTEM_PROMPT.format(
@@ -471,13 +487,10 @@ Each email should sell one next step. 3-5 emails in the sequence."""
                 base_result["content"] = raw
                 if issues and isinstance(issues[0], dict):
                     remaining_issues = [
-                        i for i in issues
-                        if isinstance(i, dict) and i.get("severity") == "high"
+                        i for i in issues if isinstance(i, dict) and i.get("severity") == "high"
                     ]
                 else:
-                    remaining_issues = [
-                        i for i in issues if isinstance(i, str) and i.strip()
-                    ]
+                    remaining_issues = [i for i in issues if isinstance(i, str) and i.strip()]
                 base_result["revision"] = {
                     "strengths": strengths,
                     "remaining_issues": remaining_issues,

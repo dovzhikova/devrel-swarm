@@ -258,7 +258,11 @@ class GitHubTools:
         resp = await self._client.get(f"/repos/{self.repo}/labels", params={"per_page": 100})
         resp.raise_for_status()
         return [
-            {"name": lbl["name"], "color": lbl["color"], "description": lbl.get("description") or ""}
+            {
+                "name": lbl["name"],
+                "color": lbl["color"],
+                "description": lbl.get("description") or "",
+            }
             for lbl in resp.json()
         ]
 

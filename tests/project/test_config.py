@@ -86,4 +86,4 @@ def test_partial_model_section_uses_defaults(tmp_path):
     cfg = ProjectConfig.load(f)
     assert cfg.model.default == "claude-opus-4-7"
     assert cfg.model.cheap == ModelConfig().cheap  # default preserved
-    assert cfg.model.opus_opt_in is True            # default preserved
+    assert cfg.model.opus_opt_in is True  # default preserved

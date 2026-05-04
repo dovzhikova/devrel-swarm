@@ -63,7 +63,7 @@ def _safe_json_loads(text: str) -> dict:
             depth -= 1
             if depth == 0:
                 try:
-                    return json.loads(text[start:i + 1])
+                    return json.loads(text[start : i + 1])
                 except json.JSONDecodeError:
                     break
 
@@ -272,20 +272,16 @@ Pain point severity scale:
         # Distinguish the two early-return paths in logs so "no themes
         # this week" can be diagnosed without re-running the agent.
         if not signals:
-            logger.info(
-                "Iris._extract_themes: no signals provided; returning empty themes list"
-            )
+            logger.info("Iris._extract_themes: no signals provided; returning empty themes list")
             return []
         if not self.llm_client:
-            logger.warning(
-                "Iris._extract_themes: no LLM client available; cannot extract themes"
-            )
+            logger.warning("Iris._extract_themes: no LLM client available; cannot extract themes")
             return []
 
         # Process in chunks
         all_themes: list[FeedbackTheme] = []
         for i in range(0, len(signals), _MAX_SIGNALS_PER_CALL):
-            chunk = signals[i:i + _MAX_SIGNALS_PER_CALL]
+            chunk = signals[i : i + _MAX_SIGNALS_PER_CALL]
             chunk_themes = await self._extract_themes_from_chunk(chunk)
             all_themes.extend(chunk_themes)
 
@@ -302,7 +298,8 @@ Pain point severity scale:
         return sorted(merged, key=lambda t: t.composite_score, reverse=True)
 
     async def _extract_themes_from_chunk(
-        self, signals: list[dict],
+        self,
+        signals: list[dict],
     ) -> list[FeedbackTheme]:
         """Extract themes from a single chunk of signals."""
         issues_text = "\n".join(
@@ -351,7 +348,9 @@ Return ONLY valid JSON, no markdown fences."""
                         severity=sev,
                         composite_score=freq * sev,
                         sources=t.get("sources", []),
-                        representative_quotes=t.get("representative_issues", t.get("representative_quotes", [])),
+                        representative_quotes=t.get(
+                            "representative_issues", t.get("representative_quotes", [])
+                        ),
                         product_areas=t.get("product_areas", []),
                         recommended_actions=t.get("recommended_actions", []),
                     )
@@ -412,18 +411,20 @@ Return ONLY valid JSON, no markdown fences."""
                 all_actions.extend(t.recommended_actions)
                 all_sources.update(t.sources)
 
-            merged.append(FeedbackTheme(
-                theme_id=group[0].theme_id,
-                title=group[0].title,
-                description=group[0].description,
-                frequency=total_freq,
-                severity=round(avg_sev, 1),
-                composite_score=round(total_freq * avg_sev, 1),
-                sources=list(all_sources),
-                representative_quotes=all_quotes[:10],
-                product_areas=list(all_areas),
-                recommended_actions=list(dict.fromkeys(all_actions))[:3],
-            ))
+            merged.append(
+                FeedbackTheme(
+                    theme_id=group[0].theme_id,
+                    title=group[0].title,
+                    description=group[0].description,
+                    frequency=total_freq,
+                    severity=round(avg_sev, 1),
+                    composite_score=round(total_freq * avg_sev, 1),
+                    sources=list(all_sources),
+                    representative_quotes=all_quotes[:10],
+                    product_areas=list(all_areas),
+                    recommended_actions=list(dict.fromkeys(all_actions))[:3],
+                )
+            )
 
         return merged
 
@@ -433,9 +434,7 @@ Return ONLY valid JSON, no markdown fences."""
         # "onboarding" systematically inflates onboarding-friction signal
         # for mature products, where most themes are about scaling and
         # integration. "other" is honest about not knowing.
-        stage_data: dict[str, list[FeedbackTheme]] = {
-            stage: [] for stage in self.JOURNEY_KEYWORDS
-        }
+        stage_data: dict[str, list[FeedbackTheme]] = {stage: [] for stage in self.JOURNEY_KEYWORDS}
         stage_data["other"] = []
 
         for theme in themes:

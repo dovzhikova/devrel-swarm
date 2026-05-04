@@ -53,7 +53,10 @@ def test_recommendation_required_fields():
         target="theme:python-testing",
         target_type="theme",
         rationale="Python testing posts have 3x corpus baseline page views.",
-        evidence=["blog/python-testing-1: 5400 views (p95)", "blog/python-testing-2: 4800 views (p92)"],
+        evidence=[
+            "blog/python-testing-1: 5400 views (p95)",
+            "blog/python-testing-2: 4800 views (p92)",
+        ],
         confidence=0.85,
     )
     d = asdict(r)
@@ -79,21 +82,30 @@ def test_recommendation_carries_source_ids():
 @pytest.mark.asyncio
 async def test_argus_propagates_source_ids_from_llm_to_report():
     posthog = MagicMock()
-    posthog.collect = AsyncMock(return_value=[
-        PerformanceMetric(
-            content_id="blog/x", content_type="blog", title="X", url=None,
-            published_at=_utc(2026, 4, 30), primary_metric=100.0,
-            metric_name="page_views",
-        )
-    ])
-    empty_c = MagicMock(); empty_c.collect = AsyncMock(return_value=[])
+    posthog.collect = AsyncMock(
+        return_value=[
+            PerformanceMetric(
+                content_id="blog/x",
+                content_type="blog",
+                title="X",
+                url=None,
+                published_at=_utc(2026, 4, 30),
+                primary_metric=100.0,
+                metric_name="page_views",
+            )
+        ]
+    )
+    empty_c = MagicMock()
+    empty_c.collect = AsyncMock(return_value=[])
     llm = MagicMock()
-    llm.generate = AsyncMock(return_value=(
-        '{"recommendations": [{"action": "rewrite", "target": "blog/x", '
-        '"target_type": "content", "rationale": "weak hero", '
-        '"evidence": ["blog/x: p20"], "confidence": 0.8, '
-        '"source_ids": ["blog/x"]}], "trend_signals": []}'
-    ))
+    llm.generate = AsyncMock(
+        return_value=(
+            '{"recommendations": [{"action": "rewrite", "target": "blog/x", '
+            '"target_type": "content", "rationale": "weak hero", '
+            '"evidence": ["blog/x: p20"], "confidence": 0.8, '
+            '"source_ids": ["blog/x"]}], "trend_signals": []}'
+        )
+    )
 
     argus = Argus(posthog, empty_c, empty_c, empty_c, llm_client=llm, state_db_path=None)
     report = await argus.run(_utc(2026, 4, 25), _utc(2026, 5, 2))
@@ -190,8 +202,12 @@ async def test_argus_run_aggregates_collectors_and_marks_sources_ok():
     posthog.collect = AsyncMock(
         return_value=[
             PerformanceMetric(
-                content_id="blog/x", content_type="blog", title="X", url=None,
-                published_at=_utc(2026, 4, 30), primary_metric=100.0,
+                content_id="blog/x",
+                content_type="blog",
+                title="X",
+                url=None,
+                published_at=_utc(2026, 4, 30),
+                primary_metric=100.0,
                 metric_name="page_views",
             )
         ]
@@ -245,12 +261,16 @@ async def test_argus_run_marks_insufficient_data_when_all_empty():
     llm.generate = AsyncMock()
 
     argus = Argus(
-        posthog_collector=empty, github_collector=empty,
-        instantly_collector=empty, social_collector=empty,
-        llm_client=llm, state_db_path=None,
+        posthog_collector=empty,
+        github_collector=empty,
+        instantly_collector=empty,
+        social_collector=empty,
+        llm_client=llm,
+        state_db_path=None,
     )
     report = await argus.run(
-        period_start=_utc(2026, 4, 25), period_end=_utc(2026, 5, 2),
+        period_start=_utc(2026, 4, 25),
+        period_end=_utc(2026, 5, 2),
     )
     assert report.insufficient_data is True
     assert report.recommendations == []
@@ -266,18 +286,27 @@ async def test_argus_prompt_includes_content_type_breakdown_and_action_vocab():
     posthog.collect = AsyncMock(
         return_value=[
             PerformanceMetric(
-                content_id="blog/a", content_type="blog", title="A", url=None,
-                published_at=_utc(2026, 4, 30), primary_metric=500.0,
+                content_id="blog/a",
+                content_type="blog",
+                title="A",
+                url=None,
+                published_at=_utc(2026, 4, 30),
+                primary_metric=500.0,
                 metric_name="page_views",
             ),
             PerformanceMetric(
-                content_id="email/c1", content_type="email", title="C1", url=None,
-                published_at=_utc(2026, 4, 30), primary_metric=0.05,
+                content_id="email/c1",
+                content_type="email",
+                title="C1",
+                url=None,
+                published_at=_utc(2026, 4, 30),
+                primary_metric=0.05,
                 metric_name="reply_rate",
             ),
         ]
     )
-    empty = MagicMock(); empty.collect = AsyncMock(return_value=[])
+    empty = MagicMock()
+    empty.collect = AsyncMock(return_value=[])
 
     captured: dict[str, str] = {}
 
@@ -286,7 +315,8 @@ async def test_argus_prompt_includes_content_type_breakdown_and_action_vocab():
         captured["user"] = user_prompt
         return '{"recommendations": [], "trend_signals": []}'
 
-    llm = MagicMock(); llm.generate = AsyncMock(side_effect=_capture_generate)
+    llm = MagicMock()
+    llm.generate = AsyncMock(side_effect=_capture_generate)
     argus = Argus(posthog, empty, empty, empty, llm_client=llm, state_db_path=None)
     await argus.run(period_start=_utc(2026, 4, 25), period_end=_utc(2026, 5, 2))
 
@@ -294,7 +324,12 @@ async def test_argus_prompt_includes_content_type_breakdown_and_action_vocab():
     user_prompt = captured["user"]
     assert "Argus" in sys_prompt
     for action in (
-        "double_down", "retire", "rewrite", "retest", "amplify", "investigate",
+        "double_down",
+        "retire",
+        "rewrite",
+        "retest",
+        "amplify",
+        "investigate",
     ):
         assert action in sys_prompt
     assert "blog" in user_prompt
@@ -313,28 +348,42 @@ async def test_argus_prompt_surfaces_truncation_when_over_50_items():
     metrics = []
     for ctype in ("blog", "landing", "social", "email"):
         for i in range(15):
-            metrics.append(PerformanceMetric(
-                content_id=f"{ctype}/{i}", content_type=ctype,  # type: ignore[arg-type]
-                title=f"{ctype}-{i}", url=None,
-                published_at=_utc(2026, 4, 30), primary_metric=float(100 - i),
-                metric_name="page_views",
-            ))
+            metrics.append(
+                PerformanceMetric(
+                    content_id=f"{ctype}/{i}",
+                    content_type=ctype,  # type: ignore[arg-type]
+                    title=f"{ctype}-{i}",
+                    url=None,
+                    published_at=_utc(2026, 4, 30),
+                    primary_metric=float(100 - i),
+                    metric_name="page_views",
+                )
+            )
     # Tiny 5th type that should get fully dropped
-    metrics.append(PerformanceMetric(
-        content_id="repo/devrel-swarm", content_type="repo", title="repo", url=None,
-        published_at=_utc(2026, 4, 30), primary_metric=42.0, metric_name="stars_delta",
-    ))
+    metrics.append(
+        PerformanceMetric(
+            content_id="repo/devrel-swarm",
+            content_type="repo",
+            title="repo",
+            url=None,
+            published_at=_utc(2026, 4, 30),
+            primary_metric=42.0,
+            metric_name="stars_delta",
+        )
+    )
 
     posthog = MagicMock()
     posthog.collect = AsyncMock(return_value=metrics)
-    empty_c = MagicMock(); empty_c.collect = AsyncMock(return_value=[])
+    empty_c = MagicMock()
+    empty_c.collect = AsyncMock(return_value=[])
     captured: dict[str, str] = {}
 
     async def _capture(*, system_prompt, user_prompt, **_):
         captured["user"] = user_prompt
         return '{"recommendations": [], "trend_signals": []}'
 
-    llm = MagicMock(); llm.generate = AsyncMock(side_effect=_capture)
+    llm = MagicMock()
+    llm.generate = AsyncMock(side_effect=_capture)
     argus = Argus(posthog, empty_c, empty_c, empty_c, llm_client=llm, state_db_path=None)
     await argus.run(_utc(2026, 4, 25), _utc(2026, 5, 2))
 
@@ -353,13 +402,18 @@ async def test_argus_handles_unparseable_llm_output_gracefully():
     posthog.collect = AsyncMock(
         return_value=[
             PerformanceMetric(
-                content_id="blog/a", content_type="blog", title="A", url=None,
-                published_at=_utc(2026, 4, 30), primary_metric=500.0,
+                content_id="blog/a",
+                content_type="blog",
+                title="A",
+                url=None,
+                published_at=_utc(2026, 4, 30),
+                primary_metric=500.0,
                 metric_name="page_views",
             ),
         ]
     )
-    empty = MagicMock(); empty.collect = AsyncMock(return_value=[])
+    empty = MagicMock()
+    empty.collect = AsyncMock(return_value=[])
 
     llm = MagicMock()
     llm.generate = AsyncMock(return_value="this is not json at all")
@@ -389,13 +443,18 @@ async def test_argus_persists_report_to_state_db(tmp_path):
     posthog.collect = AsyncMock(
         return_value=[
             PerformanceMetric(
-                content_id="blog/a", content_type="blog", title="A", url=None,
-                published_at=_utc(2026, 4, 30), primary_metric=500.0,
+                content_id="blog/a",
+                content_type="blog",
+                title="A",
+                url=None,
+                published_at=_utc(2026, 4, 30),
+                primary_metric=500.0,
                 metric_name="page_views",
             )
         ]
     )
-    empty = MagicMock(); empty.collect = AsyncMock(return_value=[])
+    empty = MagicMock()
+    empty.collect = AsyncMock(return_value=[])
     llm = MagicMock()
     llm.generate = AsyncMock(return_value='{"recommendations": [], "trend_signals": []}')
 
@@ -423,22 +482,29 @@ async def test_argus_loads_baselines_from_previous_report(tmp_path):
         "period_end": "2026-04-25T00:00:00+00:00",
         "top_performers": [
             {
-                "content_id": "blog/a", "content_type": "blog", "title": "A",
-                "url": None, "published_at": "2026-04-23T00:00:00+00:00",
-                "primary_metric": 100.0, "metric_name": "page_views",
-                "secondary_metrics": {}, "percentile": 100.0,
-                "wow_delta": None, "anomaly_flag": False,
+                "content_id": "blog/a",
+                "content_type": "blog",
+                "title": "A",
+                "url": None,
+                "published_at": "2026-04-23T00:00:00+00:00",
+                "primary_metric": 100.0,
+                "metric_name": "page_views",
+                "secondary_metrics": {},
+                "percentile": 100.0,
+                "wow_delta": None,
+                "anomaly_flag": False,
             }
         ],
         "bottom_performers": [],
-        "trend_signals": [], "recommendations": [],
+        "trend_signals": [],
+        "recommendations": [],
         "sources_ok": {"posthog": True, "github": True, "instantly": True, "social": True},
-        "insufficient_data": False, "llm_error": None,
+        "insufficient_data": False,
+        "llm_error": None,
     }
     with open_db(db) as conn:
         conn.execute(
-            "INSERT INTO analytics_reports (period_start, period_end, report_json) "
-            "VALUES (?,?,?)",
+            "INSERT INTO analytics_reports (period_start, period_end, report_json) VALUES (?,?,?)",
             (prior["period_start"], prior["period_end"], _json.dumps(prior)),
         )
         conn.commit()
@@ -447,13 +513,18 @@ async def test_argus_loads_baselines_from_previous_report(tmp_path):
     posthog.collect = AsyncMock(
         return_value=[
             PerformanceMetric(
-                content_id="blog/a", content_type="blog", title="A", url=None,
-                published_at=_utc(2026, 4, 30), primary_metric=200.0,
+                content_id="blog/a",
+                content_type="blog",
+                title="A",
+                url=None,
+                published_at=_utc(2026, 4, 30),
+                primary_metric=200.0,
                 metric_name="page_views",
             )
         ]
     )
-    empty = MagicMock(); empty.collect = AsyncMock(return_value=[])
+    empty = MagicMock()
+    empty.collect = AsyncMock(return_value=[])
     llm = MagicMock()
     llm.generate = AsyncMock(return_value='{"recommendations": [], "trend_signals": []}')
 
@@ -472,14 +543,21 @@ async def test_argus_recommendation_lifecycle_carries_first_seen_period(tmp_path
     init_db(db)
 
     posthog = MagicMock()
-    posthog.collect = AsyncMock(return_value=[
-        PerformanceMetric(
-            content_id="blog/x", content_type="blog", title="X", url=None,
-            published_at=_utc(2026, 4, 25), primary_metric=100.0,
-            metric_name="page_views",
-        )
-    ])
-    empty_c = MagicMock(); empty_c.collect = AsyncMock(return_value=[])
+    posthog.collect = AsyncMock(
+        return_value=[
+            PerformanceMetric(
+                content_id="blog/x",
+                content_type="blog",
+                title="X",
+                url=None,
+                published_at=_utc(2026, 4, 25),
+                primary_metric=100.0,
+                metric_name="page_views",
+            )
+        ]
+    )
+    empty_c = MagicMock()
+    empty_c.collect = AsyncMock(return_value=[])
     same_rec_payload = (
         '{"recommendations": ['
         '{"action": "rewrite", "target": "blog/x", "target_type": "content", '
@@ -514,25 +592,34 @@ async def test_argus_persists_recommendations_to_analytics_recommendations_table
     init_db(db)
 
     posthog = MagicMock()
-    posthog.collect = AsyncMock(return_value=[
-        PerformanceMetric(
-            content_id="blog/x", content_type="blog", title="X", url=None,
-            published_at=_utc(2026, 4, 30), primary_metric=100.0,
-            metric_name="page_views",
-        )
-    ])
-    empty_c = MagicMock(); empty_c.collect = AsyncMock(return_value=[])
+    posthog.collect = AsyncMock(
+        return_value=[
+            PerformanceMetric(
+                content_id="blog/x",
+                content_type="blog",
+                title="X",
+                url=None,
+                published_at=_utc(2026, 4, 30),
+                primary_metric=100.0,
+                metric_name="page_views",
+            )
+        ]
+    )
+    empty_c = MagicMock()
+    empty_c.collect = AsyncMock(return_value=[])
     llm = MagicMock()
-    llm.generate = AsyncMock(return_value=(
-        '{"recommendations": ['
-        '{"action": "rewrite", "target": "blog/x", "target_type": "content", '
-        '"rationale": "weak hero", "evidence": ["blog/x: p20"], '
-        '"confidence": 0.8, "source_ids": ["blog/x"]},'
-        '{"action": "double_down", "target": "theme:python", '
-        '"target_type": "theme", "rationale": "trending up", '
-        '"evidence": ["blog/y: p95"], "confidence": 0.9, "source_ids": ["blog/y"]}'
-        '], "trend_signals": []}'
-    ))
+    llm.generate = AsyncMock(
+        return_value=(
+            '{"recommendations": ['
+            '{"action": "rewrite", "target": "blog/x", "target_type": "content", '
+            '"rationale": "weak hero", "evidence": ["blog/x: p20"], '
+            '"confidence": 0.8, "source_ids": ["blog/x"]},'
+            '{"action": "double_down", "target": "theme:python", '
+            '"target_type": "theme", "rationale": "trending up", '
+            '"evidence": ["blog/y: p95"], "confidence": 0.9, "source_ids": ["blog/y"]}'
+            '], "trend_signals": []}'
+        )
+    )
 
     argus = Argus(posthog, empty_c, empty_c, empty_c, llm_client=llm, state_db_path=db)
     await argus.run(_utc(2026, 4, 25), _utc(2026, 5, 2))
@@ -548,6 +635,7 @@ async def test_argus_persists_recommendations_to_analytics_recommendations_table
     assert rows[0]["applied_at"] is None  # v1 leaves it NULL
     assert rows[0]["first_seen_period"] == "2026-05-02T00:00:00+00:00"
     import json as _j
+
     assert _j.loads(rows[0]["source_ids_json"]) == ["blog/x"]
     assert rows[1]["action"] == "double_down"
 
@@ -563,13 +651,18 @@ async def test_argus_two_runs_use_metric_history_for_wow(tmp_path):
     posthog_run1.collect = AsyncMock(
         return_value=[
             PerformanceMetric(
-                content_id="blog/a", content_type="blog", title="A", url=None,
-                published_at=_utc(2026, 4, 25), primary_metric=100.0,
+                content_id="blog/a",
+                content_type="blog",
+                title="A",
+                url=None,
+                published_at=_utc(2026, 4, 25),
+                primary_metric=100.0,
                 metric_name="page_views",
             )
         ]
     )
-    empty_c = MagicMock(); empty_c.collect = AsyncMock(return_value=[])
+    empty_c = MagicMock()
+    empty_c.collect = AsyncMock(return_value=[])
     llm = MagicMock()
     llm.generate = AsyncMock(return_value='{"recommendations": [], "trend_signals": []}')
 
@@ -577,9 +670,7 @@ async def test_argus_two_runs_use_metric_history_for_wow(tmp_path):
     await argus1.run(_utc(2026, 4, 18), _utc(2026, 4, 25))
 
     with open_db(db) as conn:
-        rows = conn.execute(
-            "SELECT content_id, primary_metric FROM metric_history"
-        ).fetchall()
+        rows = conn.execute("SELECT content_id, primary_metric FROM metric_history").fetchall()
     assert len(rows) == 1
     assert rows[0]["content_id"] == "blog/a"
     assert rows[0]["primary_metric"] == 100.0
@@ -588,8 +679,12 @@ async def test_argus_two_runs_use_metric_history_for_wow(tmp_path):
     posthog_run2.collect = AsyncMock(
         return_value=[
             PerformanceMetric(
-                content_id="blog/a", content_type="blog", title="A", url=None,
-                published_at=_utc(2026, 5, 2), primary_metric=200.0,
+                content_id="blog/a",
+                content_type="blog",
+                title="A",
+                url=None,
+                published_at=_utc(2026, 5, 2),
+                primary_metric=200.0,
                 metric_name="page_views",
             )
         ]
@@ -607,24 +702,39 @@ def test_write_recommendation_briefs_skips_non_actionable(tmp_path):
     from devrel_swarm.core.argus import write_recommendation_briefs
 
     report = PerformanceReport(
-        period_start=_utc(2026, 4, 25), period_end=_utc(2026, 5, 2),
-        top_performers=[], bottom_performers=[],
-        trend_signals=[], sources_ok={"posthog": True},
+        period_start=_utc(2026, 4, 25),
+        period_end=_utc(2026, 5, 2),
+        top_performers=[],
+        bottom_performers=[],
+        trend_signals=[],
+        sources_ok={"posthog": True},
         recommendations=[
             Recommendation(
-                action="double_down", target="theme:python", target_type="theme",
-                rationale="3x baseline", evidence=["blog/a: p95"],
-                confidence=0.9, source_ids=["blog/a", "blog/b"],
+                action="double_down",
+                target="theme:python",
+                target_type="theme",
+                rationale="3x baseline",
+                evidence=["blog/a: p95"],
+                confidence=0.9,
+                source_ids=["blog/a", "blog/b"],
             ),
             Recommendation(
-                action="retire", target="blog/x", target_type="content",
-                rationale="bottom decile 4 weeks", evidence=["blog/x: p5"],
-                confidence=0.8, source_ids=["blog/x"],
+                action="retire",
+                target="blog/x",
+                target_type="content",
+                rationale="bottom decile 4 weeks",
+                evidence=["blog/x: p5"],
+                confidence=0.8,
+                source_ids=["blog/x"],
             ),
             Recommendation(
-                action="rewrite", target="blog/y", target_type="content",
-                rationale="weak hero", evidence=["blog/y: p20"],
-                confidence=0.75, source_ids=["blog/y"],
+                action="rewrite",
+                target="blog/y",
+                target_type="content",
+                rationale="weak hero",
+                evidence=["blog/y: p20"],
+                confidence=0.75,
+                source_ids=["blog/y"],
             ),
         ],
     )
@@ -642,25 +752,40 @@ def test_write_recommendation_briefs_skips_non_actionable(tmp_path):
 
 def test_to_markdown_groups_recs_by_action():
     metric = PerformanceMetric(
-        content_id="blog/a", content_type="blog", title="A", url=None,
-        published_at=_utc(2026, 4, 30), primary_metric=500.0,
-        metric_name="page_views", percentile=95.0,
+        content_id="blog/a",
+        content_type="blog",
+        title="A",
+        url=None,
+        published_at=_utc(2026, 4, 30),
+        primary_metric=500.0,
+        metric_name="page_views",
+        percentile=95.0,
     )
     recs = [
         Recommendation(
-            action="double_down", target="theme:python", target_type="theme",
-            rationale="Python content rules.", evidence=["blog/a: p95"], confidence=0.9,
+            action="double_down",
+            target="theme:python",
+            target_type="theme",
+            rationale="Python content rules.",
+            evidence=["blog/a: p95"],
+            confidence=0.9,
         ),
         Recommendation(
-            action="retire", target="blog/x", target_type="content",
-            rationale="Bottom decile 4 weeks running.", evidence=["blog/x: p5"],
+            action="retire",
+            target="blog/x",
+            target_type="content",
+            rationale="Bottom decile 4 weeks running.",
+            evidence=["blog/x: p5"],
             confidence=0.8,
         ),
     ]
     report = PerformanceReport(
-        period_start=_utc(2026, 4, 25), period_end=_utc(2026, 5, 2),
-        top_performers=[metric], bottom_performers=[],
-        trend_signals=["Python +30% WoW"], recommendations=recs,
+        period_start=_utc(2026, 4, 25),
+        period_end=_utc(2026, 5, 2),
+        top_performers=[metric],
+        bottom_performers=[],
+        trend_signals=["Python +30% WoW"],
+        recommendations=recs,
         sources_ok={"posthog": True, "github": False, "instantly": True, "social": True},
     )
     md = report.to_markdown()

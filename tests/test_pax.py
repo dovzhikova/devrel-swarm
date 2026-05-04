@@ -51,7 +51,9 @@ class TestPaxDataclasses:
         card = BattleCard(
             competitor="Botpress",
             comparison_table={"channels": {"us": "15+", "them": "5"}},
-            objection_responses=[{"objection": "Botpress is free", "response": "OpenClaw is also open-source"}],
+            objection_responses=[
+                {"objection": "Botpress is free", "response": "OpenClaw is also open-source"}
+            ],
             win_themes=["More channels", "Better privacy"],
             proof_points=["500+ GitHub stars"],
         )
@@ -106,7 +108,9 @@ class TestPaxTaskParsing:
         assert pax._parse_asset_type("Create a battle card: OpenClaw vs Botpress") == "battle_card"
 
     def test_nurture_sequence(self, pax):
-        assert pax._parse_asset_type("Write a 5-email nurture sequence for trial users") == "nurture"
+        assert (
+            pax._parse_asset_type("Write a 5-email nurture sequence for trial users") == "nurture"
+        )
 
     def test_one_pager(self, pax):
         assert pax._parse_asset_type("Create a one-pager for enterprise CTOs") == "one_pager"
@@ -121,29 +125,31 @@ class TestPaxTaskParsing:
         assert pax._parse_asset_type("Create something useful for sales") == "general"
 
     def test_prospect_personalize_find_leads(self, pax):
-        assert pax._parse_asset_type(
-            "Find 15 leads and personalize outreach for DevRel leaders"
-        ) == "prospect_personalize"
+        assert (
+            pax._parse_asset_type("Find 15 leads and personalize outreach for DevRel leaders")
+            == "prospect_personalize"
+        )
 
     def test_prospect_personalize_prospect_and(self, pax):
-        assert pax._parse_asset_type(
-            "Prospect and personalize emails for VP Engineering"
-        ) == "prospect_personalize"
+        assert (
+            pax._parse_asset_type("Prospect and personalize emails for VP Engineering")
+            == "prospect_personalize"
+        )
 
     def test_prospect_personalize_personalized_outreach(self, pax):
-        assert pax._parse_asset_type(
-            "Send personalized outreach to DevTools founders"
-        ) == "prospect_personalize"
+        assert (
+            pax._parse_asset_type("Send personalized outreach to DevTools founders")
+            == "prospect_personalize"
+        )
 
     def test_prospect_leads_without_personalize(self, pax):
-        assert pax._parse_asset_type(
-            "Find leads matching our ICP at Series B companies"
-        ) == "prospect_leads"
+        assert (
+            pax._parse_asset_type("Find leads matching our ICP at Series B companies")
+            == "prospect_leads"
+        )
 
     def test_outreach_without_personalize(self, pax):
-        assert pax._parse_asset_type(
-            "Write an outreach email to a Head of DevRel"
-        ) == "outreach"
+        assert pax._parse_asset_type("Write an outreach email to a Head of DevRel") == "outreach"
 
 
 class TestPaxUpstreamContext:
@@ -164,7 +170,11 @@ class TestPaxUpstreamContext:
         context = {
             "iris_themes": {
                 "themes": [
-                    {"title": "Channel setup complexity", "severity": 7.0, "description": "Hard to connect"},
+                    {
+                        "title": "Channel setup complexity",
+                        "severity": 7.0,
+                        "description": "Hard to connect",
+                    },
                 ],
             },
         }
@@ -246,7 +256,11 @@ class TestResearchProspect:
 
     @pytest.mark.asyncio
     async def test_returns_empty_without_search_tools(
-        self, posthog_client, knowledge_base_path, mock_llm_client, sample_contact,
+        self,
+        posthog_client,
+        knowledge_base_path,
+        mock_llm_client,
+        sample_contact,
     ):
         pax = Pax(
             api_client=posthog_client,
@@ -259,7 +273,11 @@ class TestResearchProspect:
 
     @pytest.mark.asyncio
     async def test_extracts_hook_from_web_search(
-        self, pax_with_search, mock_search_tools, mock_llm_client, sample_contact,
+        self,
+        pax_with_search,
+        mock_search_tools,
+        mock_llm_client,
+        sample_contact,
     ):
         mock_search_tools.web_search.return_value = [
             SearchResult(
@@ -283,7 +301,11 @@ class TestResearchProspect:
 
     @pytest.mark.asyncio
     async def test_returns_snippet_when_no_llm(
-        self, posthog_client, knowledge_base_path, mock_search_tools, sample_contact,
+        self,
+        posthog_client,
+        knowledge_base_path,
+        mock_search_tools,
+        sample_contact,
     ):
         pax = Pax(
             api_client=posthog_client,
@@ -306,16 +328,22 @@ class TestResearchProspect:
 
     @pytest.mark.asyncio
     async def test_fallback_to_company_search(
-        self, pax_with_search, mock_search_tools, mock_llm_client, sample_contact,
+        self,
+        pax_with_search,
+        mock_search_tools,
+        mock_llm_client,
+        sample_contact,
     ):
         mock_search_tools.web_search.side_effect = [
             [],
-            [SearchResult(
-                title="Acme news",
-                url="https://example.com/acme",
-                snippet="Acme announced product launch",
-                source="web",
-            )],
+            [
+                SearchResult(
+                    title="Acme news",
+                    url="https://example.com/acme",
+                    snippet="Acme announced product launch",
+                    source="web",
+                )
+            ],
         ]
         mock_search_tools.fetch_url_content.return_value = "Acme launched DevTools Pro"
         mock_llm_client.generate.return_value = "Acme recently launched DevTools Pro"
@@ -326,7 +354,11 @@ class TestResearchProspect:
 
     @pytest.mark.asyncio
     async def test_no_hook_returns_empty(
-        self, pax_with_search, mock_search_tools, mock_llm_client, sample_contact,
+        self,
+        pax_with_search,
+        mock_search_tools,
+        mock_llm_client,
+        sample_contact,
     ):
         mock_search_tools.web_search.return_value = [
             SearchResult(title="x", url="https://x.com", snippet="x", source="web"),
@@ -340,12 +372,17 @@ class TestResearchProspect:
 
     @pytest.mark.asyncio
     async def test_empty_search_results(
-        self, pax_with_search, mock_search_tools, sample_contact,
+        self,
+        pax_with_search,
+        mock_search_tools,
+        sample_contact,
     ):
         mock_search_tools.web_search.return_value = []
 
         contact = ApolloContact(
-            id="x", first_name="John", last_name="Doe",
+            id="x",
+            first_name="John",
+            last_name="Doe",
         )
         hook, url = await pax_with_search._research_prospect(contact)
         assert hook == ""
@@ -375,14 +412,19 @@ class TestGeneratePersonalizedEmail:
 
     @pytest.mark.asyncio
     async def test_generates_email_with_hook(
-        self, pax_with_search, mock_llm_client, sample_contact,
+        self,
+        pax_with_search,
+        mock_llm_client,
+        sample_contact,
     ):
-        mock_llm_client.generate.return_value = json.dumps({
-            "subject": "Saw Acme's Series B — congrats!",
-            "body": "Hi Jane, congrats on the raise...",
-            "pain_points_addressed": ["scaling DevRel"],
-            "sales_psychology": "Value Equation",
-        })
+        mock_llm_client.generate.return_value = json.dumps(
+            {
+                "subject": "Saw Acme's Series B — congrats!",
+                "body": "Hi Jane, congrats on the raise...",
+                "pain_points_addressed": ["scaling DevRel"],
+                "sales_psychology": "Value Equation",
+            }
+        )
 
         result = await pax_with_search._generate_personalized_email(
             contact=sample_contact,
@@ -397,14 +439,19 @@ class TestGeneratePersonalizedEmail:
 
     @pytest.mark.asyncio
     async def test_generates_email_without_hook(
-        self, pax_with_search, mock_llm_client, sample_contact,
+        self,
+        pax_with_search,
+        mock_llm_client,
+        sample_contact,
     ):
-        mock_llm_client.generate.return_value = json.dumps({
-            "subject": "DevRel at Acme DevTools",
-            "body": "Hi Jane, as Head of DevRel...",
-            "pain_points_addressed": ["content production"],
-            "sales_psychology": "Risk Reversal",
-        })
+        mock_llm_client.generate.return_value = json.dumps(
+            {
+                "subject": "DevRel at Acme DevTools",
+                "body": "Hi Jane, as Head of DevRel...",
+                "pain_points_addressed": ["content production"],
+                "sales_psychology": "Risk Reversal",
+            }
+        )
 
         result = await pax_with_search._generate_personalized_email(
             contact=sample_contact,
@@ -418,7 +465,10 @@ class TestGeneratePersonalizedEmail:
 
     @pytest.mark.asyncio
     async def test_returns_none_on_invalid_json(
-        self, pax_with_search, mock_llm_client, sample_contact,
+        self,
+        pax_with_search,
+        mock_llm_client,
+        sample_contact,
     ):
         mock_llm_client.generate.return_value = "This is not JSON at all"
 
@@ -433,7 +483,10 @@ class TestGeneratePersonalizedEmail:
 
     @pytest.mark.asyncio
     async def test_returns_none_without_llm(
-        self, posthog_client, knowledge_base_path, sample_contact,
+        self,
+        posthog_client,
+        knowledge_base_path,
+        sample_contact,
     ):
         pax = Pax(
             api_client=posthog_client,
@@ -451,7 +504,10 @@ class TestGeneratePersonalizedEmail:
 
     @pytest.mark.asyncio
     async def test_handles_markdown_fenced_json(
-        self, pax_with_search, mock_llm_client, sample_contact,
+        self,
+        pax_with_search,
+        mock_llm_client,
+        sample_contact,
     ):
         mock_llm_client.generate.return_value = (
             '```json\n{"subject": "test", "body": "hi", '
@@ -475,35 +531,52 @@ def mock_apollo_client():
     from devrel_swarm.tools.apollo_client import ApolloContact, PeopleSearchResult
 
     client = MagicMock()
-    client.search_people = AsyncMock(return_value=PeopleSearchResult(
-        contacts=[
-            ApolloContact(
-                id="c1", first_name="Jane", last_name="Smith",
-                email="jane@acme.dev", title="Head of DevRel",
-                company_name="Acme DevTools",
-                linkedin_url="https://linkedin.com/in/janesmith",
-            ),
-            ApolloContact(
-                id="c2", first_name="Bob", last_name="Lee",
-                email="bob@beta.io", title="VP Developer Experience",
-                company_name="Beta Platform",
-            ),
-            ApolloContact(
-                id="c3", first_name="No", last_name="Email",
-                email=None, title="CTO", company_name="Ghost Inc",
-                linkedin_url="https://linkedin.com/in/noemail",
-            ),
-        ],
-        total=3, page=1, per_page=25,
-    ))
+    client.search_people = AsyncMock(
+        return_value=PeopleSearchResult(
+            contacts=[
+                ApolloContact(
+                    id="c1",
+                    first_name="Jane",
+                    last_name="Smith",
+                    email="jane@acme.dev",
+                    title="Head of DevRel",
+                    company_name="Acme DevTools",
+                    linkedin_url="https://linkedin.com/in/janesmith",
+                ),
+                ApolloContact(
+                    id="c2",
+                    first_name="Bob",
+                    last_name="Lee",
+                    email="bob@beta.io",
+                    title="VP Developer Experience",
+                    company_name="Beta Platform",
+                ),
+                ApolloContact(
+                    id="c3",
+                    first_name="No",
+                    last_name="Email",
+                    email=None,
+                    title="CTO",
+                    company_name="Ghost Inc",
+                    linkedin_url="https://linkedin.com/in/noemail",
+                ),
+            ],
+            total=3,
+            page=1,
+            per_page=25,
+        )
+    )
     client.enrich_person = AsyncMock(return_value=None)
     return client
 
 
 @pytest.fixture
 def pax_full(
-    posthog_client, knowledge_base_path, mock_llm_client,
-    mock_search_tools, mock_apollo_client,
+    posthog_client,
+    knowledge_base_path,
+    mock_llm_client,
+    mock_search_tools,
+    mock_apollo_client,
 ):
     """Pax with all clients wired up."""
     return Pax(
@@ -521,7 +594,10 @@ class TestExecuteProspectPersonalize:
 
     @pytest.mark.asyncio
     async def test_full_flow_returns_outreach(
-        self, pax_full, mock_llm_client, mock_search_tools,
+        self,
+        pax_full,
+        mock_llm_client,
+        mock_search_tools,
     ):
         # LLM call 1: ICP extraction
         # LLM call 2+: research hooks
@@ -532,33 +608,37 @@ class TestExecuteProspectPersonalize:
             # Research hook for Jane
             "Acme DevTools just launched a new CLI tool",
             # Email for Jane
-            json.dumps({
-                "subject": "Saw your new CLI launch",
-                "body": "Hi Jane...",
-                "pain_points_addressed": ["scaling devrel"],
-                "sales_psychology": "Value Equation",
-            }),
+            json.dumps(
+                {
+                    "subject": "Saw your new CLI launch",
+                    "body": "Hi Jane...",
+                    "pain_points_addressed": ["scaling devrel"],
+                    "sales_psychology": "Value Equation",
+                }
+            ),
             # Research hook for Bob
             "NO_HOOK",
             # Email for Bob (no hook)
-            json.dumps({
-                "subject": "DevRel at Beta Platform",
-                "body": "Hi Bob...",
-                "pain_points_addressed": ["content"],
-                "sales_psychology": "Risk Reversal",
-            }),
+            json.dumps(
+                {
+                    "subject": "DevRel at Beta Platform",
+                    "body": "Hi Bob...",
+                    "pain_points_addressed": ["content"],
+                    "sales_psychology": "Risk Reversal",
+                }
+            ),
         ]
         mock_search_tools.web_search.return_value = [
             SearchResult(
-                title="News", url="https://news.com/acme",
-                snippet="Acme launched CLI", source="web",
+                title="News",
+                url="https://news.com/acme",
+                snippet="Acme launched CLI",
+                source="web",
             ),
         ]
         mock_search_tools.fetch_url_content.return_value = "Acme launched CLI tool"
 
-        result = await pax_full.execute(
-            "Find 15 leads and personalize outreach for DevRel leaders"
-        )
+        result = await pax_full.execute("Find 15 leads and personalize outreach for DevRel leaders")
 
         assert result["status"] == "personalized"
         assert result["contacts_found"] == 3
@@ -571,25 +651,33 @@ class TestExecuteProspectPersonalize:
 
     @pytest.mark.asyncio
     async def test_returns_early_with_no_contacts(
-        self, pax_full, mock_llm_client, mock_apollo_client,
+        self,
+        pax_full,
+        mock_llm_client,
+        mock_apollo_client,
     ):
         from devrel_swarm.tools.apollo_client import PeopleSearchResult
 
         mock_apollo_client.search_people.return_value = PeopleSearchResult(
-            contacts=[], total=0, page=1, per_page=25,
+            contacts=[],
+            total=0,
+            page=1,
+            per_page=25,
         )
         mock_llm_client.generate.return_value = '{"titles": ["CTO"]}'
 
-        result = await pax_full.execute(
-            "Find leads and personalize outreach for CTOs"
-        )
+        result = await pax_full.execute("Find leads and personalize outreach for CTOs")
 
         assert result["status"] == "personalized"
         assert result["contacts_found"] == 0
 
     @pytest.mark.asyncio
     async def test_skips_contacts_without_email(
-        self, pax_full, mock_llm_client, mock_apollo_client, mock_search_tools,
+        self,
+        pax_full,
+        mock_llm_client,
+        mock_apollo_client,
+        mock_search_tools,
     ):
         from devrel_swarm.tools.apollo_client import ApolloContact, PeopleSearchResult
 
@@ -597,18 +685,20 @@ class TestExecuteProspectPersonalize:
         mock_apollo_client.search_people.return_value = PeopleSearchResult(
             contacts=[
                 ApolloContact(
-                    id="c1", first_name="No", last_name="Email",
+                    id="c1",
+                    first_name="No",
+                    last_name="Email",
                     linkedin_url="https://linkedin.com/in/x",
                 ),
             ],
-            total=1, page=1, per_page=25,
+            total=1,
+            page=1,
+            per_page=25,
         )
         mock_apollo_client.enrich_person.return_value = None
         mock_llm_client.generate.return_value = '{"titles": ["CTO"]}'
 
-        result = await pax_full.execute(
-            "Find leads and personalize outreach for CTOs"
-        )
+        result = await pax_full.execute("Find leads and personalize outreach for CTOs")
 
         assert result["contacts_found"] == 1
         assert result["contacts_with_email"] == 0
@@ -617,18 +707,28 @@ class TestExecuteProspectPersonalize:
 
     @pytest.mark.asyncio
     async def test_handles_email_generation_failure(
-        self, pax_full, mock_llm_client, mock_search_tools, mock_apollo_client,
+        self,
+        pax_full,
+        mock_llm_client,
+        mock_search_tools,
+        mock_apollo_client,
     ):
         from devrel_swarm.tools.apollo_client import ApolloContact, PeopleSearchResult
 
         mock_apollo_client.search_people.return_value = PeopleSearchResult(
             contacts=[
                 ApolloContact(
-                    id="c1", first_name="Jane", last_name="S",
-                    email="jane@x.com", title="CTO", company_name="X",
+                    id="c1",
+                    first_name="Jane",
+                    last_name="S",
+                    email="jane@x.com",
+                    title="CTO",
+                    company_name="X",
                 ),
             ],
-            total=1, page=1, per_page=25,
+            total=1,
+            page=1,
+            per_page=25,
         )
         # ICP extraction succeeds, research hook succeeds, email gen fails
         mock_llm_client.generate.side_effect = [
@@ -641,16 +741,18 @@ class TestExecuteProspectPersonalize:
         ]
         mock_search_tools.fetch_url_content.return_value = "content"
 
-        result = await pax_full.execute(
-            "Find leads and personalize outreach for CTOs"
-        )
+        result = await pax_full.execute("Find leads and personalize outreach for CTOs")
 
         assert result["contacts_found"] == 1
         assert result["emails_generated"] == 0
 
     @pytest.mark.asyncio
     async def test_falls_through_without_apollo_client(
-        self, posthog_client, knowledge_base_path, mock_llm_client, mock_search_tools,
+        self,
+        posthog_client,
+        knowledge_base_path,
+        mock_llm_client,
+        mock_search_tools,
     ):
         """Without apollo_client, execute() falls through to generic asset gen."""
         pax = Pax(
@@ -660,9 +762,7 @@ class TestExecuteProspectPersonalize:
             search_tools=mock_search_tools,
         )
 
-        result = await pax.execute(
-            "Find leads and personalize outreach for CTOs"
-        )
+        result = await pax.execute("Find leads and personalize outreach for CTOs")
 
         # Falls through to generic generation, not prospect_personalize
         assert result["asset_type"] == "prospect_personalize"
@@ -671,7 +771,11 @@ class TestExecuteProspectPersonalize:
 
     @pytest.mark.asyncio
     async def test_generates_emails_without_search_tools(
-        self, posthog_client, knowledge_base_path, mock_llm_client, mock_apollo_client,
+        self,
+        posthog_client,
+        knowledge_base_path,
+        mock_llm_client,
+        mock_apollo_client,
     ):
         """Without search_tools, emails generate with empty research hooks."""
         pax = Pax(
@@ -686,26 +790,32 @@ class TestExecuteProspectPersonalize:
         mock_apollo_client.search_people.return_value = PeopleSearchResult(
             contacts=[
                 ApolloContact(
-                    id="c1", first_name="Jane", last_name="S",
-                    email="jane@x.com", title="CTO", company_name="X",
+                    id="c1",
+                    first_name="Jane",
+                    last_name="S",
+                    email="jane@x.com",
+                    title="CTO",
+                    company_name="X",
                 ),
             ],
-            total=1, page=1, per_page=25,
+            total=1,
+            page=1,
+            per_page=25,
         )
         mock_llm_client.generate.side_effect = [
             '{"titles": ["CTO"]}',
             # No research hook call (no search_tools)
-            json.dumps({
-                "subject": "DevTools at X",
-                "body": "Hi Jane...",
-                "pain_points_addressed": ["scaling"],
-                "sales_psychology": "Value Equation",
-            }),
+            json.dumps(
+                {
+                    "subject": "DevTools at X",
+                    "body": "Hi Jane...",
+                    "pain_points_addressed": ["scaling"],
+                    "sales_psychology": "Value Equation",
+                }
+            ),
         ]
 
-        result = await pax.execute(
-            "Find leads and personalize outreach for CTOs"
-        )
+        result = await pax.execute("Find leads and personalize outreach for CTOs")
 
         assert result["status"] == "personalized"
         assert result["emails_generated"] == 1
@@ -722,12 +832,14 @@ class TestExtractIcpCriteria:
     ):
         # LLMs sometimes return singular keys; helper must normalize to plural
         mock_llm_client.generate = AsyncMock(
-            return_value=json.dumps({
-                "title": "Head of Developer Relations",
-                "industry": "DevTools",
-                "domain": "example.com",
-                "min_headcount": 50,
-            })
+            return_value=json.dumps(
+                {
+                    "title": "Head of Developer Relations",
+                    "industry": "DevTools",
+                    "domain": "example.com",
+                    "min_headcount": 50,
+                }
+            )
         )
         pax = Pax(
             api_client=posthog_client,

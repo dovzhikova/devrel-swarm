@@ -95,11 +95,10 @@ async def test_agent_context_is_race_safe_under_gather():
             await asyncio.sleep(0)
             await client._emit_cost(
                 model="claude-haiku-4-5-20251001",
-                input_tokens=1, output_tokens=1,
+                input_tokens=1,
+                output_tokens=1,
             )
 
-    await asyncio.gather(
-        *[emit_under_context(f"agent_{i}") for i in range(5)]
-    )
+    await asyncio.gather(*[emit_under_context(f"agent_{i}") for i in range(5)])
     # Each gather participant must see its own agent name in its emission.
     assert sorted(captured) == [f"agent_{i}" for i in range(5)]

@@ -227,8 +227,20 @@ class CodeValidator:
                 self.error: str = ""
                 # Void elements that don't need closing tags
                 self.void_tags = {
-                    "area", "base", "br", "col", "embed", "hr", "img",
-                    "input", "link", "meta", "param", "source", "track", "wbr",
+                    "area",
+                    "base",
+                    "br",
+                    "col",
+                    "embed",
+                    "hr",
+                    "img",
+                    "input",
+                    "link",
+                    "meta",
+                    "param",
+                    "source",
+                    "track",
+                    "wbr",
                 }
 
             def handle_starttag(self, tag, attrs):
@@ -250,9 +262,7 @@ class CodeValidator:
         try:
             checker.feed(block.code)
         except Exception as e:
-            return ValidationResult(
-                block=block, is_valid=False, error=f"HTML parse error: {e}"
-            )
+            return ValidationResult(block=block, is_valid=False, error=f"HTML parse error: {e}")
 
         if checker.error:
             return ValidationResult(block=block, is_valid=False, error=checker.error)
@@ -287,9 +297,26 @@ class CodeValidator:
         # Check that it starts with a known SQL keyword
         first_word = code.split()[0].upper() if code.split() else ""
         sql_keywords = {
-            "SELECT", "INSERT", "UPDATE", "DELETE", "CREATE", "ALTER", "DROP",
-            "WITH", "EXPLAIN", "SET", "GRANT", "REVOKE", "BEGIN", "COMMIT",
-            "ROLLBACK", "TRUNCATE", "MERGE", "CALL", "DECLARE", "--",
+            "SELECT",
+            "INSERT",
+            "UPDATE",
+            "DELETE",
+            "CREATE",
+            "ALTER",
+            "DROP",
+            "WITH",
+            "EXPLAIN",
+            "SET",
+            "GRANT",
+            "REVOKE",
+            "BEGIN",
+            "COMMIT",
+            "ROLLBACK",
+            "TRUNCATE",
+            "MERGE",
+            "CALL",
+            "DECLARE",
+            "--",
         }
         if first_word and first_word not in sql_keywords:
             return ValidationResult(

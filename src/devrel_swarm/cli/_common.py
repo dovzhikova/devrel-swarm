@@ -34,12 +34,11 @@ def build_atlas_or_exit(paths: ProjectPaths, console: Console) -> Atlas:
         return Atlas(llm_client=llm)
 
 
-def render_result(
-    result: DelegationResult, console: Console, *, json_output: bool = False
-) -> None:
+def render_result(result: DelegationResult, console: Console, *, json_output: bool = False) -> None:
     if json_output:
         # DelegationResult is a dataclass; convert via dict()/asdict.
         from dataclasses import asdict
+
         try:
             payload = asdict(result)
         except TypeError:

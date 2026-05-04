@@ -21,9 +21,7 @@ def intel_command(
     atlas = build_atlas_or_exit(paths, console)
 
     async def _do() -> None:
-        result = await atlas.run_single_task(
-            "rex", f"Compile competitive intel on {competitor}"
-        )
+        result = await atlas.run_single_task("rex", f"Compile competitive intel on {competitor}")
         render_result(result, console, json_output=json_output)
 
     asyncio.run(_do())

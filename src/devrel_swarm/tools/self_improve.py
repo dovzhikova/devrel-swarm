@@ -16,7 +16,8 @@ logger = logging.getLogger(__name__)
 
 
 def load_recent_audits(
-    archive_dir: Path, weeks: int = 4,
+    archive_dir: Path,
+    weeks: int = 4,
 ) -> list[dict[str, Any]]:
     """Load Sentinel audit results from recent context archives."""
     audits = []
@@ -39,7 +40,8 @@ def load_recent_audits(
 
 
 def extract_recurring_issues(
-    audits: list[dict[str, Any]], min_occurrences: int = 2,
+    audits: list[dict[str, Any]],
+    min_occurrences: int = 2,
 ) -> dict[str, list[dict[str, Any]]]:
     """Find issues that recur across multiple weeks, grouped by agent.
 
@@ -93,9 +95,7 @@ def generate_prompt_addenda(
             "Avoid these recurring problems in your output:\n",
         ]
         for item in issues:
-            lines.append(
-                f"- {item['issue']} (flagged {item['occurrences']} times)\n"
-            )
+            lines.append(f"- {item['issue']} (flagged {item['occurrences']} times)\n")
         lines.append(
             "\nThese issues have been identified across multiple weekly cycles. "
             "Actively work to avoid them.\n"
@@ -133,8 +133,7 @@ def run_self_improvement(
     report = {
         "audits_analyzed": len(audits),
         "recurring_issues": {
-            agent: [i["issue"] for i in issues]
-            for agent, issues in recurring.items()
+            agent: [i["issue"] for i in issues] for agent, issues in recurring.items()
         },
         "files_written": {agent: str(path) for agent, path in written.items()},
     }
@@ -158,7 +157,9 @@ def main() -> None:
     args = parser.parse_args()
 
     report = run_self_improvement(
-        Path(args.archive), Path(args.optimize), args.weeks,
+        Path(args.archive),
+        Path(args.optimize),
+        args.weeks,
     )
     print(json.dumps(report, indent=2))
 

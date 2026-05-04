@@ -86,9 +86,7 @@ async def test_llm_lint_returns_empty_on_empty_response():
 @pytest.mark.asyncio
 async def test_llm_lint_filters_blank_lines_and_bullets():
     client = MagicMock()
-    client.generate = AsyncMock(
-        return_value=("- phrase one\n  \n* phrase two\n#commented\n", None)
-    )
+    client.generate = AsyncMock(return_value=("- phrase one\n  \n* phrase two\n#commented\n", None))
     out = await llm_lint("draft", "voice", client)
     assert out == ["phrase one", "phrase two"]
 

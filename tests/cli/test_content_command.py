@@ -38,10 +38,13 @@ def test_draft_writes_deliverable_and_trace(mock_pipeline, mock_client, tmp_path
         revision_trace={"content_type": "tutorial", "stages": []},
     )
     mock_pipeline.side_effect = None
+
     # Make run_pipeline awaitable
     async def _runner(**kwargs):
         return mock_pipeline.return_value
+
     import devrel_swarm.cli.content as content_mod
+
     content_mod.run_pipeline = AsyncMock(return_value=mock_pipeline.return_value)
     mock_client.return_value = MagicMock(generate=AsyncMock(return_value=("initial draft", None)))
 
@@ -51,8 +54,11 @@ def test_draft_writes_deliverable_and_trace(mock_pipeline, mock_client, tmp_path
         result = runner.invoke(
             app,
             [
-                "content", "draft", "tutorial on feature flags",
-                "--type", "tutorial",
+                "content",
+                "draft",
+                "tutorial on feature flags",
+                "--type",
+                "tutorial",
             ],
             env={"ANTHROPIC_API_KEY": "sk-ant-test", **os.environ},
         )
@@ -89,14 +95,21 @@ def test_audit_runs_pipeline_against_existing_file(tmp_path):
     cwd = os.getcwd()
     os.chdir(tmp_path)
     try:
-        with patch("devrel_swarm.cli.content.run_pipeline", new=AsyncMock(return_value=MagicMock(
-            final_text="rewritten",
-            flagged=False, stages=[],
-            revision_trace={"content_type": "tutorial", "stages": []},
-        ))):
-            with patch("devrel_swarm.cli.content._build_llm_client", return_value=MagicMock(
-                generate=AsyncMock(return_value=("x", None))
-            )):
+        with patch(
+            "devrel_swarm.cli.content.run_pipeline",
+            new=AsyncMock(
+                return_value=MagicMock(
+                    final_text="rewritten",
+                    flagged=False,
+                    stages=[],
+                    revision_trace={"content_type": "tutorial", "stages": []},
+                )
+            ),
+        ):
+            with patch(
+                "devrel_swarm.cli.content._build_llm_client",
+                return_value=MagicMock(generate=AsyncMock(return_value=("x", None))),
+            ):
                 result = runner.invoke(
                     app,
                     ["content", "audit", str(draft), "--type", "tutorial"],
@@ -105,7 +118,11 @@ def test_audit_runs_pipeline_against_existing_file(tmp_path):
     finally:
         os.chdir(cwd)
     assert result.exit_code == 0, result.output
-    assert "rewritten" in result.output or "rewritten" in (tmp_path / ".devrel" / "deliverables").glob("*.md").__iter__().__next__().read_text()
+    assert (
+        "rewritten" in result.output
+        or "rewritten"
+        in (tmp_path / ".devrel" / "deliverables").glob("*.md").__iter__().__next__().read_text()
+    )
 
 
 def test_audit_fails_without_project(tmp_path):

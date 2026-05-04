@@ -443,9 +443,7 @@ class MCPServer:
         writer_transport, writer_protocol = await loop.connect_write_pipe(
             asyncio.streams.FlowControlMixin, sys.stdout.buffer
         )
-        writer = asyncio.StreamWriter(
-            writer_transport, writer_protocol, None, loop
-        )
+        writer = asyncio.StreamWriter(writer_transport, writer_protocol, None, loop)
 
         try:
             while True:

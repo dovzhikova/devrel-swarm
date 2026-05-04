@@ -33,11 +33,22 @@ logger = logging.getLogger(__name__)
 COMPETITOR_KEYWORDS = {"vs", "alternative", "compared to", "competitor", "versus"}
 
 # Extra stop words specific to Rex (competitive analysis keywords)
-REX_STOP_WORDS = frozenset({
-    "write", "technical", "tutorial", "addressing", "developer",
-    "pain", "point", "analyze", "analyse", "competitive",
-    "landscape", "report",
-})
+REX_STOP_WORDS = frozenset(
+    {
+        "write",
+        "technical",
+        "tutorial",
+        "addressing",
+        "developer",
+        "pain",
+        "point",
+        "analyze",
+        "analyse",
+        "competitive",
+        "landscape",
+        "report",
+    }
+)
 
 # Cap parallel web-search and Apollo enrichment fan-out so a 10-competitor
 # task doesn't open 10 simultaneous Firecrawl/Brave/Apollo connections.
@@ -169,14 +180,13 @@ class Rex:
         self.apollo_client = apollo_client  # NEW
         self.product_name = product_name
         self._kb = get_kb_search(
-            knowledge_base_path, extra_stop_words=REX_STOP_WORDS,
+            knowledge_base_path,
+            extra_stop_words=REX_STOP_WORDS,
         )
         self._system_prompt_template = load_agent_prompt(
             "rex", "system_prompt.txt", self._DEFAULT_SYSTEM_PROMPT
         )
-        self._system_prompt = self._system_prompt_template.format(
-            product_name=self.product_name
-        )
+        self._system_prompt = self._system_prompt_template.format(product_name=self.product_name)
 
     # ------------------------------------------------------------------
     # Competitor discovery
@@ -208,9 +218,7 @@ class Rex:
             for keyword in COMPETITOR_KEYWORDS:
                 if keyword in content_lower:
                     # Capitalised word AFTER keyword: "vs Mixpanel"
-                    after_pattern = (
-                        r"(?i:" + re.escape(keyword) + r")\s+([A-Z][a-zA-Z]+)"
-                    )
+                    after_pattern = r"(?i:" + re.escape(keyword) + r")\s+([A-Z][a-zA-Z]+)"
                     for m in re.finditer(after_pattern, content):
                         candidate = m.group(1).strip()
                         if (
@@ -241,7 +249,8 @@ class Rex:
     # ------------------------------------------------------------------
 
     def _extract_upstream_context(
-        self, context: dict[str, Any] | None,
+        self,
+        context: dict[str, Any] | None,
     ) -> dict[str, Any]:
         """Extract structured upstream context from SharedContext.
 
@@ -262,12 +271,14 @@ class Rex:
             if isinstance(echo, dict):
                 for mention in echo.get("top_mentions", []):
                     if isinstance(mention, dict):
-                        extracted["social_mentions"].append({
-                            "platform": mention.get("platform", ""),
-                            "title": mention.get("title", ""),
-                            "sentiment": mention.get("sentiment", ""),
-                            "url": mention.get("url", ""),
-                        })
+                        extracted["social_mentions"].append(
+                            {
+                                "platform": mention.get("platform", ""),
+                                "title": mention.get("title", ""),
+                                "sentiment": mention.get("sentiment", ""),
+                                "url": mention.get("url", ""),
+                            }
+                        )
 
         # Sage triage issues
         if "sage_triage" in context:
@@ -275,12 +286,14 @@ class Rex:
             if isinstance(sage, dict):
                 for issue in sage.get("issues", [])[:10]:
                     if isinstance(issue, dict):
-                        extracted["community_issues"].append({
-                            "number": issue.get("number"),
-                            "title": issue.get("title", ""),
-                            "category": issue.get("category", ""),
-                            "product_area": issue.get("product_area", ""),
-                        })
+                        extracted["community_issues"].append(
+                            {
+                                "number": issue.get("number"),
+                                "title": issue.get("title", ""),
+                                "category": issue.get("category", ""),
+                                "product_area": issue.get("product_area", ""),
+                            }
+                        )
 
         return extracted
 
@@ -289,7 +302,9 @@ class Rex:
     # ------------------------------------------------------------------
 
     async def enrich_competitor_profile(
-        self, name: str, domain: str,
+        self,
+        name: str,
+        domain: str,
     ) -> dict[str, Any] | None:
         """Enrich a competitor with Apollo org data."""
         if not self.apollo_client:
@@ -349,19 +364,17 @@ class Rex:
                 async with search_sem:
                     try:
                         results = await self.search_tools.web_search(
-                            f"{comp} vs {self.product_name}", limit=5,
+                            f"{comp} vs {self.product_name}",
+                            limit=5,
                         )
                         return comp, [
-                            {"title": r.title, "url": r.url, "snippet": r.snippet}
-                            for r in results
+                            {"title": r.title, "url": r.url, "snippet": r.snippet} for r in results
                         ]
                     except Exception as exc:
                         logger.warning(f"Web search failed for {comp}: {exc}")
                         return comp, []
 
-            search_results = await asyncio.gather(
-                *[_search_competitor(c) for c in competitors]
-            )
+            search_results = await asyncio.gather(*[_search_competitor(c) for c in competitors])
             web_intel = dict(search_results)
 
         # 2b. Apollo enrichment per competitor (semaphore-bounded parallel)
@@ -371,20 +384,14 @@ class Rex:
 
             async def _enrich(comp: str) -> dict[str, Any] | None:
                 async with enrich_sem:
-                    return await self.enrich_competitor_profile(
-                        comp, _guess_domain(comp)
-                    )
+                    return await self.enrich_competitor_profile(comp, _guess_domain(comp))
 
-            enrichment_results = await asyncio.gather(
-                *[_enrich(c) for c in competitors]
-            )
+            enrichment_results = await asyncio.gather(*[_enrich(c) for c in competitors])
             enriched_profiles = [p for p in enrichment_results if p]
 
         # 3. Search KB for competitive context
         kb_docs = self._kb.search(task)
-        kb_context = "\n\n".join(
-            f"[Source: {doc['source']}]\n{doc['content']}" for doc in kb_docs
-        )
+        kb_context = "\n\n".join(f"[Source: {doc['source']}]\n{doc['content']}" for doc in kb_docs)
 
         # 4. Extract upstream context
         upstream = self._extract_upstream_context(context)
@@ -403,8 +410,7 @@ class Rex:
             social_section = "## Social Mentions (from Echo)\n"
             for m in upstream["social_mentions"]:
                 social_section += (
-                    f"- [{m['platform']}] {m['title']} "
-                    f"(sentiment: {m['sentiment']})\n"
+                    f"- [{m['platform']}] {m['title']} (sentiment: {m['sentiment']})\n"
                 )
 
         issues_section = ""
@@ -412,8 +418,7 @@ class Rex:
             issues_section = "## Community Issues (from Sage)\n"
             for issue in upstream["community_issues"]:
                 issues_section += (
-                    f"- #{issue['number']}: {issue['title']} "
-                    f"[{issue.get('product_area', '')}]\n"
+                    f"- #{issue['number']}: {issue['title']} [{issue.get('product_area', '')}]\n"
                 )
 
         enriched_section = ""
@@ -430,10 +435,10 @@ class Rex:
         user_prompt = f"""Task: {task}
 
 ## Competitors Identified
-{', '.join(competitors) if competitors else 'No competitors identified yet.'}
+{", ".join(competitors) if competitors else "No competitors identified yet."}
 
 ## Knowledge Base
-{kb_context if kb_context else 'No relevant knowledge base documents found.'}
+{kb_context if kb_context else "No relevant knowledge base documents found."}
 
 {web_section}
 
@@ -487,9 +492,7 @@ Return ONLY the JSON object.
             "agent": "rex",
             "task": task,
             "competitors_discovered": competitors,
-            "web_intel_sources": {
-                comp: len(results) for comp, results in web_intel.items()
-            },
+            "web_intel_sources": {comp: len(results) for comp, results in web_intel.items()},
             "kb_sources": [doc["source"] for doc in kb_docs],
             "upstream_social_mentions": len(upstream["social_mentions"]),
             "upstream_community_issues": len(upstream["community_issues"]),

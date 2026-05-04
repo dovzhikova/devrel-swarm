@@ -17,7 +17,9 @@ def _init(tmp_path):
     cwd = os.getcwd()
     os.chdir(tmp_path)
     try:
-        runner.invoke(app, ["init", "--non-interactive", "--name", "x", "--url", "", "--github-repo", ""])
+        runner.invoke(
+            app, ["init", "--non-interactive", "--name", "x", "--url", "", "--github-repo", ""]
+        )
     finally:
         os.chdir(cwd)
 
@@ -26,9 +28,14 @@ def _init(tmp_path):
 def mock_atlas():
     with patch("devrel_swarm.cli._common.Atlas") as M:
         inst = M.return_value
-        inst.run_single_task = AsyncMock(return_value=MagicMock(
-            success=True, agent="?", result={"summary": "ok"}, error=None,
-        ))
+        inst.run_single_task = AsyncMock(
+            return_value=MagicMock(
+                success=True,
+                agent="?",
+                result={"summary": "ok"},
+                error=None,
+            )
+        )
         yield M, inst
 
 
@@ -85,6 +92,7 @@ def test_json_output_emits_valid_json(tmp_path, mock_atlas):
     result = _run(tmp_path, ["triage", "--json"])
     assert result.exit_code == 0
     import json
+
     data = json.loads(result.output)
     assert data["agent"] == "?"  # mock returned this
     assert data["success"] is True

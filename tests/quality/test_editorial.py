@@ -34,6 +34,7 @@ def _mock_client_for_clean_run():
             MagicMock(final_score=8, revision_rounds=0, critiques=[]),
         )
     )
+
     # Slop LLM lint: empty (no LLM-detected slop).
     # Persona: high score, no weak sections.
     # Force-rewrite: not called on a clean run.
@@ -45,6 +46,7 @@ def _mock_client_for_clean_run():
         if "rewrite editor" in system_prompt:  # force_rewrite (shouldn't fire)
             return ("rewritten", None)
         return ("", None)
+
     client.generate = AsyncMock(side_effect=_generate)
     client.set_agent = MagicMock()
     return client
@@ -98,10 +100,13 @@ async def test_slop_hit_triggers_force_rewrite(tmp_path):
     client = MagicMock()
     client.set_agent = MagicMock()
     client.generate_with_revision = AsyncMock(
-        return_value=("This delves into the topic. Furthermore, look at this.",
-                      MagicMock(final_score=8, revision_rounds=0, critiques=[]))
+        return_value=(
+            "This delves into the topic. Furthermore, look at this.",
+            MagicMock(final_score=8, revision_rounds=0, critiques=[]),
+        )
     )
     rewrite_text = "This explores the topic. Look at this."
+
     async def _generate(*, system_prompt, user_prompt, model, **kwargs):
         if "screening AI-written content" in system_prompt:
             return ("", None)
@@ -110,6 +115,7 @@ async def test_slop_hit_triggers_force_rewrite(tmp_path):
         if "rewrite editor" in system_prompt:
             return (rewrite_text, None)
         return ("", None)
+
     client.generate = AsyncMock(side_effect=_generate)
 
     result = await run_pipeline(
@@ -128,9 +134,12 @@ async def test_slop_persists_after_rewrite_aborts_loud(tmp_path):
     client = MagicMock()
     client.set_agent = MagicMock()
     client.generate_with_revision = AsyncMock(
-        return_value=("delve and furthermore.",
-                      MagicMock(final_score=8, revision_rounds=0, critiques=[]))
+        return_value=(
+            "delve and furthermore.",
+            MagicMock(final_score=8, revision_rounds=0, critiques=[]),
+        )
     )
+
     async def _generate(*, system_prompt, user_prompt, model, **kwargs):
         if "screening AI-written content" in system_prompt:
             return ("", None)
@@ -139,12 +148,15 @@ async def test_slop_persists_after_rewrite_aborts_loud(tmp_path):
         if "rewrite editor" in system_prompt:
             return ("delve still here.", None)  # rewrite still has slop
         return ("", None)
+
     client.generate = AsyncMock(side_effect=_generate)
 
     with pytest.raises(AbortLoud) as exc_info:
         await run_pipeline(
-            initial_draft="x", content_type="tutorial",
-            project_paths=paths, llm_client=client,
+            initial_draft="x",
+            content_type="tutorial",
+            project_paths=paths,
+            llm_client=client,
         )
     assert "delve" in str(exc_info.value).lower()
 
@@ -164,16 +176,20 @@ async def test_low_persona_score_returns_to_copy_edit_once(tmp_path):
             ("v2 copy", MagicMock(final_score=8, revision_rounds=0, critiques=[])),
         ]
     )
-    persona_calls = iter([
-        '{"score": 4, "weak_sections": ["bad intro"], "feedback": "weak"}',
-        '{"score": 8, "weak_sections": [], "feedback": "fixed"}',
-    ])
+    persona_calls = iter(
+        [
+            '{"score": 4, "weak_sections": ["bad intro"], "feedback": "weak"}',
+            '{"score": 8, "weak_sections": [], "feedback": "fixed"}',
+        ]
+    )
+
     async def _generate(*, system_prompt, user_prompt, model, **kwargs):
         if "screening AI-written content" in system_prompt:
             return ("", None)
         if "skeptical senior backend developer" in system_prompt:
             return (next(persona_calls), None)
         return ("", None)
+
     client.generate = AsyncMock(side_effect=_generate)
 
     result = await run_pipeline(
@@ -199,12 +215,14 @@ async def test_persona_fails_twice_logs_and_ships_flagged(tmp_path):
             ("v2 copy", MagicMock(final_score=8, revision_rounds=0, critiques=[])),
         ]
     )
+
     async def _generate(*, system_prompt, user_prompt, model, **kwargs):
         if "screening AI-written content" in system_prompt:
             return ("", None)
         if "skeptical senior backend developer" in system_prompt:
             return ('{"score": 4, "weak_sections": ["x"], "feedback": "still weak"}', None)
         return ("", None)
+
     client.generate = AsyncMock(side_effect=_generate)
 
     result = await run_pipeline(
@@ -223,6 +241,7 @@ async def test_revision_trace_is_serializable(tmp_path):
         initial_draft="x", content_type="tutorial", project_paths=paths, llm_client=client
     )
     import json
+
     serialized = json.dumps(result.revision_trace)
     parsed = json.loads(serialized)
     assert "stages" in parsed

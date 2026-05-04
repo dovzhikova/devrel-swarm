@@ -53,7 +53,8 @@ def _write_outputs(paths: ProjectPaths, slug: str, body: str, trace: dict) -> tu
 def draft_command(
     prompt: str = typer.Argument(..., help="Topic or instruction for the new content."),
     content_type: str = typer.Option(
-        "tutorial", "--type",
+        "tutorial",
+        "--type",
         help="Content type for targeting (tutorial, blog_post, landing_page, cold_email, battle_card).",
     ),
 ) -> None:
@@ -84,11 +85,15 @@ def draft_command(
         except AbortLoud as e:
             console.print(f"[red]Pipeline aborted: {e}[/red]")
             raise typer.Exit(code=1) from None
-        body_path, trace_path = _write_outputs(paths, _slug(prompt), result.final_text, result.revision_trace)
+        body_path, trace_path = _write_outputs(
+            paths, _slug(prompt), result.final_text, result.revision_trace
+        )
         console.print(f"[green]✓[/green] Wrote {body_path.name} ({len(result.final_text)} chars)")
         console.print(f"[green]✓[/green] Wrote {trace_path.name}")
         if result.flagged:
-            console.print("[yellow]⚠[/yellow] Flagged: persona or readability gates failed twice; output shipped anyway.")
+            console.print(
+                "[yellow]⚠[/yellow] Flagged: persona or readability gates failed twice; output shipped anyway."
+            )
 
     asyncio.run(_do())
 
@@ -112,7 +117,9 @@ def slop_command(
     text = file.read_text()
     hits = find_slop(text, blocklist)
     if not hits:
-        console.print(f"[green]✓[/green] {file.name}: no slop hits ({len(blocklist)} phrases checked)")
+        console.print(
+            f"[green]✓[/green] {file.name}: no slop hits ({len(blocklist)} phrases checked)"
+        )
         return
     console.print(f"[red]✗[/red] {file.name}: {len(hits)} slop hit(s)")
     for h in hits[:50]:
@@ -146,7 +153,9 @@ def audit_command(
         except AbortLoud as e:
             console.print(f"[red]Pipeline aborted: {e}[/red]")
             raise typer.Exit(code=1) from None
-        body_path, trace_path = _write_outputs(paths, _slug(file.stem), result.final_text, result.revision_trace)
+        body_path, trace_path = _write_outputs(
+            paths, _slug(file.stem), result.final_text, result.revision_trace
+        )
         console.print(f"[green]✓[/green] Wrote {body_path.name}")
         console.print(f"[green]✓[/green] Wrote {trace_path.name}")
         if result.flagged:

@@ -74,10 +74,7 @@ class Scheduler:
     ):
         self.project_dir = Path(project_dir).resolve()
         self.python_path = python_path or sys.executable
-        self.entries = [
-            ScheduleEntry(**entry)
-            for entry in (schedule or DEFAULT_SCHEDULE)
-        ]
+        self.entries = [ScheduleEntry(**entry) for entry in (schedule or DEFAULT_SCHEDULE)]
 
     def _build_cron_line(self, entry: ScheduleEntry) -> str:
         """Build a crontab line from a schedule entry."""
@@ -90,7 +87,10 @@ class Scheduler:
         """Read the current user crontab."""
         try:
             result = subprocess.run(
-                ["crontab", "-l"], capture_output=True, text=True, check=False,
+                ["crontab", "-l"],
+                capture_output=True,
+                text=True,
+                check=False,
             )
             return result.stdout if result.returncode == 0 else ""
         except FileNotFoundError:
@@ -106,10 +106,7 @@ class Scheduler:
         current = self.get_current_crontab()
 
         # Remove existing devrel-swarm entries
-        cleaned_lines = [
-            line for line in current.splitlines()
-            if self.CRON_TAG not in line
-        ]
+        cleaned_lines = [line for line in current.splitlines() if self.CRON_TAG not in line]
 
         # Add new entries
         new_lines = []
@@ -123,7 +120,10 @@ class Scheduler:
 
         try:
             subprocess.run(
-                ["crontab", "-"], input=new_crontab, text=True, check=True,
+                ["crontab", "-"],
+                input=new_crontab,
+                text=True,
+                check=True,
             )
             logger.info(f"Installed {len(new_lines)} cron entries")
         except (subprocess.CalledProcessError, FileNotFoundError) as exc:
@@ -134,15 +134,15 @@ class Scheduler:
     def remove_cron(self) -> None:
         """Remove all devrel-swarm entries from the crontab."""
         current = self.get_current_crontab()
-        cleaned = [
-            line for line in current.splitlines()
-            if self.CRON_TAG not in line
-        ]
+        cleaned = [line for line in current.splitlines() if self.CRON_TAG not in line]
         new_crontab = "\n".join(cleaned) + "\n"
 
         try:
             subprocess.run(
-                ["crontab", "-"], input=new_crontab, text=True, check=True,
+                ["crontab", "-"],
+                input=new_crontab,
+                text=True,
+                check=True,
             )
             logger.info("Removed all devrel-swarm cron entries")
         except (subprocess.CalledProcessError, FileNotFoundError) as exc:
@@ -179,7 +179,8 @@ async def run_digest(mode: str = "daily") -> None:
         email_password=os.environ.get("EMAIL_PASSWORD", ""),
         email_recipients=(
             os.environ.get("EMAIL_RECIPIENTS", "").split(",")
-            if os.environ.get("EMAIL_RECIPIENTS") else None
+            if os.environ.get("EMAIL_RECIPIENTS")
+            else None
         ),
     )
 

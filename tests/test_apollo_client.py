@@ -38,7 +38,9 @@ class TestApolloDTOs:
 
     def test_contact_defaults(self):
         contact = ApolloContact(
-            id="apl_001", first_name="Jane", last_name="Smith",
+            id="apl_001",
+            first_name="Jane",
+            last_name="Smith",
         )
         assert contact.email is None
         assert contact.title is None
@@ -46,9 +48,13 @@ class TestApolloDTOs:
 
     def test_contact_full(self):
         contact = ApolloContact(
-            id="apl_001", first_name="Jane", last_name="Smith",
-            email="jane@acme.com", title="VP Engineering",
-            company_name="Acme Corp", company_domain="acme.com",
+            id="apl_001",
+            first_name="Jane",
+            last_name="Smith",
+            email="jane@acme.com",
+            title="VP Engineering",
+            company_name="Acme Corp",
+            company_domain="acme.com",
             linkedin_url="https://linkedin.com/in/janesmith",
             phone="+1234567890",
         )
@@ -57,9 +63,13 @@ class TestApolloDTOs:
 
     def test_contact_to_instantly_lead(self):
         contact = ApolloContact(
-            id="apl_001", first_name="Jane", last_name="Smith",
-            email="jane@acme.com", title="VP Engineering",
-            company_name="Acme Corp", company_domain="acme.com",
+            id="apl_001",
+            first_name="Jane",
+            last_name="Smith",
+            email="jane@acme.com",
+            title="VP Engineering",
+            company_name="Acme Corp",
+            company_domain="acme.com",
             linkedin_url="https://linkedin.com/in/janesmith",
             phone="+1234567890",
         )
@@ -74,7 +84,9 @@ class TestApolloDTOs:
 
     def test_contact_to_instantly_lead_sparse(self):
         contact = ApolloContact(
-            id="apl_002", first_name="John", last_name="Doe",
+            id="apl_002",
+            first_name="John",
+            last_name="Doe",
             email="john@beta.io",
         )
         lead = contact.to_instantly_lead()
@@ -84,14 +96,17 @@ class TestApolloDTOs:
 
     def test_contact_to_instantly_lead_no_email(self):
         contact = ApolloContact(
-            id="apl_003", first_name="No", last_name="Email",
+            id="apl_003",
+            first_name="No",
+            last_name="Email",
         )
         lead = contact.to_instantly_lead()
         assert lead.email == ""
 
     def test_organization_defaults(self):
         org = ApolloOrganization(
-            id="org_001", name="Acme Corp",
+            id="org_001",
+            name="Acme Corp",
         )
         assert org.domain is None
         assert org.tech_stack == []
@@ -99,10 +114,14 @@ class TestApolloDTOs:
 
     def test_organization_full(self):
         org = ApolloOrganization(
-            id="org_001", name="Acme Corp", domain="acme.com",
-            industry="Software", estimated_headcount=500,
+            id="org_001",
+            name="Acme Corp",
+            domain="acme.com",
+            industry="Software",
+            estimated_headcount=500,
             tech_stack=["React", "PostgreSQL"],
-            funding_stage="Series B", funding_total=45_000_000.0,
+            funding_stage="Series B",
+            funding_total=45_000_000.0,
             description="Developer tools company",
             linkedin_url="https://linkedin.com/company/acme",
         )
@@ -114,7 +133,9 @@ class TestApolloDTOs:
             contacts=[
                 ApolloContact(id="a1", first_name="A", last_name="B"),
             ],
-            total=100, page=1, per_page=25,
+            total=100,
+            page=1,
+            per_page=25,
         )
         assert len(result.contacts) == 1
         assert result.total == 100
@@ -124,7 +145,9 @@ class TestApolloDTOs:
             organizations=[
                 ApolloOrganization(id="o1", name="Org1"),
             ],
-            total=50, page=1, per_page=25,
+            total=50,
+            page=1,
+            per_page=25,
         )
         assert len(result.organizations) == 1
 
@@ -148,7 +171,10 @@ class TestApolloClientRequest:
     async def test_successful_post(self, apollo_client):
         """A 200 response returns parsed JSON."""
         respx.post("https://api.apollo.io/v1/mixed_people/api_search").mock(
-            return_value=httpx.Response(200, json={"people": [], "pagination": {"total_entries": 0, "page": 1, "per_page": 25}})
+            return_value=httpx.Response(
+                200,
+                json={"people": [], "pagination": {"total_entries": 0, "page": 1, "per_page": 25}},
+            )
         )
         result = await apollo_client._post("/mixed_people/api_search", {"page": 1})
         assert "people" in result
@@ -184,9 +210,14 @@ class TestApolloClientRequest:
 
         def capture_request(request):
             sent_headers.update(dict(request.headers))
-            return httpx.Response(200, json={"people": [], "pagination": {"total_entries": 0, "page": 1, "per_page": 25}})
+            return httpx.Response(
+                200,
+                json={"people": [], "pagination": {"total_entries": 0, "page": 1, "per_page": 25}},
+            )
 
-        respx.post("https://api.apollo.io/v1/mixed_people/api_search").mock(side_effect=capture_request)
+        respx.post("https://api.apollo.io/v1/mixed_people/api_search").mock(
+            side_effect=capture_request
+        )
         await apollo_client._post("/mixed_people/api_search", {})
         assert sent_headers.get("x-api-key") == "test-apollo-key"
 
@@ -381,7 +412,9 @@ class TestEnrichPerson:
         respx.post("https://api.apollo.io/v1/people/match").mock(
             return_value=httpx.Response(200, json=apollo_fixtures["person_enrichment"])
         )
-        contact = await apollo_client.enrich_person(linkedin_url="https://linkedin.com/in/alicechen")
+        contact = await apollo_client.enrich_person(
+            linkedin_url="https://linkedin.com/in/alicechen"
+        )
 
         assert contact is not None
         assert contact.linkedin_url == "https://linkedin.com/in/alicechen"

@@ -279,7 +279,11 @@ Champion signals:
             product_area=product_area,
             summary=f"[{priority.value.upper()}] {category} in {product_area}",
             suggested_response=self._draft_response(
-                title, category, priority, sentiment, author,
+                title,
+                category,
+                priority,
+                sentiment,
+                author,
             ),
             churn_risk=churn_risk,
             champion_signal=champion,
@@ -346,14 +350,59 @@ Champion signals:
         """Map issue to OpenClaw product area."""
         text = f"{title} {body}".lower()
         areas = {
-            "orchestration": ["orchestrat", "atlas", "pipeline", "weekly cycle", "delegation", "hub", "spoke"],
-            "agent_sdk": ["agent sdk", "sdk", "claude sdk", "agent framework", "base agent", "execute"],
+            "orchestration": [
+                "orchestrat",
+                "atlas",
+                "pipeline",
+                "weekly cycle",
+                "delegation",
+                "hub",
+                "spoke",
+            ],
+            "agent_sdk": [
+                "agent sdk",
+                "sdk",
+                "claude sdk",
+                "agent framework",
+                "base agent",
+                "execute",
+            ],
             "mcp_tools": ["mcp", "tool", "json-rpc", "stdio", "tool definition", "manifest"],
-            "knowledge_base": ["knowledge base", "knowledge", "docs", "markdown", "rglob", "indexing"],
-            "scoring_eval": ["score", "scoring", "eval", "evaluation", "metrics", "benchmark", "test"],
+            "knowledge_base": [
+                "knowledge base",
+                "knowledge",
+                "docs",
+                "markdown",
+                "rglob",
+                "indexing",
+            ],
+            "scoring_eval": [
+                "score",
+                "scoring",
+                "eval",
+                "evaluation",
+                "metrics",
+                "benchmark",
+                "test",
+            ],
             "prompt_optimization": ["prompt", "template", "optimization", "tuning", "generation"],
-            "onboarding_docs": ["onboarding", "documentation", "tutorial", "guide", "getting started", "setup"],
-            "security": ["security", "auth", "permission", "token", "secret", "vulnerability", "access"],
+            "onboarding_docs": [
+                "onboarding",
+                "documentation",
+                "tutorial",
+                "guide",
+                "getting started",
+                "setup",
+            ],
+            "security": [
+                "security",
+                "auth",
+                "permission",
+                "token",
+                "secret",
+                "vulnerability",
+                "access",
+            ],
         }
         for area, keywords in areas.items():
             if any(kw in text for kw in keywords):

@@ -32,9 +32,12 @@ def _init(tmp_path):
         [
             "init",
             "--non-interactive",
-            "--name", "x",
-            "--url", "",
-            "--github-repo", "",
+            "--name",
+            "x",
+            "--url",
+            "",
+            "--github-repo",
+            "",
         ],
     )
 

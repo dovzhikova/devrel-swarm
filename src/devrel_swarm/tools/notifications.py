@@ -60,14 +60,15 @@ class NotificationService:
             return False
 
         try:
-            url = (
-                f"{TELEGRAM_API}/bot{self.config.telegram_bot_token}/sendMessage"
+            url = f"{TELEGRAM_API}/bot{self.config.telegram_bot_token}/sendMessage"
+            resp = await self._client.post(
+                url,
+                json={
+                    "chat_id": self.config.telegram_chat_id,
+                    "text": message[:4096],
+                    "parse_mode": parse_mode,
+                },
             )
-            resp = await self._client.post(url, json={
-                "chat_id": self.config.telegram_chat_id,
-                "text": message[:4096],
-                "parse_mode": parse_mode,
-            })
             resp.raise_for_status()
             logger.info("Telegram message sent")
             return True
@@ -119,7 +120,9 @@ class NotificationService:
     # -- Digest -----------------------------------------------------------
 
     async def send_digest(
-        self, context: dict[str, Any], mode: str = "daily",
+        self,
+        context: dict[str, Any],
+        mode: str = "daily",
     ) -> dict[str, bool]:
         """Format and send a content digest from SharedContext.
 
@@ -197,9 +200,9 @@ class NotificationService:
             sections.append(f"""
             <div style="border-left:4px solid #4CAF50;padding-left:16px;margin:16px 0">
                 <h3 style="margin:0">✍️ Kai — Content</h3>
-                <p><b>Task:</b> {kai.get('task', 'N/A')[:100]}</p>
-                <p><b>Quality score:</b> {rev.get('final_score', 'N/A')}/10
-                   ({rev.get('rounds', 0)} revision rounds)</p>
+                <p><b>Task:</b> {kai.get("task", "N/A")[:100]}</p>
+                <p><b>Quality score:</b> {rev.get("final_score", "N/A")}/10
+                   ({rev.get("rounds", 0)} revision rounds)</p>
             </div>""")
 
         if ctx.get("echo_social"):
@@ -207,7 +210,7 @@ class NotificationService:
             sections.append(f"""
             <div style="border-left:4px solid #2196F3;padding-left:16px;margin:16px 0">
                 <h3 style="margin:0">👂 Echo — Social</h3>
-                <p><b>Mentions:</b> {echo.get('total_mentions', 0)}</p>
+                <p><b>Mentions:</b> {echo.get("total_mentions", 0)}</p>
             </div>""")
 
         body = "\n".join(sections) if sections else "<p>No content generated today.</p>"
@@ -224,19 +227,19 @@ class NotificationService:
 
         return f"""
         <html><body style="font-family:system-ui,sans-serif;max-width:600px;margin:0 auto">
-            <h2>Weekly Agent Report — {ctx.get('week_of', '')}</h2>
+            <h2>Weekly Agent Report — {ctx.get("week_of", "")}</h2>
             <table style="width:100%;border-collapse:collapse">
                 <tr><td style="padding:8px;border-bottom:1px solid #eee"><b>Content produced</b></td>
-                    <td style="padding:8px;border-bottom:1px solid #eee">{'✅' if okr.get('content_produced') else '❌'}</td></tr>
+                    <td style="padding:8px;border-bottom:1px solid #eee">{"✅" if okr.get("content_produced") else "❌"}</td></tr>
                 <tr><td style="padding:8px;border-bottom:1px solid #eee"><b>Issues triaged</b></td>
-                    <td style="padding:8px;border-bottom:1px solid #eee">{okr.get('issues_triaged', 0)}</td></tr>
+                    <td style="padding:8px;border-bottom:1px solid #eee">{okr.get("issues_triaged", 0)}</td></tr>
                 <tr><td style="padding:8px;border-bottom:1px solid #eee"><b>Social mentions</b></td>
-                    <td style="padding:8px;border-bottom:1px solid #eee">{okr.get('social_mentions_found', 0)}</td></tr>
+                    <td style="padding:8px;border-bottom:1px solid #eee">{okr.get("social_mentions_found", 0)}</td></tr>
                 <tr><td style="padding:8px;border-bottom:1px solid #eee"><b>Themes identified</b></td>
-                    <td style="padding:8px;border-bottom:1px solid #eee">{okr.get('themes_identified', 0)}</td></tr>
+                    <td style="padding:8px;border-bottom:1px solid #eee">{okr.get("themes_identified", 0)}</td></tr>
                 <tr><td style="padding:8px;border-bottom:1px solid #eee"><b>Experiments</b></td>
-                    <td style="padding:8px;border-bottom:1px solid #eee">{okr.get('experiments_designed', 0)}</td></tr>
+                    <td style="padding:8px;border-bottom:1px solid #eee">{okr.get("experiments_designed", 0)}</td></tr>
                 <tr><td style="padding:8px;border-bottom:1px solid #eee"><b>Brand audit score</b></td>
-                    <td style="padding:8px;border-bottom:1px solid #eee">{audit.get('overall_score', 'N/A')}/100</td></tr>
+                    <td style="padding:8px;border-bottom:1px solid #eee">{audit.get("overall_score", "N/A")}/100</td></tr>
             </table>
         </body></html>"""

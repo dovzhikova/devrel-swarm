@@ -248,14 +248,22 @@ Return JSON:
         self.BULK_BATCH_SIZE = 1000
         self._kb = get_kb_search(
             knowledge_base_path,
-            extra_stop_words=frozenset({
-                "generate", "create", "write", "outreach", "emails", "battle",
-                "card", "nurture", "sequence", "one-pager",
-            }),
+            extra_stop_words=frozenset(
+                {
+                    "generate",
+                    "create",
+                    "write",
+                    "outreach",
+                    "emails",
+                    "battle",
+                    "card",
+                    "nurture",
+                    "sequence",
+                    "one-pager",
+                }
+            ),
         )
-        self._system_prompt = self._load_prompt(
-            "system_prompt.txt", self._DEFAULT_SYSTEM_PROMPT
-        )
+        self._system_prompt = self._load_prompt("system_prompt.txt", self._DEFAULT_SYSTEM_PROMPT)
 
     def _collect_leads(
         self,
@@ -268,34 +276,40 @@ Return JSON:
 
         if leads:
             for lead in leads:
-                parsed.append(InstantlyLead(
-                    email=lead.get("email", ""),
-                    first_name=lead.get("first_name", ""),
-                    last_name=lead.get("last_name", ""),
-                    company_name=lead.get("company_name", ""),
-                    title=lead.get("title", ""),
-                    custom_variables=lead.get("custom_variables", {}),
-                ))
+                parsed.append(
+                    InstantlyLead(
+                        email=lead.get("email", ""),
+                        first_name=lead.get("first_name", ""),
+                        last_name=lead.get("last_name", ""),
+                        company_name=lead.get("company_name", ""),
+                        title=lead.get("title", ""),
+                        custom_variables=lead.get("custom_variables", {}),
+                    )
+                )
 
         if csv_path and csv_path.exists():
             with open(csv_path) as f:
                 for row in csv.DictReader(f):
-                    parsed.append(InstantlyLead(
-                        email=row.get("email", ""),
-                        first_name=row.get("first_name", ""),
-                        last_name=row.get("last_name", ""),
-                        company_name=row.get("company_name", ""),
-                        title=row.get("title", ""),
-                    ))
+                    parsed.append(
+                        InstantlyLead(
+                            email=row.get("email", ""),
+                            first_name=row.get("first_name", ""),
+                            last_name=row.get("last_name", ""),
+                            company_name=row.get("company_name", ""),
+                            title=row.get("title", ""),
+                        )
+                    )
 
         if context and "sage_triage" in context:
             for issue in context["sage_triage"].get("issues", []):
                 email = issue.get("author_email")
                 if email:
-                    parsed.append(InstantlyLead(
-                        email=email,
-                        first_name=issue.get("author", ""),
-                    ))
+                    parsed.append(
+                        InstantlyLead(
+                            email=email,
+                            first_name=issue.get("author", ""),
+                        )
+                    )
 
         return [lead for lead in parsed if lead.email]
 
@@ -328,7 +342,8 @@ Return JSON:
         return {"total_uploaded": total_uploaded, "batches": batches, "errors": errors}
 
     async def prospect_leads(
-        self, criteria: dict,
+        self,
+        criteria: dict,
     ) -> list["ApolloContact"]:
         """Search Apollo for contacts matching ICP criteria.
 
@@ -379,7 +394,9 @@ Return JSON:
                         enriched_count += 1
                 except Exception as exc:
                     logger.debug(
-                        "Enrichment failed for contact %s: %s", contact.id, exc,
+                        "Enrichment failed for contact %s: %s",
+                        contact.id,
+                        exc,
                     )
 
         leads = []
@@ -398,7 +415,8 @@ Return JSON:
                 batch = leads[i : i + self.BULK_BATCH_SIZE]
                 try:
                     result = await self.instantly_client.add_leads_bulk(
-                        campaign_id or "", batch,
+                        campaign_id or "",
+                        batch,
                     )
                     uploaded += result.get("added", len(batch))
                 except Exception as e:
@@ -444,14 +462,16 @@ Return JSON:
                     temperature=0.5,
                 )
                 data = json.loads(strip_markdown_fences(raw))
-                drafts.append({
-                    "reply_id": reply.get("reply_id"),
-                    "email_id": reply.get("email_id"),
-                    "draft_subject": data.get("subject", ""),
-                    "draft_body": data.get("body", ""),
-                    "category": reply["category"],
-                    "status": "pending_approval",
-                })
+                drafts.append(
+                    {
+                        "reply_id": reply.get("reply_id"),
+                        "email_id": reply.get("email_id"),
+                        "draft_subject": data.get("subject", ""),
+                        "draft_body": data.get("body", ""),
+                        "category": reply["category"],
+                        "status": "pending_approval",
+                    }
+                )
             except Exception as e:
                 logger.warning(
                     f"Failed to draft follow-up for {reply.get('reply_id')}: {e}",
@@ -535,15 +555,21 @@ Return JSON:
             normalised["locations"] = [val] if isinstance(val, str) else val
         # Pass through only known search_people params
         for key in (
-            "titles", "industries", "domains", "locations",
-            "company_sizes", "min_headcount", "max_headcount",
+            "titles",
+            "industries",
+            "domains",
+            "locations",
+            "company_sizes",
+            "min_headcount",
+            "max_headcount",
         ):
             if key in criteria:
                 normalised[key] = criteria[key]
         return normalised
 
     def _extract_upstream_context(
-        self, context: dict[str, Any] | None,
+        self,
+        context: dict[str, Any] | None,
     ) -> dict[str, Any]:
         """Extract sales-relevant data from SharedContext."""
         extracted: dict[str, Any] = {
@@ -590,14 +616,16 @@ Return JSON:
         if not results:
             if contact.company_name:
                 results = await self.search_tools.web_search(
-                    f"{contact.company_name} news announcement", limit=3,
+                    f"{contact.company_name} news announcement",
+                    limit=3,
                 )
 
         if not results:
             return ("", "")
 
         content = await self.search_tools.fetch_url_content(
-            results[0].url, max_chars=2000,
+            results[0].url,
+            max_chars=2000,
         )
 
         if not content or not self.llm_client:
@@ -642,7 +670,8 @@ Return JSON:
             last_name=contact.last_name,
             title=contact.title or "Unknown",
             company_name=contact.company_name or "Unknown",
-            research_hook=research_hook or "No specific hook found — use title and company context.",
+            research_hook=research_hook
+            or "No specific hook found — use title and company context.",
             kb_context=kb_context,
             competitive_context=competitive_context,
             product_name=self.product_name,
@@ -679,13 +708,20 @@ Return JSON:
         except Exception as exc:
             logger.warning(f"Apollo search failed: {exc}")
             return {
-                "agent": "pax", "task": task, "asset_type": asset_type,
-                "status": "error", "error": str(exc), "contacts_found": 0,
+                "agent": "pax",
+                "task": task,
+                "asset_type": asset_type,
+                "status": "error",
+                "error": str(exc),
+                "contacts_found": 0,
             }
         if not contacts:
             return {
-                "agent": "pax", "task": task, "asset_type": asset_type,
-                "status": "personalized", "contacts_found": 0,
+                "agent": "pax",
+                "task": task,
+                "asset_type": asset_type,
+                "status": "personalized",
+                "contacts_found": 0,
             }
 
         logger.info(f"Prospecting {len(contacts)} contacts for personalized outreach")
@@ -719,43 +755,46 @@ Return JSON:
         competitive_context = ""
         for c in upstream["competitors"][:5]:
             if isinstance(c, dict):
-                competitive_context += (
-                    f"- {c.get('name', '?')}: {c.get('strengths', [])}\n"
-                )
+                competitive_context += f"- {c.get('name', '?')}: {c.get('strengths', [])}\n"
 
         # Step 4: Research + generate per contact
         outreach_list: list[dict] = []
         hooks_found = 0
         for contact in contacts_with_email:
             logger.info(
-                f"Researching {contact.first_name} {contact.last_name} "
-                f"at {contact.company_name}",
+                f"Researching {contact.first_name} {contact.last_name} at {contact.company_name}",
             )
             hook, source_url = await self._research_prospect(contact)
             if hook:
                 hooks_found += 1
 
             email_data = await self._generate_personalized_email(
-                contact, hook, kb_context, competitive_context,
+                contact,
+                hook,
+                kb_context,
+                competitive_context,
             )
 
             if email_data:
-                outreach_list.append({
-                    "contact_id": contact.id,
-                    "first_name": contact.first_name,
-                    "last_name": contact.last_name,
-                    "email": contact.email,
-                    "title": contact.title or "",
-                    "company_name": contact.company_name or "",
-                    "research_hook": hook,
-                    "research_source": source_url,
-                    "subject": email_data.get("subject", ""),
-                    "body": email_data.get("body", ""),
-                    "pain_points_addressed": email_data.get(
-                        "pain_points_addressed", [],
-                    ),
-                    "sales_psychology": email_data.get("sales_psychology", ""),
-                })
+                outreach_list.append(
+                    {
+                        "contact_id": contact.id,
+                        "first_name": contact.first_name,
+                        "last_name": contact.last_name,
+                        "email": contact.email,
+                        "title": contact.title or "",
+                        "company_name": contact.company_name or "",
+                        "research_hook": hook,
+                        "research_source": source_url,
+                        "subject": email_data.get("subject", ""),
+                        "body": email_data.get("body", ""),
+                        "pain_points_addressed": email_data.get(
+                            "pain_points_addressed",
+                            [],
+                        ),
+                        "sales_psychology": email_data.get("sales_psychology", ""),
+                    }
+                )
 
             await asyncio.sleep(1.0)
 
@@ -784,46 +823,55 @@ Return JSON:
             if not campaign_id:
                 try:
                     from datetime import datetime
+
                     campaign_name = (
-                        f"{self.product_name} Outreach "
-                        f"{datetime.now().strftime('%Y-%m-%d')}"
+                        f"{self.product_name} Outreach {datetime.now().strftime('%Y-%m-%d')}"
                     )
                     # Fetch sending accounts to attach to campaign
                     sending_accounts: list[str] = []
                     try:
                         acct_data = await self.instantly_client._request(
-                            "GET", "/api/v2/accounts", params={"limit": 10},
+                            "GET",
+                            "/api/v2/accounts",
+                            params={"limit": 10},
                         )
-                        acct_items = acct_data.get("items", acct_data if isinstance(acct_data, list) else [])
+                        acct_items = acct_data.get(
+                            "items", acct_data if isinstance(acct_data, list) else []
+                        )
                         sending_accounts = [a["email"] for a in acct_items if a.get("email")]
                     except Exception:
                         logger.debug("Could not fetch Instantly sending accounts")
 
                     campaign = await self.instantly_client.create_campaign(
                         name=campaign_name,
-                        sequences=[{
-                            "steps": [{
-                                "type": "email",
-                                "delay": 0,
-                                "variants": [{
-                                    "subject": "{{personalized_subject}}",
-                                    "body": "{{personalized_body}}",
-                                }],
-                            }],
-                        }],
+                        sequences=[
+                            {
+                                "steps": [
+                                    {
+                                        "type": "email",
+                                        "delay": 0,
+                                        "variants": [
+                                            {
+                                                "subject": "{{personalized_subject}}",
+                                                "body": "{{personalized_body}}",
+                                            }
+                                        ],
+                                    }
+                                ],
+                            }
+                        ],
                         accounts=sending_accounts or None,
                     )
                     campaign_id = campaign.id
-                    logger.info(
-                        f"Created Instantly campaign: {campaign_name} ({campaign_id})"
-                    )
+                    logger.info(f"Created Instantly campaign: {campaign_name} ({campaign_id})")
                 except Exception as e:
                     errors.append(f"Campaign creation failed: {e}")
                     logger.warning(f"Instantly campaign creation failed: {e}")
             if campaign_id:
                 try:
                     result = await self.instantly_client.add_leads_bulk(
-                        campaign_id, leads,
+                        campaign_id,
+                        leads,
                     )
                     uploaded = result.get("added", len(leads))
                     logger.info(f"Uploaded {uploaded} leads to Instantly campaign {campaign_id}")
@@ -855,7 +903,10 @@ Return JSON:
         }
 
     async def _execute_campaign(
-        self, task: str, asset_type: str, base_result: dict[str, Any],
+        self,
+        task: str,
+        asset_type: str,
+        base_result: dict[str, Any],
     ) -> dict[str, Any]:
         """Handle the instantly_campaign execute path."""
         from devrel_swarm.core.base import strip_markdown_fences
@@ -865,8 +916,8 @@ Return JSON:
 
         prompt_text = (
             f"Create a cold email outreach campaign for {self.product_name}. "
-            f"Return JSON: {{\"sequences\": [{{\"subject\": \"...\", "
-            f"\"body\": \"...\", \"delay_days\": N}}]}}"
+            f'Return JSON: {{"sequences": [{{"subject": "...", '
+            f'"body": "...", "delay_days": N}}]}}'
         )
         try:
             raw = await self.llm_client.generate(
@@ -882,9 +933,12 @@ Return JSON:
                 sequences=sequences,
             )
             return {
-                "agent": "pax", "task": task, "asset_type": asset_type,
+                "agent": "pax",
+                "task": task,
+                "asset_type": asset_type,
                 "status": "campaign_created",
-                "campaign_id": campaign.id, "campaign_name": campaign.name,
+                "campaign_id": campaign.id,
+                "campaign_name": campaign.name,
             }
         except Exception as exc:
             logger.warning(f"Campaign creation failed: {exc}")
@@ -896,8 +950,10 @@ Return JSON:
         from devrel_swarm.core.base import strip_markdown_fences
 
         base = {
-            "reply_id": email.id, "email_id": email.id,
-            "body": email.body, "lead_email": email.lead_email,
+            "reply_id": email.id,
+            "email_id": email.id,
+            "body": email.body,
+            "lead_email": email.lead_email,
         }
         if not self.llm_client:
             return {**base, "category": "not_now"}
@@ -917,7 +973,9 @@ Return JSON:
             return {**base, "category": "not_now"}
 
     async def _execute_triage(
-        self, task: str, asset_type: str,
+        self,
+        task: str,
+        asset_type: str,
         context: Optional[dict[str, Any]],
     ) -> dict[str, Any]:
         """Handle the triage_replies execute path."""
@@ -928,13 +986,19 @@ Return JSON:
         for c in classified:
             categories[c["category"]] = categories.get(c["category"], 0) + 1
         return {
-            "agent": "pax", "task": task, "asset_type": asset_type,
-            "status": "triaged", "total_replies": len(classified),
-            "categories": categories, "drafts": drafts,
+            "agent": "pax",
+            "task": task,
+            "asset_type": asset_type,
+            "status": "triaged",
+            "total_replies": len(classified),
+            "categories": categories,
+            "drafts": drafts,
         }
 
     async def _execute_prospect(
-        self, task: str, asset_type: str,
+        self,
+        task: str,
+        asset_type: str,
         context: Optional[dict[str, Any]] = None,
     ) -> dict[str, Any]:
         """Handle the prospect_leads execute path."""
@@ -944,8 +1008,12 @@ Return JSON:
         except Exception as exc:
             logger.warning(f"Apollo search failed: {exc}")
             return {
-                "agent": "pax", "task": task, "asset_type": asset_type,
-                "status": "error", "error": str(exc), "contacts_found": 0,
+                "agent": "pax",
+                "task": task,
+                "asset_type": asset_type,
+                "status": "error",
+                "error": str(exc),
+                "contacts_found": 0,
             }
         upload_result: dict[str, Any] = {}
         if contacts and self.instantly_client:
@@ -954,19 +1022,24 @@ Return JSON:
                 campaign_id=(context or {}).get("campaign_id"),
             )
         return {
-            "agent": "pax", "task": task, "asset_type": asset_type,
+            "agent": "pax",
+            "task": task,
+            "asset_type": asset_type,
             "status": "prospected",
             "contacts_found": len(contacts),
             **upload_result,
         }
 
     async def _execute_enrich_upload(
-        self, task: str, asset_type: str,
+        self,
+        task: str,
+        asset_type: str,
         context: Optional[dict[str, Any]],
     ) -> dict[str, Any]:
         """Handle the enrich_upload execute path."""
         raw_contacts = (context or {}).get("apollo_contacts", [])
         from devrel_swarm.tools.apollo_client import ApolloContact as AC
+
         contacts = [
             AC(
                 id=c.get("id", ""),
@@ -984,13 +1057,19 @@ Return JSON:
         campaign_id = (context or {}).get("campaign_id")
         result = await self.enrich_and_upload(contacts, campaign_id=campaign_id)
         return {
-            "agent": "pax", "task": task, "asset_type": asset_type,
-            "status": "enriched_and_uploaded", **result,
+            "agent": "pax",
+            "task": task,
+            "asset_type": asset_type,
+            "status": "enriched_and_uploaded",
+            **result,
         }
 
     def _build_asset_prompt(
-        self, task: str, asset_type: str,
-        upstream: dict[str, Any], kb_context: str,
+        self,
+        task: str,
+        asset_type: str,
+        upstream: dict[str, Any],
+        kb_context: str,
     ) -> str:
         """Build the LLM prompt for generic asset generation."""
         competitive_section = ""
@@ -1019,13 +1098,13 @@ Return JSON:
 Asset type: {asset_type}
 
 ## Knowledge Base
-{kb_context if kb_context else 'No relevant KB docs found.'}
+{kb_context if kb_context else "No relevant KB docs found."}
 
 ## Competitive Intelligence
-{competitive_section if competitive_section else 'No competitive data available.'}
+{competitive_section if competitive_section else "No competitive data available."}
 
 ## Developer Pain Points
-{pain_section if pain_section else 'No pain point data available.'}
+{pain_section if pain_section else "No pain point data available."}
 
 ## Instructions
 Generate the requested sales asset ({asset_type}). Ground all claims in the
@@ -1079,10 +1158,12 @@ Return a JSON object with the generated asset content."""
                 "task": task,
                 "asset_type": asset_type,
                 "status": "uploaded",
-                **(await self.upload_leads(
-                    campaign_id=context.get("campaign_id", "") if context else "",
-                    context=context,
-                )),
+                **(
+                    await self.upload_leads(
+                        campaign_id=context.get("campaign_id", "") if context else "",
+                        context=context,
+                    )
+                ),
             }
 
         if asset_type == "triage_replies" and self.instantly_client:

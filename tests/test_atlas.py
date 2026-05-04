@@ -295,9 +295,7 @@ class TestAtlasCheckpointResume:
         d.pop("previous_weeks", None)
         d["_checkpoint_stage"] = 1
         d["_completed_agents"] = ["dex", "sage", "watchdog"]
-        (archive_dir / f"context_{week_of}_stage1.json").write_text(
-            json.dumps(d, default=str)
-        )
+        (archive_dir / f"context_{week_of}_stage1.json").write_text(json.dumps(d, default=str))
 
         atlas = Atlas(
             api_client=posthog_client,
@@ -370,8 +368,10 @@ class TestAtlasArgusStage:
         fake_report = PerformanceReport(
             period_start=datetime(2026, 4, 25, tzinfo=timezone.utc),
             period_end=datetime(2026, 5, 2, tzinfo=timezone.utc),
-            top_performers=[], bottom_performers=[],
-            trend_signals=[], recommendations=[],
+            top_performers=[],
+            bottom_performers=[],
+            trend_signals=[],
+            recommendations=[],
             sources_ok={"posthog": True, "github": True, "instantly": True, "social": True},
         )
         fake_argus = MagicMock()

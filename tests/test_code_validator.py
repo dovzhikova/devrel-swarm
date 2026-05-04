@@ -185,7 +185,7 @@ class TestJsonValidation:
         assert result.is_valid
 
     def test_valid_json_array(self, validator):
-        code = '[1, 2, 3]'
+        code = "[1, 2, 3]"
         block = CodeBlock(language="json", code=code, line_number=1)
         result = validator.validate_block(block)
         assert result.is_valid
@@ -363,7 +363,7 @@ const x = 1;
         assert report.validated == 0
 
     def test_report_includes_error_details(self, validator):
-        md = '```json\n{invalid: json}\n```'
+        md = "```json\n{invalid: json}\n```"
         report = validator.validate_content(md)
         assert report.failed == 1
         err = report.errors[0]
@@ -414,13 +414,7 @@ class TestKaiCodeValidation:
         from unittest.mock import AsyncMock
 
         mock_llm_client.generate = AsyncMock(
-            return_value=(
-                "# Tutorial\n\n"
-                "```python\n"
-                "def broken(\n"
-                "  x = \n"
-                "```\n"
-            )
+            return_value=("# Tutorial\n\n```python\ndef broken(\n  x = \n```\n")
         )
         from devrel_swarm.core.kai import Kai
 

@@ -39,22 +39,48 @@ class TestSharedContextInstantly:
         assert saved["instantly_analytics"]["total_sent"] == 50
 
     def test_load_most_recent(self, tmp_path):
-        (tmp_path / "context_2026-W11.json").write_text(json.dumps(
-            {"week_of": "2026-W11", "sage_triage": {}, "echo_social": {},
-             "iris_themes": {}, "nova_experiments": {}, "kai_content": {},
-             "vox_video": {}, "dex_docs": {}, "rex_competitive": {},
-             "pax_sales": {}, "mox_campaigns": {}, "okr_progress": {},
-             "instantly_campaigns": {}, "instantly_analytics": {},
-             "instantly_replies": {"drafts": [{"id": "old"}]}},
-        ))
-        (tmp_path / "context_2026-W12.json").write_text(json.dumps(
-            {"week_of": "2026-W12", "sage_triage": {}, "echo_social": {},
-             "iris_themes": {}, "nova_experiments": {}, "kai_content": {},
-             "vox_video": {}, "dex_docs": {}, "rex_competitive": {},
-             "pax_sales": {}, "mox_campaigns": {}, "okr_progress": {},
-             "instantly_campaigns": {}, "instantly_analytics": {},
-             "instantly_replies": {"drafts": [{"id": "new"}]}},
-        ))
+        (tmp_path / "context_2026-W11.json").write_text(
+            json.dumps(
+                {
+                    "week_of": "2026-W11",
+                    "sage_triage": {},
+                    "echo_social": {},
+                    "iris_themes": {},
+                    "nova_experiments": {},
+                    "kai_content": {},
+                    "vox_video": {},
+                    "dex_docs": {},
+                    "rex_competitive": {},
+                    "pax_sales": {},
+                    "mox_campaigns": {},
+                    "okr_progress": {},
+                    "instantly_campaigns": {},
+                    "instantly_analytics": {},
+                    "instantly_replies": {"drafts": [{"id": "old"}]},
+                },
+            )
+        )
+        (tmp_path / "context_2026-W12.json").write_text(
+            json.dumps(
+                {
+                    "week_of": "2026-W12",
+                    "sage_triage": {},
+                    "echo_social": {},
+                    "iris_themes": {},
+                    "nova_experiments": {},
+                    "kai_content": {},
+                    "vox_video": {},
+                    "dex_docs": {},
+                    "rex_competitive": {},
+                    "pax_sales": {},
+                    "mox_campaigns": {},
+                    "okr_progress": {},
+                    "instantly_campaigns": {},
+                    "instantly_analytics": {},
+                    "instantly_replies": {"drafts": [{"id": "new"}]},
+                },
+            )
+        )
         ctx = SharedContext.load(tmp_path)
         assert ctx.week_of == "2026-W12"
         assert ctx.instantly_replies["drafts"][0]["id"] == "new"
@@ -74,7 +100,11 @@ class TestAtlasStage7:
 
     @pytest.mark.asyncio
     async def test_stage7_delegates_to_mox_and_pax(
-        self, posthog_client, knowledge_base_path, mock_llm_client, tmp_path,
+        self,
+        posthog_client,
+        knowledge_base_path,
+        mock_llm_client,
+        tmp_path,
     ):
         mock_instantly = MagicMock()
         mock_instantly.close = AsyncMock()
@@ -89,18 +119,23 @@ class TestAtlasStage7:
         atlas.BASE_DELAY = 0.001
 
         for agent in atlas._agents.values():
-            agent.execute = AsyncMock(return_value={
-                "agent": "mock", "status": "ok",
-            })
+            agent.execute = AsyncMock(
+                return_value={
+                    "agent": "mock",
+                    "status": "ok",
+                }
+            )
 
         await atlas.run_weekly_cycle()
 
         mox_calls = [
-            c for c in atlas.mox.execute.call_args_list
+            c
+            for c in atlas.mox.execute.call_args_list
             if "analytics" in str(c).lower() or "instantly" in str(c).lower()
         ]
         pax_calls = [
-            c for c in atlas.pax.execute.call_args_list
+            c
+            for c in atlas.pax.execute.call_args_list
             if "triage" in str(c).lower() or "replies" in str(c).lower()
         ]
         assert len(mox_calls) >= 1, "Mox should be delegated analytics pull"
@@ -108,7 +143,11 @@ class TestAtlasStage7:
 
     @pytest.mark.asyncio
     async def test_stage7_skipped_without_client(
-        self, posthog_client, knowledge_base_path, mock_llm_client, tmp_path,
+        self,
+        posthog_client,
+        knowledge_base_path,
+        mock_llm_client,
+        tmp_path,
     ):
         atlas = Atlas(
             api_client=posthog_client,
@@ -129,7 +168,10 @@ class TestAtlasOKRInstantly:
     """Test OKR compilation includes Instantly metrics."""
 
     def test_okr_includes_email_metrics(
-        self, posthog_client, knowledge_base_path, mock_llm_client,
+        self,
+        posthog_client,
+        knowledge_base_path,
+        mock_llm_client,
     ):
         atlas = Atlas(
             api_client=posthog_client,
@@ -139,8 +181,10 @@ class TestAtlasOKRInstantly:
         atlas.context = SharedContext(
             week_of="2026-W12",
             instantly_analytics={
-                "total_sent": 100, "total_opened": 50,
-                "total_replied": 10, "avg_reply_rate": 0.1,
+                "total_sent": 100,
+                "total_opened": 50,
+                "total_replied": 10,
+                "avg_reply_rate": 0.1,
             },
             instantly_replies={"drafts": [{"id": "d1"}, {"id": "d2"}]},
         )
@@ -155,22 +199,38 @@ class TestReviewRepliesCLI:
 
     @pytest.mark.asyncio
     async def test_review_replies_loads_context(self, tmp_path):
-        (tmp_path / "context_2026-W12.json").write_text(json.dumps({
-            "week_of": "2026-W12", "sage_triage": {}, "echo_social": {},
-            "iris_themes": {}, "nova_experiments": {}, "kai_content": {},
-            "vox_video": {}, "dex_docs": {}, "rex_competitive": {},
-            "pax_sales": {}, "mox_campaigns": {}, "okr_progress": {},
-            "instantly_campaigns": {}, "instantly_analytics": {},
-            "instantly_replies": {
-                "drafts": [
-                    {"reply_id": "r1", "email_id": "e1",
-                     "draft_subject": "Re: Hello",
-                     "draft_body": "Thanks for your interest!",
-                     "category": "interested",
-                     "status": "pending_approval"},
-                ]
-            },
-        }))
+        (tmp_path / "context_2026-W12.json").write_text(
+            json.dumps(
+                {
+                    "week_of": "2026-W12",
+                    "sage_triage": {},
+                    "echo_social": {},
+                    "iris_themes": {},
+                    "nova_experiments": {},
+                    "kai_content": {},
+                    "vox_video": {},
+                    "dex_docs": {},
+                    "rex_competitive": {},
+                    "pax_sales": {},
+                    "mox_campaigns": {},
+                    "okr_progress": {},
+                    "instantly_campaigns": {},
+                    "instantly_analytics": {},
+                    "instantly_replies": {
+                        "drafts": [
+                            {
+                                "reply_id": "r1",
+                                "email_id": "e1",
+                                "draft_subject": "Re: Hello",
+                                "draft_body": "Thanks for your interest!",
+                                "category": "interested",
+                                "status": "pending_approval",
+                            },
+                        ]
+                    },
+                }
+            )
+        )
         ctx = SharedContext.load(tmp_path)
         drafts = ctx.instantly_replies.get("drafts", [])
         pending = [d for d in drafts if d.get("status") == "pending_approval"]
@@ -182,9 +242,12 @@ class TestReviewRepliesCLI:
         mock_instantly.reply_to_email = AsyncMock(return_value={"status": "sent"})
 
         draft = {
-            "reply_id": "r1", "email_id": "e1",
-            "draft_subject": "Re: Hello", "draft_body": "Thanks!",
-            "category": "interested", "status": "pending_approval",
+            "reply_id": "r1",
+            "email_id": "e1",
+            "draft_subject": "Re: Hello",
+            "draft_body": "Thanks!",
+            "category": "interested",
+            "status": "pending_approval",
         }
 
         with patch("builtins.input", return_value="a"):
@@ -197,9 +260,12 @@ class TestReviewRepliesCLI:
         mock_instantly = MagicMock()
 
         draft = {
-            "reply_id": "r1", "email_id": "e1",
-            "draft_subject": "Re: Hello", "draft_body": "Thanks!",
-            "category": "interested", "status": "pending_approval",
+            "reply_id": "r1",
+            "email_id": "e1",
+            "draft_subject": "Re: Hello",
+            "draft_body": "Thanks!",
+            "category": "interested",
+            "status": "pending_approval",
         }
 
         with patch("builtins.input", return_value="s"):
@@ -212,9 +278,12 @@ class TestReviewRepliesCLI:
         mock_instantly = MagicMock()
 
         draft = {
-            "reply_id": "r1", "email_id": "e1",
-            "draft_subject": "Re: Hello", "draft_body": "Thanks!",
-            "category": "interested", "status": "pending_approval",
+            "reply_id": "r1",
+            "email_id": "e1",
+            "draft_subject": "Re: Hello",
+            "draft_body": "Thanks!",
+            "category": "interested",
+            "status": "pending_approval",
         }
 
         with patch("builtins.input", return_value="r"):

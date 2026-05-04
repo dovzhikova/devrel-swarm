@@ -119,7 +119,8 @@ class Watchdog:
         }
 
     def _check_agent_health(
-        self, context: dict[str, Any] | None,
+        self,
+        context: dict[str, Any] | None,
     ) -> list[AgentHealthCheck]:
         """Check each agent's output freshness from context."""
         checks = []
@@ -141,28 +142,33 @@ class Watchdog:
             if isinstance(data, dict) and data:
                 last_run_ts = data.get("timestamp", "") or ""
                 output_age_hours = _compute_age_hours(last_run_ts)
-                status = (
-                    "stale" if output_age_hours > self.STALE_THRESHOLD_HOURS else "healthy"
+                status = "stale" if output_age_hours > self.STALE_THRESHOLD_HOURS else "healthy"
+                checks.append(
+                    AgentHealthCheck(
+                        agent=agent,
+                        status=status,
+                        last_run=last_run_ts or "unknown",
+                        output_age_hours=output_age_hours,
+                        issues=(
+                            [
+                                f"{agent} output age {output_age_hours:.1f}h exceeds "
+                                f"{self.STALE_THRESHOLD_HOURS}h threshold"
+                            ]
+                            if status == "stale"
+                            else []
+                        ),
+                    )
                 )
-                checks.append(AgentHealthCheck(
-                    agent=agent,
-                    status=status,
-                    last_run=last_run_ts or "unknown",
-                    output_age_hours=output_age_hours,
-                    issues=(
-                        [f"{agent} output age {output_age_hours:.1f}h exceeds "
-                         f"{self.STALE_THRESHOLD_HOURS}h threshold"]
-                        if status == "stale" else []
-                    ),
-                ))
             else:
-                checks.append(AgentHealthCheck(
-                    agent=agent,
-                    status="stale" if context else "unknown",
-                    last_run="never",
-                    output_age_hours=999.0,
-                    issues=[f"{agent} has no output in current context"],
-                ))
+                checks.append(
+                    AgentHealthCheck(
+                        agent=agent,
+                        status="stale" if context else "unknown",
+                        last_run="never",
+                        output_age_hours=999.0,
+                        issues=[f"{agent} has no output in current context"],
+                    )
+                )
 
         return checks
 
@@ -223,6 +229,7 @@ class Watchdog:
 
         status: dict[str, str] = {}
         async with httpx.AsyncClient(timeout=5.0) as client:
+
             async def _probe(name: str, url: str, headers: dict) -> tuple[str, str]:
                 try:
                     resp = await client.get(url, headers=headers)
@@ -232,10 +239,9 @@ class Watchdog:
                 except Exception as exc:
                     return name, f"unreachable: {type(exc).__name__}"
 
-            results = await asyncio.gather(*[
-                _probe(name, url, hdrs)
-                for name, (url, hdrs) in probes.items()
-            ])
+            results = await asyncio.gather(
+                *[_probe(name, url, hdrs) for name, (url, hdrs) in probes.items()]
+            )
             for name, result in results:
                 status[name] = result
 
@@ -264,19 +270,14 @@ class Watchdog:
         # ("not_configured") is a real alert: error_405, error_500,
         # unreachable: ConnectionError, etc.
         failed_integrations = [
-            f"{k}={v}" for k, v in integrations.items()
-            if v not in ("connected", "not_configured")
+            f"{k}={v}" for k, v in integrations.items() if v not in ("connected", "not_configured")
         ]
         if failed_integrations:
-            alerts.append(
-                f"INTEGRATION: {', '.join(failed_integrations)} unhealthy"
-            )
+            alerts.append(f"INTEGRATION: {', '.join(failed_integrations)} unhealthy")
 
         # Budget alerts: prefer cost-vs-cap ratio when a budget is configured;
         # fall back to absolute token threshold only when no budget is set.
-        total_tokens = budget.get("total_input_tokens", 0) + budget.get(
-            "total_output_tokens", 0
-        )
+        total_tokens = budget.get("total_input_tokens", 0) + budget.get("total_output_tokens", 0)
         total_cost_usd = budget.get("total_cost_usd", 0.0) or 0.0
         budget_limit_usd = budget.get("budget_limit_usd", 0) or 0
         if budget_limit_usd > 0:

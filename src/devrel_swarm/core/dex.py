@@ -29,8 +29,18 @@ SUPPORTED_EXTENSIONS = {
 
 # Directories to always skip
 SKIP_DIRS = {
-    "__pycache__", ".git", "node_modules", ".venv", "venv", "dist", "build",
-    ".mypy_cache", ".pytest_cache", ".ruff_cache", ".tox", "egg-info",
+    "__pycache__",
+    ".git",
+    "node_modules",
+    ".venv",
+    "venv",
+    "dist",
+    "build",
+    ".mypy_cache",
+    ".pytest_cache",
+    ".ruff_cache",
+    ".tox",
+    "egg-info",
 }
 
 # Max file size to analyse (256 KB)
@@ -211,14 +221,16 @@ Output formats:
                 if bases:
                     sig += f"({', '.join(bases)})"
 
-                symbols.append(ParsedSymbol(
-                    name=node.name,
-                    kind="class",
-                    signature=sig,
-                    docstring=class_doc,
-                    line_number=node.lineno,
-                    decorators=decorators,
-                ))
+                symbols.append(
+                    ParsedSymbol(
+                        name=node.name,
+                        kind="class",
+                        signature=sig,
+                        docstring=class_doc,
+                        line_number=node.lineno,
+                        decorators=decorators,
+                    )
+                )
 
                 # Methods inside class — use ast.walk to capture nested
                 # classes and decorated/conditionally-defined methods.
@@ -233,13 +245,15 @@ Output formats:
             elif isinstance(node, ast.Assign):
                 for target in node.targets:
                     if isinstance(target, ast.Name) and target.id.isupper():
-                        symbols.append(ParsedSymbol(
-                            name=target.id,
-                            kind="constant",
-                            signature=f"{target.id} = ...",
-                            docstring="",
-                            line_number=node.lineno,
-                        ))
+                        symbols.append(
+                            ParsedSymbol(
+                                name=target.id,
+                                kind="constant",
+                                signature=f"{target.id} = ...",
+                                docstring="",
+                                line_number=node.lineno,
+                            )
+                        )
 
             # Annotated module-level constants (e.g. `MAX_RETRIES: int = 5`)
             # — `ast.AnnAssign` has a single `target` (not `targets`), and we
@@ -247,13 +261,15 @@ Output formats:
             # don't pollute the parsed symbol list.
             elif isinstance(node, ast.AnnAssign):
                 if isinstance(node.target, ast.Name) and node.target.id.isupper():
-                    symbols.append(ParsedSymbol(
-                        name=node.target.id,
-                        kind="constant",
-                        signature=f"{node.target.id} = ...",
-                        docstring="",
-                        line_number=node.lineno,
-                    ))
+                    symbols.append(
+                        ParsedSymbol(
+                            name=node.target.id,
+                            kind="constant",
+                            signature=f"{node.target.id} = ...",
+                            docstring="",
+                            line_number=node.lineno,
+                        )
+                    )
 
         return ParsedModule(
             path=rel_path,
@@ -397,42 +413,48 @@ Output formats:
         for match in self._JS_FUNC_RE.finditer(source):
             name = match.group(1)
             params = match.group(2).strip()
-            line = source[:match.start()].count("\n") + 1
-            symbols.append(ParsedSymbol(
-                name=name,
-                kind="function",
-                signature=f"function {name}({params})",
-                docstring=self._extract_jsdoc(source, match.start()),
-                line_number=line,
-            ))
+            line = source[: match.start()].count("\n") + 1
+            symbols.append(
+                ParsedSymbol(
+                    name=name,
+                    kind="function",
+                    signature=f"function {name}({params})",
+                    docstring=self._extract_jsdoc(source, match.start()),
+                    line_number=line,
+                )
+            )
 
         # Extract classes
         for match in self._JS_CLASS_RE.finditer(source):
             name = match.group(1)
             extends = match.group(2)
-            line = source[:match.start()].count("\n") + 1
+            line = source[: match.start()].count("\n") + 1
             sig = f"class {name}"
             if extends:
                 sig += f" extends {extends}"
-            symbols.append(ParsedSymbol(
-                name=name,
-                kind="class",
-                signature=sig,
-                docstring=self._extract_jsdoc(source, match.start()),
-                line_number=line,
-            ))
+            symbols.append(
+                ParsedSymbol(
+                    name=name,
+                    kind="class",
+                    signature=sig,
+                    docstring=self._extract_jsdoc(source, match.start()),
+                    line_number=line,
+                )
+            )
 
         # Extract arrow function exports
         for match in self._JS_CONST_FUNC_RE.finditer(source):
             name = match.group(1)
-            line = source[:match.start()].count("\n") + 1
-            symbols.append(ParsedSymbol(
-                name=name,
-                kind="function",
-                signature=f"const {name} = (...) => ...",
-                docstring=self._extract_jsdoc(source, match.start()),
-                line_number=line,
-            ))
+            line = source[: match.start()].count("\n") + 1
+            symbols.append(
+                ParsedSymbol(
+                    name=name,
+                    kind="function",
+                    signature=f"const {name} = (...) => ...",
+                    docstring=self._extract_jsdoc(source, match.start()),
+                    line_number=line,
+                )
+            )
 
         # Module docstring: first block comment
         first_comment = re.match(r"\s*/\*\*(.*?)\*/", source, re.DOTALL)
@@ -454,9 +476,7 @@ Output formats:
         match = re.search(r"/\*\*(.*?)\*/\s*$", before, re.DOTALL)
         if match:
             raw = match.group(1)
-            lines = [
-                re.sub(r"^\s*\*\s?", "", line) for line in raw.splitlines()
-            ]
+            lines = [re.sub(r"^\s*\*\s?", "", line) for line in raw.splitlines()]
             return "\n".join(line for line in lines if line.strip()).strip()
         return ""
 
@@ -469,8 +489,7 @@ Output formats:
         lines: list[str] = []
         lines.append("# Architecture Overview\n")
         lines.append(f"**Root:** `{analysis.root}`\n")
-        lines.append(f"**Files:** {analysis.total_files} | "
-                      f"**Lines:** {analysis.total_lines}\n")
+        lines.append(f"**Files:** {analysis.total_files} | **Lines:** {analysis.total_lines}\n")
 
         # Language breakdown
         if analysis.languages:
@@ -514,10 +533,7 @@ Output formats:
         lines.append("# API Reference\n")
 
         for mod in sorted(analysis.modules, key=lambda m: m.path):
-            public_symbols = [
-                s for s in mod.symbols
-                if not s.name.split(".")[-1].startswith("_")
-            ]
+            public_symbols = [s for s in mod.symbols if not s.name.split(".")[-1].startswith("_")]
             if not public_symbols:
                 continue
 
@@ -540,7 +556,9 @@ Output formats:
                     if sym.docstring:
                         lines.append(f"{sym.docstring}\n")
                     if sym.decorators:
-                        lines.append(f"Decorators: {', '.join(f'`@{d}`' for d in sym.decorators)}\n")
+                        lines.append(
+                            f"Decorators: {', '.join(f'`@{d}`' for d in sym.decorators)}\n"
+                        )
 
         return "\n".join(lines)
 
@@ -575,8 +593,11 @@ Output formats:
                 lines.append(f"### `{cls.signature}`\n")
                 if cls.docstring:
                     lines.append(f"{cls.docstring}\n")
-                methods = [s for s in module.symbols
-                           if s.kind == "method" and s.name.startswith(f"{cls.name}.")]
+                methods = [
+                    s
+                    for s in module.symbols
+                    if s.kind == "method" and s.name.startswith(f"{cls.name}.")
+                ]
                 if methods:
                     lines.append("**Methods:**\n")
                     for m in methods:

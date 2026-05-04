@@ -396,7 +396,9 @@ posthog.init('key')
         assert result["agent"] == "vox"
 
     @pytest.mark.asyncio
-    async def test_execute_handles_docs_fetch_failure(self, posthog_client, knowledge_base_path, tmp_path):
+    async def test_execute_handles_docs_fetch_failure(
+        self, posthog_client, knowledge_base_path, tmp_path
+    ):
         mock_search = MagicMock()
         mock_search.fetch_official_docs = AsyncMock(side_effect=Exception("Network error"))
         vox = Vox(
@@ -416,18 +418,21 @@ class TestAtlasIntegration:
 
     def test_shared_context_has_vox_field(self):
         from devrel_swarm.core.atlas import SharedContext
+
         ctx = SharedContext()
         assert hasattr(ctx, "vox_video")
         assert ctx.vox_video == {}
 
     def test_shared_context_to_dict_includes_vox(self):
         from devrel_swarm.core.atlas import SharedContext
+
         ctx = SharedContext()
         d = ctx.to_dict()
         assert "vox_video" in d
 
     def test_atlas_has_vox_agent(self):
         from devrel_swarm.core.atlas import Atlas
+
         client = MagicMock()
         atlas = Atlas(
             api_client=client,

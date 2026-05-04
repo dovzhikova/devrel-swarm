@@ -64,6 +64,7 @@ class DesktopRecorder:
     def _check_pyautogui() -> bool:
         try:
             import pyautogui  # noqa: F401
+
             return True
         except ImportError:
             return False
@@ -136,8 +137,10 @@ class DesktopRecorder:
         input_format, input_device = _get_ffmpeg_input_format()
 
         cmd = [
-            "ffmpeg", "-y",
-            "-f", input_format,
+            "ffmpeg",
+            "-y",
+            "-f",
+            input_format,
         ]
 
         # Platform-specific options
@@ -172,6 +175,7 @@ class DesktopRecorder:
             return
 
         import pyautogui
+
         pyautogui.PAUSE = 0.1  # small pause between pyautogui calls
 
         try:
@@ -207,19 +211,25 @@ class DesktopRecorder:
             if system == "Darwin":
                 subprocess.run(
                     ["osascript", "-e", f'tell application "{app_name}" to activate'],
-                    capture_output=True, timeout=5,
+                    capture_output=True,
+                    timeout=5,
                 )
             elif system == "Linux":
                 subprocess.run(
                     ["wmctrl", "-a", app_name],
-                    capture_output=True, timeout=5,
+                    capture_output=True,
+                    timeout=5,
                 )
             elif system == "Windows":
                 # PowerShell approach
                 subprocess.run(
-                    ["powershell", "-Command",
-                     f"(New-Object -ComObject WScript.Shell).AppActivate('{app_name}')"],
-                    capture_output=True, timeout=5,
+                    [
+                        "powershell",
+                        "-Command",
+                        f"(New-Object -ComObject WScript.Shell).AppActivate('{app_name}')",
+                    ],
+                    capture_output=True,
+                    timeout=5,
                 )
         except Exception as exc:
             logger.warning(f"Failed to activate app '{app_name}': {exc}")

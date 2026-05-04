@@ -38,6 +38,7 @@ def _check_ffmpeg() -> bool:
 def _check_playwright() -> bool:
     try:
         import playwright  # noqa: F401
+
         return True
     except ImportError:
         return False
@@ -169,9 +170,7 @@ Keep narration concise and developer-focused. Show, don't tell."""
             "status": "script_only",
         }
 
-        can_render = (
-            self._has_ffmpeg and self._has_playwright and self.openai_api_key
-        )
+        can_render = self._has_ffmpeg and self._has_playwright and self.openai_api_key
         if can_render:
             try:
                 output_path = await self._run_full_pipeline(tutorial)

@@ -208,9 +208,7 @@ where MDE = minimum detectable effect, p = baseline conversion rate"""
                         stages = real_stages
                         funnel_data_source = "api"
                 except Exception as exc:
-                    logger.warning(
-                        "Funnel API call failed; using default estimates: %s", exc
-                    )
+                    logger.warning("Funnel API call failed; using default estimates: %s", exc)
             funnel = await self.analyze_funnel(
                 funnel_name="devrel_ai_agents_activation",
                 stages=stages,
@@ -283,13 +281,12 @@ where MDE = minimum detectable effect, p = baseline conversion rate"""
         # Estimate duration based on daily traffic volume. Clamp to a
         # floor so misconfigured envs (or test environments setting 0)
         # don't produce 30-year experiments or ZeroDivisionError.
-        raw_signups = int(
-            os.environ.get("DAILY_SIGNUPS_ESTIMATE", str(DAILY_SIGNUPS_DEFAULT))
-        )
+        raw_signups = int(os.environ.get("DAILY_SIGNUPS_ESTIMATE", str(DAILY_SIGNUPS_DEFAULT)))
         if raw_signups < DAILY_SIGNUPS_FLOOR:
             logger.warning(
                 "DAILY_SIGNUPS_ESTIMATE=%d is below floor %d; using floor instead",
-                raw_signups, DAILY_SIGNUPS_FLOOR,
+                raw_signups,
+                DAILY_SIGNUPS_FLOOR,
             )
             daily_signups = DAILY_SIGNUPS_FLOOR
         else:

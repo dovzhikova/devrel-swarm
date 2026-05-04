@@ -45,7 +45,7 @@ def sample_repo(tmp_path):
         "        pass\n\n\n"
         "def helper(x: int) -> str:\n"
         '    """A helper function."""\n'
-        '    return str(x)\n'
+        "    return str(x)\n"
     )
 
     # JavaScript module
@@ -250,10 +250,7 @@ class TestParseJsTs:
         assert funcs[0].name == "handler"
 
     def test_extracts_imports(self, dex):
-        source = (
-            "import { Engine } from './engine';\n"
-            "const http = require('http');\n"
-        )
+        source = "import { Engine } from './engine';\nconst http = require('http');\n"
         result = dex._parse_js_ts("app.js", source, "javascript")
         assert "./engine" in result.imports
         assert "http" in result.imports

@@ -44,7 +44,7 @@ def _content_id_from_url(url: str) -> str:
     """Stable id derived from URL path."""
     path = urlparse(url).path or "/"
     if path.startswith("/blog/"):
-        slug = path[len("/blog/"):].rstrip("/")
+        slug = path[len("/blog/") :].rstrip("/")
         return f"blog/{slug}" if slug else "blog/index"
     return path
 
@@ -202,8 +202,17 @@ class SocialCollector:
     # these, _verify_schema logs a clear warning and the collector returns
     # [] rather than silently producing partial data.
     _REQUIRED_COLUMNS: frozenset[str] = frozenset(
-        {"platform", "post_id", "title", "url", "posted_at",
-         "upvotes", "comments", "engagement_score", "is_own_post"}
+        {
+            "platform",
+            "post_id",
+            "title",
+            "url",
+            "posted_at",
+            "upvotes",
+            "comments",
+            "engagement_score",
+            "is_own_post",
+        }
     )
 
     def __init__(self, state_db_path: Path):
@@ -219,10 +228,7 @@ class SocialCollector:
         if self._schema_verified:
             return True
         try:
-            cols = {
-                row[1]
-                for row in conn.execute("PRAGMA table_info(social_mentions)")
-            }
+            cols = {row[1] for row in conn.execute("PRAGMA table_info(social_mentions)")}
         except sqlite3.OperationalError:
             return False  # table doesn't exist yet
         missing = self._REQUIRED_COLUMNS - cols
@@ -230,7 +236,8 @@ class SocialCollector:
             logger.warning(
                 "SocialCollector: Echo's social_mentions table is missing "
                 "required columns: %s. Argus will return no social metrics "
-                "until the schema is updated.", sorted(missing),
+                "until the schema is updated.",
+                sorted(missing),
             )
             return False
         self._schema_verified = True
@@ -266,7 +273,9 @@ class SocialCollector:
             return []
 
         rows = await asyncio.to_thread(
-            self._read_rows, start.isoformat(), end.isoformat(),
+            self._read_rows,
+            start.isoformat(),
+            end.isoformat(),
         )
         if rows is None:
             return []
@@ -274,9 +283,7 @@ class SocialCollector:
         metrics: list[PerformanceMetric] = []
         for row in rows:
             try:
-                posted_at = datetime.fromisoformat(
-                    row["posted_at"].replace("Z", "+00:00")
-                )
+                posted_at = datetime.fromisoformat(row["posted_at"].replace("Z", "+00:00"))
             except ValueError:
                 posted_at = end
             metrics.append(

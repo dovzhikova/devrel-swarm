@@ -45,8 +45,10 @@ More prose.
     out = parse_targets(md)
     assert "tutorial" in out
     assert out["tutorial"] == ContentTypeTargets(
-        flesch_min=50, flesch_max=65,
-        sentence_len_min=12, sentence_len_max=18,
+        flesch_min=50,
+        flesch_max=65,
+        sentence_len_min=12,
+        sentence_len_max=18,
         jargon_density="medium",
     )
     assert out["blog_post"].flesch_min == 55

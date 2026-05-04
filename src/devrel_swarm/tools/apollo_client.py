@@ -157,9 +157,7 @@ class ApolloClient:
 
     def _raise_for_status(self, response: httpx.Response) -> None:
         if response.status_code == 429:
-            raise httpx.HTTPStatusError(
-                "Rate limited", request=response.request, response=response
-            )
+            raise httpx.HTTPStatusError("Rate limited", request=response.request, response=response)
         if response.status_code >= 400:
             try:
                 detail = response.json().get("message", response.text)

@@ -12,26 +12,49 @@ from devrel_swarm.tools.instantly_client import CampaignAnalytics, InstantlyCamp
 @pytest.fixture
 def mock_instantly():
     client = MagicMock()
-    client.create_campaign = AsyncMock(return_value=InstantlyCampaign(
-        id="camp_1", name="Q1 Outreach", status="draft",
-        accounts=["sender@co.com"], sequences=[],
-    ))
-    client.list_campaigns = AsyncMock(return_value=[
-        InstantlyCampaign(id="c1", name="A", status="active", accounts=[], sequences=[]),
-        InstantlyCampaign(id="c2", name="B", status="active", accounts=[], sequences=[]),
-    ])
-    client.get_campaign_analytics = AsyncMock(side_effect=[
-        CampaignAnalytics(
-            campaign_id="c1", campaign_name="A", total_leads=100,
-            emails_sent=80, emails_opened=40, emails_replied=10,
-            emails_bounced=5, open_rate=0.5, reply_rate=0.125, bounce_rate=0.0625,
-        ),
-        CampaignAnalytics(
-            campaign_id="c2", campaign_name="B", total_leads=50,
-            emails_sent=40, emails_opened=20, emails_replied=5,
-            emails_bounced=2, open_rate=0.5, reply_rate=0.125, bounce_rate=0.05,
-        ),
-    ])
+    client.create_campaign = AsyncMock(
+        return_value=InstantlyCampaign(
+            id="camp_1",
+            name="Q1 Outreach",
+            status="draft",
+            accounts=["sender@co.com"],
+            sequences=[],
+        )
+    )
+    client.list_campaigns = AsyncMock(
+        return_value=[
+            InstantlyCampaign(id="c1", name="A", status="active", accounts=[], sequences=[]),
+            InstantlyCampaign(id="c2", name="B", status="active", accounts=[], sequences=[]),
+        ]
+    )
+    client.get_campaign_analytics = AsyncMock(
+        side_effect=[
+            CampaignAnalytics(
+                campaign_id="c1",
+                campaign_name="A",
+                total_leads=100,
+                emails_sent=80,
+                emails_opened=40,
+                emails_replied=10,
+                emails_bounced=5,
+                open_rate=0.5,
+                reply_rate=0.125,
+                bounce_rate=0.0625,
+            ),
+            CampaignAnalytics(
+                campaign_id="c2",
+                campaign_name="B",
+                total_leads=50,
+                emails_sent=40,
+                emails_opened=20,
+                emails_replied=5,
+                emails_bounced=2,
+                open_rate=0.5,
+                reply_rate=0.125,
+                bounce_rate=0.05,
+            ),
+        ]
+    )
     client.activate_campaign = AsyncMock(return_value={"status": "active"})
     client.close = AsyncMock()
     return client
@@ -64,7 +87,9 @@ class TestMoxPushCampaign:
         mock_instantly.create_campaign.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_push_campaign_no_client(self, posthog_client, knowledge_base_path, mock_llm_client):
+    async def test_push_campaign_no_client(
+        self, posthog_client, knowledge_base_path, mock_llm_client
+    ):
         mox = Mox(
             api_client=posthog_client,
             knowledge_base_path=knowledge_base_path,
@@ -87,11 +112,20 @@ class TestMoxPullStats:
 
     @pytest.mark.asyncio
     async def test_pull_stats_specific_ids(self, mox_with_instantly, mock_instantly):
-        mock_instantly.get_campaign_analytics = AsyncMock(return_value=CampaignAnalytics(
-            campaign_id="c1", campaign_name="A", total_leads=100,
-            emails_sent=80, emails_opened=40, emails_replied=10,
-            emails_bounced=5, open_rate=0.5, reply_rate=0.125, bounce_rate=0.0625,
-        ))
+        mock_instantly.get_campaign_analytics = AsyncMock(
+            return_value=CampaignAnalytics(
+                campaign_id="c1",
+                campaign_name="A",
+                total_leads=100,
+                emails_sent=80,
+                emails_opened=40,
+                emails_replied=10,
+                emails_bounced=5,
+                open_rate=0.5,
+                reply_rate=0.125,
+                bounce_rate=0.0625,
+            )
+        )
         stats = await mox_with_instantly.pull_campaign_stats(campaign_ids=["c1"])
         assert stats["total_campaigns"] == 1
 

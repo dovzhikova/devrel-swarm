@@ -66,9 +66,24 @@ async def test_posthog_collector_classifies_landing_vs_blog():
     fake_client = MagicMock()
     fake_client.fetch_events_by_url = AsyncMock(
         return_value=[
-            {"url": "https://example.com/", "title": "Home", "page_views": 999, "unique_visitors": 500},
-            {"url": "https://example.com/pricing", "title": "Pricing", "page_views": 444, "unique_visitors": 200},
-            {"url": "https://example.com/blog/x", "title": "X", "page_views": 100, "unique_visitors": 50},
+            {
+                "url": "https://example.com/",
+                "title": "Home",
+                "page_views": 999,
+                "unique_visitors": 500,
+            },
+            {
+                "url": "https://example.com/pricing",
+                "title": "Pricing",
+                "page_views": 444,
+                "unique_visitors": 200,
+            },
+            {
+                "url": "https://example.com/blog/x",
+                "title": "X",
+                "page_views": 100,
+                "unique_visitors": 50,
+            },
         ]
     )
     collector = PostHogCollector(fake_client)
@@ -146,14 +161,24 @@ async def test_instantly_collector_emits_per_campaign_metrics():
     fake.list_campaigns_with_analytics = AsyncMock(
         return_value=[
             {
-                "id": "camp-1", "name": "Q2 outbound", "sent": 1000,
-                "opens": 350, "clicks": 80, "replies": 25,
-                "open_rate": 0.35, "reply_rate": 0.025,
+                "id": "camp-1",
+                "name": "Q2 outbound",
+                "sent": 1000,
+                "opens": 350,
+                "clicks": 80,
+                "replies": 25,
+                "open_rate": 0.35,
+                "reply_rate": 0.025,
             },
             {
-                "id": "camp-2", "name": "Founder series", "sent": 500,
-                "opens": 100, "clicks": 30, "replies": 50,
-                "open_rate": 0.20, "reply_rate": 0.10,
+                "id": "camp-2",
+                "name": "Founder series",
+                "sent": 500,
+                "opens": 100,
+                "clicks": 30,
+                "replies": 50,
+                "open_rate": 0.20,
+                "reply_rate": 0.10,
             },
         ]
     )
@@ -190,21 +215,36 @@ async def test_instantly_collector_filters_campaigns_outside_period():
     fake.list_campaigns_with_analytics = AsyncMock(
         return_value=[
             {
-                "id": "in-window", "name": "Q2 outbound", "sent": 100,
-                "opens": 30, "clicks": 8, "replies": 5,
-                "open_rate": 0.30, "reply_rate": 0.05,
+                "id": "in-window",
+                "name": "Q2 outbound",
+                "sent": 100,
+                "opens": 30,
+                "clicks": 8,
+                "replies": 5,
+                "open_rate": 0.30,
+                "reply_rate": 0.05,
                 "created_at": "2026-04-29T10:00:00+00:00",
             },
             {
-                "id": "old-camp", "name": "ancient", "sent": 1000,
-                "opens": 200, "clicks": 50, "replies": 100,
-                "open_rate": 0.20, "reply_rate": 0.10,
+                "id": "old-camp",
+                "name": "ancient",
+                "sent": 1000,
+                "opens": 200,
+                "clicks": 50,
+                "replies": 100,
+                "open_rate": 0.20,
+                "reply_rate": 0.10,
                 "created_at": "2025-12-01T10:00:00+00:00",
             },
             {
-                "id": "future-camp", "name": "future", "sent": 0,
-                "opens": 0, "clicks": 0, "replies": 0,
-                "open_rate": 0.0, "reply_rate": 0.0,
+                "id": "future-camp",
+                "name": "future",
+                "sent": 0,
+                "opens": 0,
+                "clicks": 0,
+                "replies": 0,
+                "open_rate": 0.0,
+                "reply_rate": 0.0,
                 "created_at": "2026-06-01T10:00:00+00:00",
             },
         ]
@@ -223,8 +263,16 @@ async def test_instantly_collector_includes_rows_without_created_at():
     fake = MagicMock()
     fake.list_campaigns_with_analytics = AsyncMock(
         return_value=[
-            {"id": "no-date", "name": "legacy", "sent": 50, "opens": 10,
-             "clicks": 2, "replies": 1, "open_rate": 0.20, "reply_rate": 0.02},
+            {
+                "id": "no-date",
+                "name": "legacy",
+                "sent": 50,
+                "opens": 10,
+                "clicks": 2,
+                "replies": 1,
+                "open_rate": 0.20,
+                "reply_rate": 0.02,
+            },
         ]
     )
     collector = InstantlyCollector(fake)
@@ -264,15 +312,39 @@ def _seed_social_mentions_db(db_path):
             "engagement_score, is_own_post) "
             "VALUES (?,?,?,?,?,?,?,?,?)",
             [
-                ("reddit", "abc1", "Why CLI tools win",
-                 "https://reddit.com/r/programming/abc1",
-                 "2026-04-30T10:00:00+00:00", 240, 35, 87.5, 1),
-                ("hackernews", "hn-9", "Show HN: devrel-swarm",
-                 "https://news.ycombinator.com/item?id=9",
-                 "2026-04-29T14:00:00+00:00", 150, 42, 76.0, 1),
-                ("reddit", "noise-1", "Random unrelated post",
-                 "https://reddit.com/r/x/noise-1",
-                 "2026-04-28T08:00:00+00:00", 5, 1, 6.0, 0),
+                (
+                    "reddit",
+                    "abc1",
+                    "Why CLI tools win",
+                    "https://reddit.com/r/programming/abc1",
+                    "2026-04-30T10:00:00+00:00",
+                    240,
+                    35,
+                    87.5,
+                    1,
+                ),
+                (
+                    "hackernews",
+                    "hn-9",
+                    "Show HN: devrel-swarm",
+                    "https://news.ycombinator.com/item?id=9",
+                    "2026-04-29T14:00:00+00:00",
+                    150,
+                    42,
+                    76.0,
+                    1,
+                ),
+                (
+                    "reddit",
+                    "noise-1",
+                    "Random unrelated post",
+                    "https://reddit.com/r/x/noise-1",
+                    "2026-04-28T08:00:00+00:00",
+                    5,
+                    1,
+                    6.0,
+                    0,
+                ),
             ],
         )
         conn.commit()

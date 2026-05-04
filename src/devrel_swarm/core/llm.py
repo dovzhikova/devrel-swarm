@@ -157,16 +157,17 @@ class TokenUsage:
         # Compute cost
         costs = MODEL_COSTS.get(model, MODEL_COSTS[DEFAULT_MODEL])
         call_cost = (
-            input_tokens * costs["input"] / 1_000_000
-            + output_tokens * costs["output"] / 1_000_000
+            input_tokens * costs["input"] / 1_000_000 + output_tokens * costs["output"] / 1_000_000
         )
         self.total_cost_usd += call_cost
 
         if agent:
             if agent not in self.per_agent:
                 self.per_agent[agent] = {
-                    "input_tokens": 0, "output_tokens": 0,
-                    "calls": 0, "cost_usd": 0.0,
+                    "input_tokens": 0,
+                    "output_tokens": 0,
+                    "calls": 0,
+                    "cost_usd": 0.0,
                 }
             self.per_agent[agent]["input_tokens"] += input_tokens
             self.per_agent[agent]["output_tokens"] += output_tokens
@@ -180,8 +181,7 @@ class TokenUsage:
             "total_calls": self.total_calls,
             "total_cost_usd": round(self.total_cost_usd, 4),
             "per_agent": {
-                k: {**v, "cost_usd": round(v["cost_usd"], 4)}
-                for k, v in self.per_agent.items()
+                k: {**v, "cost_usd": round(v["cost_usd"], 4)} for k, v in self.per_agent.items()
             },
         }
 
@@ -276,12 +276,9 @@ class LLMClient:
             model=resolved_model,
             input_tokens=response.usage.input_tokens,
             output_tokens=response.usage.output_tokens,
-            cache_creation_input_tokens=getattr(
-                response.usage, "cache_creation_input_tokens", 0
-            ) or 0,
-            cache_read_input_tokens=getattr(
-                response.usage, "cache_read_input_tokens", 0
-            ) or 0,
+            cache_creation_input_tokens=getattr(response.usage, "cache_creation_input_tokens", 0)
+            or 0,
+            cache_read_input_tokens=getattr(response.usage, "cache_read_input_tokens", 0) or 0,
         )
         logger.info(
             "llm_call",
@@ -351,7 +348,9 @@ class LLMClient:
             logger.warning("cost sink raised; ignoring: %s", e)
 
     async def critique(
-        self, draft: str, content_type: str = "content",
+        self,
+        draft: str,
+        content_type: str = "content",
     ) -> CritiqueResult:
         """Run editorial critique on a draft, return structured feedback.
 
@@ -365,7 +364,8 @@ class LLMClient:
         raw = await self.generate(
             system_prompt="You are a senior content editor.",
             user_prompt=CRITIQUE_PROMPT.format(
-                draft=draft[:12000], criteria=criteria,
+                draft=draft[:12000],
+                criteria=criteria,
             ),
             temperature=0.3,
             max_tokens=2048,

@@ -20,9 +20,7 @@ FFMPEG_TIMEOUT_S = 300
 async def _communicate_with_timeout(process: asyncio.subprocess.Process):
     """Run ``process.communicate()`` with a hard timeout; kill on timeout."""
     try:
-        return await asyncio.wait_for(
-            process.communicate(), timeout=FFMPEG_TIMEOUT_S
-        )
+        return await asyncio.wait_for(process.communicate(), timeout=FFMPEG_TIMEOUT_S)
     except asyncio.TimeoutError as exc:
         process.kill()
         await process.wait()
@@ -67,10 +65,20 @@ class OverlayRenderer:
             filters.append(self._build_callout_filter(callout_text))
         filter_chain = ",".join(filters)
         cmd = [
-            "ffmpeg", "-y", "-i", str(video_path),
-            "-vf", filter_chain,
-            "-c:v", "libx264", "-preset", "fast", "-crf", "23",
-            "-c:a", "copy",
+            "ffmpeg",
+            "-y",
+            "-i",
+            str(video_path),
+            "-vf",
+            filter_chain,
+            "-c:v",
+            "libx264",
+            "-preset",
+            "fast",
+            "-crf",
+            "23",
+            "-c:a",
+            "copy",
             str(output_path),
         ]
         logger.info(f"Rendering overlays for {filename_prefix}")
@@ -81,19 +89,14 @@ class OverlayRenderer:
         if process.returncode != 0:
             err_text = stderr.decode()
             logger.error(f"FFmpeg overlay failed: {err_text[:500]}")
-            raise RuntimeError(
-                f"FFmpeg overlay rendering failed: {err_text[:200]}"
-            )
+            raise RuntimeError(f"FFmpeg overlay rendering failed: {err_text[:200]}")
         logger.info(f"Overlays rendered: {output_path}")
         return output_path
 
     def _build_title_filter(self, title: str, step_number: int) -> str:
         escaped = self._escape_ffmpeg_text(f"Step {step_number}: {title}")
         c = self.config
-        y_pos = (
-            str(c.padding) if c.title_position == "top"
-            else f"h-th-{c.padding}"
-        )
+        y_pos = str(c.padding) if c.title_position == "top" else f"h-th-{c.padding}"
         return (
             f"drawtext=text='{escaped}'"
             f":fontsize={c.title_font_size}"
@@ -106,15 +109,10 @@ class OverlayRenderer:
     def _build_callout_filter(self, text: str) -> str:
         escaped = self._escape_ffmpeg_text(text)
         c = self.config
-        y_pos = (
-            f"h-th-{c.padding * 3}" if c.callout_position == "bottom"
-            else str(c.padding * 3)
-        )
+        y_pos = f"h-th-{c.padding * 3}" if c.callout_position == "bottom" else str(c.padding * 3)
         duration_clause = ""
         if c.callout_display_duration > 0:
-            duration_clause = (
-                f":enable='between(t,1,{c.callout_display_duration + 1})'"
-            )
+            duration_clause = f":enable='between(t,1,{c.callout_display_duration + 1})'"
         return (
             f"drawtext=text='{escaped}'"
             f":fontsize={c.font_size}"

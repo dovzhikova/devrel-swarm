@@ -66,20 +66,40 @@ class SocialListeningReport:
 
 # Keywords that signal engagement opportunities
 ENGAGEMENT_SIGNALS = [
-    "looking for", "recommend", "alternative to", "anyone using",
-    "how to", "best tool", "which is better", "should I use",
-    "migrating from", "vs", "comparison",
+    "looking for",
+    "recommend",
+    "alternative to",
+    "anyone using",
+    "how to",
+    "best tool",
+    "which is better",
+    "should I use",
+    "migrating from",
+    "vs",
+    "comparison",
 ]
 
 # Keywords that signal reputation risks
 RISK_SIGNALS = [
-    "switching away", "terrible experience", "avoid", "broken",
-    "data loss", "security issue", "not working", "worst",
-    "cancelled", "refund", "scam", "regret",
+    "switching away",
+    "terrible experience",
+    "avoid",
+    "broken",
+    "data loss",
+    "security issue",
+    "not working",
+    "worst",
+    "cancelled",
+    "refund",
+    "scam",
+    "regret",
 ]
 
 REDDIT_SUBREDDITS = [
-    "devtools", "selfhosted", "SaaS", "opensource",
+    "devtools",
+    "selfhosted",
+    "SaaS",
+    "opensource",
 ]
 
 # Subset of ENGAGEMENT_SIGNALS that specifically indicates a question from a
@@ -118,6 +138,7 @@ def _parse_result_date(result: Any) -> Optional[datetime]:
             except ValueError:
                 continue
     return None
+
 
 # Platform-specific search query templates
 PLATFORM_QUERIES = {
@@ -337,14 +358,34 @@ class Echo:
         text_lower = text.lower()
 
         negative_signals = [
-            "terrible", "worst", "broken", "hate", "awful",
-            "switching away", "avoid", "not working", "regret",
-            "disappointed", "frustrated", "useless", "buggy",
+            "terrible",
+            "worst",
+            "broken",
+            "hate",
+            "awful",
+            "switching away",
+            "avoid",
+            "not working",
+            "regret",
+            "disappointed",
+            "frustrated",
+            "useless",
+            "buggy",
         ]
         positive_signals = [
-            "love", "great", "awesome", "amazing", "best",
-            "recommend", "fantastic", "excellent", "solid",
-            "impressed", "perfect", "incredible", "game changer",
+            "love",
+            "great",
+            "awesome",
+            "amazing",
+            "best",
+            "recommend",
+            "fantastic",
+            "excellent",
+            "solid",
+            "impressed",
+            "perfect",
+            "incredible",
+            "game changer",
         ]
 
         neg_count = sum(1 for s in negative_signals if s in text_lower)
@@ -363,7 +404,8 @@ class Echo:
     _SENTIMENT_BATCH_SIZE = 40
 
     async def _batch_classify_sentiment(
-        self, mentions: list["SocialMention"],
+        self,
+        mentions: list["SocialMention"],
     ) -> None:
         """Reclassify sentiment for all mentions using LLM in batched calls.
 
@@ -376,7 +418,7 @@ class Echo:
 
         total_classified = 0
         for chunk_start in range(0, len(mentions), self._SENTIMENT_BATCH_SIZE):
-            chunk = mentions[chunk_start:chunk_start + self._SENTIMENT_BATCH_SIZE]
+            chunk = mentions[chunk_start : chunk_start + self._SENTIMENT_BATCH_SIZE]
             classified = await self._classify_sentiment_chunk(chunk)
             total_classified += classified
 
@@ -384,7 +426,8 @@ class Echo:
             logger.info(f"LLM sentiment classified {total_classified}/{len(mentions)} mentions")
 
     async def _classify_sentiment_chunk(
-        self, chunk: list["SocialMention"],
+        self,
+        chunk: list["SocialMention"],
     ) -> int:
         """Classify sentiment for a single chunk. Returns count of classified."""
         items = []
@@ -434,7 +477,8 @@ Return ONLY the JSON array, no commentary."""
             return 0
 
     def _build_platform_summaries(
-        self, mentions: list[SocialMention],
+        self,
+        mentions: list[SocialMention],
     ) -> list[PlatformSummary]:
         """Build per-platform summaries from all mentions."""
         by_platform: dict[str, list[SocialMention]] = {}
@@ -445,14 +489,10 @@ Return ONLY the JSON array, no commentary."""
         for platform, platform_mentions in by_platform.items():
             sentiment_breakdown: dict[str, int] = {}
             for m in platform_mentions:
-                sentiment_breakdown[m.sentiment] = (
-                    sentiment_breakdown.get(m.sentiment, 0) + 1
-                )
+                sentiment_breakdown[m.sentiment] = sentiment_breakdown.get(m.sentiment, 0) + 1
 
             engagement_total = sum(m.engagement for m in platform_mentions)
-            top_posts = sorted(
-                platform_mentions, key=lambda m: m.engagement, reverse=True
-            )[:5]
+            top_posts = sorted(platform_mentions, key=lambda m: m.engagement, reverse=True)[:5]
 
             # Extract topics from titles
             topics = self._extract_topics(platform_mentions)
@@ -471,7 +511,8 @@ Return ONLY the JSON array, no commentary."""
         return summaries
 
     def _find_engagement_opportunities(
-        self, mentions: list[SocialMention],
+        self,
+        mentions: list[SocialMention],
     ) -> list[dict[str, str]]:
         """Find posts that represent engagement opportunities."""
         opportunities = []
@@ -479,17 +520,20 @@ Return ONLY the JSON array, no commentary."""
             text = f"{m.title} {m.content}".lower()
             matched_signals = [s for s in ENGAGEMENT_SIGNALS if s in text]
             if matched_signals:
-                opportunities.append({
-                    "platform": m.platform,
-                    "title": m.title,
-                    "url": m.url,
-                    "reason": f"Matches signals: {', '.join(matched_signals[:3])}",
-                    "suggested_action": self._suggest_engagement_action(matched_signals),
-                })
+                opportunities.append(
+                    {
+                        "platform": m.platform,
+                        "title": m.title,
+                        "url": m.url,
+                        "reason": f"Matches signals: {', '.join(matched_signals[:3])}",
+                        "suggested_action": self._suggest_engagement_action(matched_signals),
+                    }
+                )
         return opportunities[:10]
 
     def _flag_reputation_risks(
-        self, mentions: list[SocialMention],
+        self,
+        mentions: list[SocialMention],
     ) -> list[dict[str, str]]:
         """Flag posts that indicate reputation risks."""
         risks = []
@@ -497,17 +541,20 @@ Return ONLY the JSON array, no commentary."""
             text = f"{m.title} {m.content}".lower()
             matched_risks = [s for s in RISK_SIGNALS if s in text]
             if matched_risks:
-                risks.append({
-                    "platform": m.platform,
-                    "title": m.title,
-                    "url": m.url,
-                    "severity": "high" if len(matched_risks) >= 2 else "medium",
-                    "signals": matched_risks,
-                })
+                risks.append(
+                    {
+                        "platform": m.platform,
+                        "title": m.title,
+                        "url": m.url,
+                        "severity": "high" if len(matched_risks) >= 2 else "medium",
+                        "signals": matched_risks,
+                    }
+                )
         return risks[:10]
 
     def _aggregate_sentiment(
-        self, mentions: list[SocialMention],
+        self,
+        mentions: list[SocialMention],
     ) -> dict[str, int]:
         """Aggregate sentiment across all mentions."""
         breakdown: dict[str, int] = {"positive": 0, "neutral": 0, "negative": 0}
@@ -516,15 +563,31 @@ Return ONLY the JSON array, no commentary."""
         return breakdown
 
     def _extract_topics(
-        self, mentions: list[SocialMention],
+        self,
+        mentions: list[SocialMention],
     ) -> list[str]:
         """Extract trending topics from mention titles."""
         topic_keywords = [
-            "devrel", "developer relations", "developer advocacy", "community",
-            "open source", "self-hosted", "ai agents", "multi-agent",
-            "devtools", "developer experience", "sdk", "api",
-            "orbit", "common room", "devrev", "chatwoot",
-            "integration", "automation", "performance", "pricing",
+            "devrel",
+            "developer relations",
+            "developer advocacy",
+            "community",
+            "open source",
+            "self-hosted",
+            "ai agents",
+            "multi-agent",
+            "devtools",
+            "developer experience",
+            "sdk",
+            "api",
+            "orbit",
+            "common room",
+            "devrev",
+            "chatwoot",
+            "integration",
+            "automation",
+            "performance",
+            "pricing",
         ]
 
         topic_counts: dict[str, int] = {}

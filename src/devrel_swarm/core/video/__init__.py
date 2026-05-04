@@ -8,10 +8,15 @@ from devrel_swarm.core.video.script_parser import ScriptParser, TutorialStep, Vi
 from devrel_swarm.core.video.tts_engine import TTSEngine
 
 __all__ = [
-    "ScriptParser", "TutorialStep", "VideoTutorial",
+    "ScriptParser",
+    "TutorialStep",
+    "VideoTutorial",
     "TTSEngine",
-    "BrowserRecorder", "BrowserAction",
-    "DesktopRecorder", "DesktopAction",
-    "OverlayRenderer", "OverlayConfig",
+    "BrowserRecorder",
+    "BrowserAction",
+    "DesktopRecorder",
+    "DesktopAction",
+    "OverlayRenderer",
+    "OverlayConfig",
     "VideoAssembler",
 ]

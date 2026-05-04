@@ -25,9 +25,12 @@ def test_init_non_interactive_minimal(tmp_path):
         tmp_path,
         "init",
         "--non-interactive",
-        "--name", "openclaw",
-        "--url", "",
-        "--github-repo", "",
+        "--name",
+        "openclaw",
+        "--url",
+        "",
+        "--github-repo",
+        "",
     )
     assert result.exit_code == 0, result.output
     assert (tmp_path / ".devrel" / "config.toml").is_file()
@@ -40,9 +43,12 @@ def test_init_non_interactive_full(tmp_path):
         tmp_path,
         "init",
         "--non-interactive",
-        "--name", "openclaw",
-        "--url", "https://openclaw.ai",
-        "--github-repo", "openclaw/openclaw",
+        "--name",
+        "openclaw",
+        "--url",
+        "https://openclaw.ai",
+        "--github-repo",
+        "openclaw/openclaw",
     )
     assert result.exit_code == 0, result.output
     body = (tmp_path / ".devrel" / "config.toml").read_text()
@@ -56,9 +62,12 @@ def test_init_dry_run_writes_nothing(tmp_path):
         tmp_path,
         "init",
         "--non-interactive",
-        "--name", "x",
-        "--url", "",
-        "--github-repo", "",
+        "--name",
+        "x",
+        "--url",
+        "",
+        "--github-repo",
+        "",
         "--dry-run",
     )
     assert result.exit_code == 0

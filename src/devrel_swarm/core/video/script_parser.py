@@ -90,9 +90,7 @@ class ScriptParser:
 
         return steps
 
-    def parse_task(
-        self, task: str, base_url: str = "https://example.com"
-    ) -> list[TutorialStep]:
+    def parse_task(self, task: str, base_url: str = "https://example.com") -> list[TutorialStep]:
         """Create a single TutorialStep from a task string."""
         narration = self._extract_narration(task)
         duration = max(5.0, len(narration) / 15)

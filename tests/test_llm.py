@@ -59,11 +59,15 @@ class TestCritiqueResult:
     """Test CritiqueResult parsing."""
 
     def test_from_valid_json(self):
-        raw = json.dumps({
-            "overall_score": 8,
-            "issues": [{"criterion": "clarity", "severity": "low", "description": "ok", "fix": "n/a"}],
-            "strengths": ["well-structured"],
-        })
+        raw = json.dumps(
+            {
+                "overall_score": 8,
+                "issues": [
+                    {"criterion": "clarity", "severity": "low", "description": "ok", "fix": "n/a"}
+                ],
+                "strengths": ["well-structured"],
+            }
+        )
         result = CritiqueResult.from_json(raw)
         assert result.overall_score == 8
         assert result.revision_needed is False  # score >= 7, no high-severity
@@ -107,19 +111,24 @@ class TestGenerateWithRevision:
     async def test_skips_revision_when_score_high(self):
         """Score >= 7 and revision_needed=False → no revision round."""
         client = LLMClient(api_key="test-key")
-        critique_json = json.dumps({
-            "overall_score": 8,
-            "issues": [],
-            "strengths": ["great"],
-            "revision_needed": False,
-        })
-        client._client.messages.create = AsyncMock(side_effect=[
-            self._mock_response("Draft content"),
-            self._mock_response(critique_json),
-        ])
+        critique_json = json.dumps(
+            {
+                "overall_score": 8,
+                "issues": [],
+                "strengths": ["great"],
+                "revision_needed": False,
+            }
+        )
+        client._client.messages.create = AsyncMock(
+            side_effect=[
+                self._mock_response("Draft content"),
+                self._mock_response(critique_json),
+            ]
+        )
 
         content, trace = await client.generate_with_revision(
-            system_prompt="sys", user_prompt="task",
+            system_prompt="sys",
+            user_prompt="task",
         )
         assert content == "Draft content"
         assert trace.revision_rounds == 0
@@ -129,25 +138,39 @@ class TestGenerateWithRevision:
     async def test_revises_when_score_low(self):
         """Score < 7 → triggers revision, then re-critique."""
         client = LLMClient(api_key="test-key")
-        low_critique = json.dumps({
-            "overall_score": 4,
-            "issues": [{"criterion": "accuracy", "severity": "high", "description": "wrong", "fix": "fix it"}],
-            "strengths": [],
-        })
-        high_critique = json.dumps({
-            "overall_score": 8,
-            "issues": [],
-            "strengths": ["fixed"],
-        })
-        client._client.messages.create = AsyncMock(side_effect=[
-            self._mock_response("Bad draft"),       # initial generate
-            self._mock_response(low_critique),       # critique → low score
-            self._mock_response("Revised draft"),    # revision
-            self._mock_response(high_critique),      # critique → high score
-        ])
+        low_critique = json.dumps(
+            {
+                "overall_score": 4,
+                "issues": [
+                    {
+                        "criterion": "accuracy",
+                        "severity": "high",
+                        "description": "wrong",
+                        "fix": "fix it",
+                    }
+                ],
+                "strengths": [],
+            }
+        )
+        high_critique = json.dumps(
+            {
+                "overall_score": 8,
+                "issues": [],
+                "strengths": ["fixed"],
+            }
+        )
+        client._client.messages.create = AsyncMock(
+            side_effect=[
+                self._mock_response("Bad draft"),  # initial generate
+                self._mock_response(low_critique),  # critique → low score
+                self._mock_response("Revised draft"),  # revision
+                self._mock_response(high_critique),  # critique → high score
+            ]
+        )
 
         content, trace = await client.generate_with_revision(
-            system_prompt="sys", user_prompt="task",
+            system_prompt="sys",
+            user_prompt="task",
         )
         assert content == "Revised draft"
         assert trace.revision_rounds == 1
@@ -158,21 +181,29 @@ class TestGenerateWithRevision:
     async def test_stops_at_max_rounds(self):
         """Revision loop stops after max_rounds even if score stays low."""
         client = LLMClient(api_key="test-key")
-        low_critique = json.dumps({
-            "overall_score": 3,
-            "issues": [{"criterion": "x", "severity": "high", "description": "bad", "fix": "redo"}],
-            "strengths": [],
-        })
-        client._client.messages.create = AsyncMock(side_effect=[
-            self._mock_response("Draft v1"),      # initial generate
-            self._mock_response(low_critique),     # critique 1 → low, revise
-            self._mock_response("Draft v2"),       # revision 1
-            self._mock_response(low_critique),     # critique 2 → low, revise
-            self._mock_response("Draft v3"),       # revision 2
-        ])
+        low_critique = json.dumps(
+            {
+                "overall_score": 3,
+                "issues": [
+                    {"criterion": "x", "severity": "high", "description": "bad", "fix": "redo"}
+                ],
+                "strengths": [],
+            }
+        )
+        client._client.messages.create = AsyncMock(
+            side_effect=[
+                self._mock_response("Draft v1"),  # initial generate
+                self._mock_response(low_critique),  # critique 1 → low, revise
+                self._mock_response("Draft v2"),  # revision 1
+                self._mock_response(low_critique),  # critique 2 → low, revise
+                self._mock_response("Draft v3"),  # revision 2
+            ]
+        )
 
         content, trace = await client.generate_with_revision(
-            system_prompt="sys", user_prompt="task", max_rounds=2,
+            system_prompt="sys",
+            user_prompt="task",
+            max_rounds=2,
         )
         assert content == "Draft v3"
         assert trace.revision_rounds == 2

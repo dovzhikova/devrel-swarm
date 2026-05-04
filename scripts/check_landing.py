@@ -12,9 +12,20 @@ LANDING = Path(__file__).resolve().parent.parent / "landing" / "index.html"
 
 # From spec — slop blocklist applied to ALL text content (lowercase compare).
 BANNED_PHRASES: tuple[str, ...] = (
-    "revolutionary", "game-changing", "unleash", "supercharge", "leverage",
-    "ai-powered", "reimagine", "transform", "the future of", "intelligent",
-    "cutting-edge", "paradigm-shift", "world-class", "best-in-class",
+    "revolutionary",
+    "game-changing",
+    "unleash",
+    "supercharge",
+    "leverage",
+    "ai-powered",
+    "reimagine",
+    "transform",
+    "the future of",
+    "intelligent",
+    "cutting-edge",
+    "paradigm-shift",
+    "world-class",
+    "best-in-class",
 )
 
 MAX_BYTES = 30 * 1024  # 30 KB target from spec

@@ -14,7 +14,8 @@ console = Console()
 
 def listen_command(
     platforms: str = typer.Option(
-        "reddit,hn,twitter", "--platforms",
+        "reddit,hn,twitter",
+        "--platforms",
         help="Comma-separated platforms to scan.",
     ),
     json_output: bool = typer.Option(False, "--json"),
@@ -24,9 +25,7 @@ def listen_command(
     atlas = build_atlas_or_exit(paths, console)
 
     async def _do() -> None:
-        result = await atlas.run_single_task(
-            "echo", f"Scan {platforms} for product mentions"
-        )
+        result = await atlas.run_single_task("echo", f"Scan {platforms} for product mentions")
         render_result(result, console, json_output=json_output)
 
     asyncio.run(_do())

@@ -35,9 +35,7 @@ def project_dir(tmp_path, monkeypatch):
     devrel = tmp_path / ".devrel"
     devrel.mkdir()
     (devrel / "deliverables").mkdir()
-    (devrel / "config.toml").write_text(
-        '[project]\nname = "stub"\nurl = "https://example.com"\n'
-    )
+    (devrel / "config.toml").write_text('[project]\nname = "stub"\nurl = "https://example.com"\n')
     init_db(devrel / "state.db")
     monkeypatch.chdir(tmp_path)
     return tmp_path
@@ -68,8 +66,10 @@ def test_analytics_report_json_format_emits_json(project_dir):
 
 def test_analytics_report_push_calls_notification_service(project_dir):
     """--push flow should construct NotificationService and call telegram + email."""
-    with patch("devrel_swarm.cli.analytics._build_argus") as build, \
-         patch("devrel_swarm.tools.notifications.NotificationService") as svc_cls:
+    with (
+        patch("devrel_swarm.cli.analytics._build_argus") as build,
+        patch("devrel_swarm.tools.notifications.NotificationService") as svc_cls,
+    ):
         argus = build.return_value
         argus.run = AsyncMock(return_value=_stub_report())
         svc = svc_cls.return_value
@@ -88,6 +88,7 @@ def test_analytics_report_push_calls_notification_service(project_dir):
 def test_analytics_history_renders_metric_trajectory(project_dir):
     """history verb reads metric_history and produces a markdown table."""
     from devrel_swarm.project.state import open_db
+
     db = project_dir / ".devrel" / "state.db"
     with open_db(db) as conn:
         conn.executemany(
@@ -112,6 +113,7 @@ def test_analytics_history_renders_metric_trajectory(project_dir):
 
 def test_analytics_history_json_format(project_dir):
     from devrel_swarm.project.state import open_db
+
     db = project_dir / ".devrel" / "state.db"
     with open_db(db) as conn:
         conn.execute(
@@ -135,6 +137,7 @@ def test_analytics_history_unknown_content_id_exits_with_code_1(project_dir):
 
 def test_analytics_diff_shows_top_movers(project_dir):
     from devrel_swarm.project.state import open_db
+
     db = project_dir / ".devrel" / "state.db"
     with open_db(db) as conn:
         conn.executemany(
@@ -167,6 +170,7 @@ def test_analytics_diff_shows_top_movers(project_dir):
 
 def test_analytics_diff_json_format(project_dir):
     from devrel_swarm.project.state import open_db
+
     db = project_dir / ".devrel" / "state.db"
     with open_db(db) as conn:
         conn.executemany(
@@ -193,13 +197,14 @@ def test_analytics_calibration_scores_double_down_recs(project_dir):
     """Seed a double_down rec at period 1 + post-period metrics that grew →
     calibration must score it as panned_out."""
     from devrel_swarm.project.state import open_db
+
     db = project_dir / ".devrel" / "state.db"
     with open_db(db) as conn:
         # Seed a report row (FK target)
         conn.execute(
             "INSERT INTO analytics_reports (id, period_start, period_end, report_json) "
             "VALUES (1, ?, ?, ?)",
-            ("2026-04-25T00:00:00+00:00", "2026-05-02T00:00:00+00:00", '{}'),
+            ("2026-04-25T00:00:00+00:00", "2026-05-02T00:00:00+00:00", "{}"),
         )
         # Anchor metric at first_seen_period
         conn.execute(
@@ -255,9 +260,7 @@ def test_analytics_summary_aggregates_across_projects(tmp_path, monkeypatch):
             "VALUES (?, ?, ?)",
             ("2026-04-25T00:00:00+00:00", "2026-05-02T00:00:00+00:00", "{}"),
         )
-        conn.execute(
-            "INSERT INTO costs (agent, model, cost_usd) VALUES ('argus', 'sonnet', 0.03)"
-        )
+        conn.execute("INSERT INTO costs (agent, model, cost_usd) VALUES ('argus', 'sonnet', 0.03)")
         conn.commit()
 
     proj_b = tmp_path / "project-b"
@@ -294,12 +297,16 @@ def test_analytics_report_push_skipped_when_sources_partial(project_dir):
     partial = PerformanceReport(
         period_start=datetime(2026, 4, 25, tzinfo=timezone.utc),
         period_end=datetime(2026, 5, 2, tzinfo=timezone.utc),
-        top_performers=[], bottom_performers=[],
-        trend_signals=[], recommendations=[],
+        top_performers=[],
+        bottom_performers=[],
+        trend_signals=[],
+        recommendations=[],
         sources_ok={"posthog": True, "github": False, "instantly": True, "social": True},
     )
-    with patch("devrel_swarm.cli.analytics._build_argus") as build, \
-         patch("devrel_swarm.tools.notifications.NotificationService") as svc_cls:
+    with (
+        patch("devrel_swarm.cli.analytics._build_argus") as build,
+        patch("devrel_swarm.tools.notifications.NotificationService") as svc_cls,
+    ):
         argus = build.return_value
         argus.run = AsyncMock(return_value=partial)
         svc = svc_cls.return_value
@@ -319,12 +326,16 @@ def test_analytics_report_push_on_partial_overrides_gate(project_dir):
     partial = PerformanceReport(
         period_start=datetime(2026, 4, 25, tzinfo=timezone.utc),
         period_end=datetime(2026, 5, 2, tzinfo=timezone.utc),
-        top_performers=[], bottom_performers=[],
-        trend_signals=[], recommendations=[],
+        top_performers=[],
+        bottom_performers=[],
+        trend_signals=[],
+        recommendations=[],
         sources_ok={"posthog": False, "github": True, "instantly": True, "social": True},
     )
-    with patch("devrel_swarm.cli.analytics._build_argus") as build, \
-         patch("devrel_swarm.tools.notifications.NotificationService") as svc_cls:
+    with (
+        patch("devrel_swarm.cli.analytics._build_argus") as build,
+        patch("devrel_swarm.tools.notifications.NotificationService") as svc_cls,
+    ):
         argus = build.return_value
         argus.run = AsyncMock(return_value=partial)
         svc = svc_cls.return_value
@@ -332,9 +343,7 @@ def test_analytics_report_push_on_partial_overrides_gate(project_dir):
         svc.send_email = AsyncMock(return_value=True)
         svc.close = AsyncMock()
 
-        result = runner.invoke(
-            app, ["analytics", "report", "--push", "--push-on-partial"]
-        )
+        result = runner.invoke(app, ["analytics", "report", "--push", "--push-on-partial"])
 
     assert result.exit_code == 0
     svc.send_telegram.assert_awaited_once()
@@ -343,8 +352,10 @@ def test_analytics_report_push_on_partial_overrides_gate(project_dir):
 
 def test_analytics_report_push_failure_does_not_crash(project_dir):
     """If push raises, exit code stays 0 and a warning is printed to stderr."""
-    with patch("devrel_swarm.cli.analytics._build_argus") as build, \
-         patch("devrel_swarm.tools.notifications.NotificationService") as svc_cls:
+    with (
+        patch("devrel_swarm.cli.analytics._build_argus") as build,
+        patch("devrel_swarm.tools.notifications.NotificationService") as svc_cls,
+    ):
         argus = build.return_value
         argus.run = AsyncMock(return_value=_stub_report())
         svc = svc_cls.return_value

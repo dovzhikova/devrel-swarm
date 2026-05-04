@@ -178,15 +178,22 @@ class InstantlyClient:
             payload["email_list"] = accounts
         # Instantly v2 requires campaign_schedule
         payload["campaign_schedule"] = campaign_schedule or {
-            "schedules": [{
-                "name": "Default",
-                "days": {
-                    "0": True, "1": True, "2": True,
-                    "3": True, "4": True, "5": False, "6": False,
-                },
-                "timezone": os.getenv("CAMPAIGN_TIMEZONE", "America/New_York"),
-                "timing": {"from": "09:00", "to": "17:00"},
-            }],
+            "schedules": [
+                {
+                    "name": "Default",
+                    "days": {
+                        "0": True,
+                        "1": True,
+                        "2": True,
+                        "3": True,
+                        "4": True,
+                        "5": False,
+                        "6": False,
+                    },
+                    "timezone": os.getenv("CAMPAIGN_TIMEZONE", "America/New_York"),
+                    "timing": {"from": "09:00", "to": "17:00"},
+                }
+            ],
         }
         data = await self._request("POST", "/api/v2/campaigns", json=payload)
         return InstantlyCampaign(
@@ -215,7 +222,9 @@ class InstantlyClient:
     ) -> list[InstantlyCampaign]:
         """List campaigns with pagination."""
         data = await self._request(
-            "GET", "/api/v2/campaigns", params={"limit": limit, "skip": skip},
+            "GET",
+            "/api/v2/campaigns",
+            params={"limit": limit, "skip": skip},
         )
         return [
             InstantlyCampaign(
@@ -231,19 +240,22 @@ class InstantlyClient:
     async def activate_campaign(self, campaign_id: str) -> dict:
         """Activate/resume a campaign."""
         return await self._request(
-            "POST", f"/api/v2/campaigns/{campaign_id}/activate",
+            "POST",
+            f"/api/v2/campaigns/{campaign_id}/activate",
         )
 
     async def stop_campaign(self, campaign_id: str) -> dict:
         """Stop/pause a campaign."""
         return await self._request(
-            "POST", f"/api/v2/campaigns/{campaign_id}/stop",
+            "POST",
+            f"/api/v2/campaigns/{campaign_id}/stop",
         )
 
     async def get_campaign_analytics(self, campaign_id: str) -> CampaignAnalytics:
         """Get analytics overview for a campaign."""
         data = await self._request(
-            "GET", f"/api/v2/campaigns/{campaign_id}/analytics/overview",
+            "GET",
+            f"/api/v2/campaigns/{campaign_id}/analytics/overview",
         )
         return CampaignAnalytics(
             campaign_id=data.get("campaign_id", campaign_id),
@@ -282,7 +294,9 @@ class InstantlyClient:
         return await self._request("POST", "/api/v2/leads", json=payload)
 
     async def add_leads_bulk(
-        self, campaign_id: str, leads: list[InstantlyLead],
+        self,
+        campaign_id: str,
+        leads: list[InstantlyLead],
         concurrency: int = 10,
     ) -> dict:
         """Add leads to a campaign and ensure custom variables are set.
@@ -308,7 +322,8 @@ class InstantlyClient:
                     if lead_id and lead.custom_variables:
                         try:
                             await self._request(
-                                "PATCH", f"/api/v2/leads/{lead_id}",
+                                "PATCH",
+                                f"/api/v2/leads/{lead_id}",
                                 json={"custom_variables": lead.custom_variables},
                             )
                         except Exception as patch_exc:
@@ -326,7 +341,8 @@ class InstantlyClient:
     async def list_leads(self, campaign_id: str, limit: int = 100) -> list[dict]:
         """List leads in a campaign."""
         data = await self._request(
-            "POST", "/api/v2/leads/list",
+            "POST",
+            "/api/v2/leads/list",
             json={"campaign_id": campaign_id, "limit": limit},
         )
         return data.get("items", [])
@@ -334,7 +350,8 @@ class InstantlyClient:
     async def update_lead_interest(self, lead_id: str, status: str) -> dict:
         """Update a lead's interest status."""
         return await self._request(
-            "PATCH", f"/api/v2/leads/{lead_id}/interest-status",
+            "PATCH",
+            f"/api/v2/leads/{lead_id}/interest-status",
             json={"interest_status": status},
         )
 
@@ -389,5 +406,7 @@ class InstantlyClient:
     async def create_lead_list(self, name: str) -> dict:
         """Create a named lead list."""
         return await self._request(
-            "POST", "/api/v2/lead-lists", json={"name": name},
+            "POST",
+            "/api/v2/lead-lists",
+            json={"name": name},
         )

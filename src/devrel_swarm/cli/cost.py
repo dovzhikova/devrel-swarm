@@ -54,8 +54,7 @@ def cost_command(
 
     with open_db(paths.state_db) as conn:
         total_row = conn.execute(
-            f"SELECT COALESCE(SUM(cost_usd), 0.0) AS total, COUNT(*) AS calls "
-            f"FROM costs {where}",
+            f"SELECT COALESCE(SUM(cost_usd), 0.0) AS total, COUNT(*) AS calls FROM costs {where}",
             params,
         ).fetchone()
         total_usd = float(total_row["total"]) if total_row else 0.0
@@ -96,9 +95,7 @@ def cost_command(
         return
 
     suffix = f" for {month}" if month else ""
-    console.print(
-        f"[bold]Total{suffix}:[/bold] ${total_usd:.4f}  [dim]({calls} call(s))[/dim]"
-    )
+    console.print(f"[bold]Total{suffix}:[/bold] ${total_usd:.4f}  [dim]({calls} call(s))[/dim]")
     if not by_agent:
         console.print("[dim]No cost rows yet.[/dim]")
         return

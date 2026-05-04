@@ -46,8 +46,7 @@ def populated_kb(tmp_path):
         "Use the SDK to check flag values."
     )
     (kb_dir / "analytics.md").write_text(
-        "# Analytics\nTrack events and analyze user behavior.\n"
-        "Use capture() to send events."
+        "# Analytics\nTrack events and analyze user behavior.\nUse capture() to send events."
     )
     sub = kb_dir / "advanced"
     sub.mkdir()
@@ -62,6 +61,7 @@ def populated_kb(tmp_path):
 # ---------------------------------------------------------------------------
 # strip_markdown_fences edge cases
 # ---------------------------------------------------------------------------
+
 
 class TestStripMarkdownFencesEdgeCases:
     """Edge cases for markdown fence stripping."""
@@ -81,12 +81,12 @@ class TestStripMarkdownFencesEdgeCases:
         assert strip_markdown_fences(text) == text
 
     def test_nested_fences_only_strips_outer(self):
-        text = "```json\n{\"code\": \"```inner```\"}\n```"
+        text = '```json\n{"code": "```inner```"}\n```'
         result = strip_markdown_fences(text)
         assert "```inner```" in result
 
     def test_only_opening_fence(self):
-        text = "```json\n{\"key\": \"value\"}"
+        text = '```json\n{"key": "value"}'
         result = strip_markdown_fences(text)
         assert result == '{"key": "value"}'
 
@@ -107,6 +107,7 @@ class TestStripMarkdownFencesEdgeCases:
 # ---------------------------------------------------------------------------
 # KnowledgeBaseSearch edge cases
 # ---------------------------------------------------------------------------
+
 
 class TestKnowledgeBaseSearchEdgeCases:
     """Edge cases for knowledge base search."""
@@ -163,11 +164,14 @@ class TestKnowledgeBaseSearchEdgeCases:
 # Atlas delegation edge cases
 # ---------------------------------------------------------------------------
 
+
 class TestAtlasDelegationEdgeCases:
     """Edge cases for Atlas task delegation."""
 
     @pytest.mark.asyncio
-    async def test_delegate_unknown_agent(self, posthog_client, knowledge_base_path, mock_llm_client):
+    async def test_delegate_unknown_agent(
+        self, posthog_client, knowledge_base_path, mock_llm_client
+    ):
         from devrel_swarm.core.atlas import Atlas
 
         atlas = Atlas(
@@ -193,7 +197,9 @@ class TestAtlasDelegationEdgeCases:
         assert isinstance(result.success, bool)
 
     @pytest.mark.asyncio
-    async def test_delegate_retries_on_failure(self, posthog_client, knowledge_base_path, mock_llm_client):
+    async def test_delegate_retries_on_failure(
+        self, posthog_client, knowledge_base_path, mock_llm_client
+    ):
         from devrel_swarm.core.atlas import Atlas
 
         atlas = Atlas(
@@ -215,6 +221,7 @@ class TestAtlasDelegationEdgeCases:
 # ---------------------------------------------------------------------------
 # SharedContext edge cases
 # ---------------------------------------------------------------------------
+
 
 class TestSharedContextEdgeCases:
     """Edge cases for SharedContext."""

@@ -42,9 +42,7 @@ def _parse_since(since: str) -> timedelta:
     """Accept '7d' / '30d' / '12w' / '3m' / '1y'."""
     m = _SINCE_RE.match(since.strip())
     if not m:
-        raise typer.BadParameter(
-            f"--since must look like '7d', '30d', '12w': got {since!r}"
-        )
+        raise typer.BadParameter(f"--since must look like '7d', '30d', '12w': got {since!r}")
     n, unit = int(m.group(1)), m.group(2)
     days = {"d": 1, "w": 7, "m": 30, "y": 365}[unit]
     return timedelta(days=n * days)
@@ -78,6 +76,7 @@ def _build_argus(state_db_path: Path) -> Argus:
     llm.set_agent("argus")
     if state_db_path.is_file():
         from devrel_swarm.project.cost_sink import make_sqlite_sink
+
         llm.set_cost_sink(make_sqlite_sink(state_db_path))
 
     return Argus(
@@ -91,7 +90,8 @@ def _build_argus(state_db_path: Path) -> Argus:
 
 
 def _write_markdown_deliverable(
-    report: PerformanceReport, deliverables_dir: Path,
+    report: PerformanceReport,
+    deliverables_dir: Path,
 ) -> Path:
     deliverables_dir.mkdir(parents=True, exist_ok=True)
     out = deliverables_dir / f"analytics-{report.period_end.date().isoformat()}.md"
@@ -154,6 +154,7 @@ def _walk_for_state_dbs(root: Path, max_depth: int):
 
     Skips dot-directories other than .devrel (so ~/.cache, ~/.config etc
     don't slow the walk to a crawl)."""
+
     def _walk(dir_: Path, depth: int):
         if depth > max_depth:
             return
@@ -172,6 +173,7 @@ def _walk_for_state_dbs(root: Path, max_depth: int):
             if child.name.startswith("."):
                 continue
             yield from _walk(child, depth + 1)
+
     yield from _walk(root, 0)
 
 
@@ -179,6 +181,7 @@ def _summarize_project_db(state_db: Path) -> dict | None:
     """Return per-project rollup or None if the DB has no Argus tables."""
     try:
         from devrel_swarm.project.state import open_db
+
         with open_db(state_db) as conn:
             try:
                 last_row = conn.execute(
@@ -187,9 +190,7 @@ def _summarize_project_db(state_db: Path) -> dict | None:
                 rec_row = conn.execute(
                     "SELECT COUNT(*) AS c FROM analytics_recommendations"
                 ).fetchone()
-                hist_row = conn.execute(
-                    "SELECT COUNT(*) AS c FROM metric_history"
-                ).fetchone()
+                hist_row = conn.execute("SELECT COUNT(*) AS c FROM metric_history").fetchone()
             except Exception:  # noqa: BLE001 — table missing means not an Argus project
                 return None
             cost_row = conn.execute(
@@ -212,9 +213,7 @@ def history_command(
     content_id: str = typer.Argument(
         ..., help="Content ID to show history for (e.g., 'blog/cli-launch')."
     ),
-    format_: str = typer.Option(
-        "md", "--format", help="md or json."
-    ),
+    format_: str = typer.Option("md", "--format", help="md or json."),
 ) -> None:
     """Show the metric trajectory of one piece of content across reports."""
     paths = find_paths_or_exit(console)
@@ -222,6 +221,7 @@ def history_command(
         raise typer.BadParameter("--format must be 'md' or 'json'")
 
     from devrel_swarm.project.state import open_db
+
     if not paths.state_db.is_file():
         console.print("[yellow]No state.db yet. Run 'devrel analytics report' first.[/yellow]")
         raise typer.Exit(code=1)
@@ -238,18 +238,20 @@ def history_command(
         raise typer.Exit(code=1)
 
     if format_ == "json":
-        sys.stdout.write(json.dumps(
-            [
-                {
-                    "period_end": r["period_end"],
-                    "primary_metric": r["primary_metric"],
-                    "metric_name": r["metric_name"],
-                    "content_type": r["content_type"],
-                }
-                for r in rows
-            ],
-            indent=2,
-        ))
+        sys.stdout.write(
+            json.dumps(
+                [
+                    {
+                        "period_end": r["period_end"],
+                        "primary_metric": r["primary_metric"],
+                        "metric_name": r["metric_name"],
+                        "content_type": r["content_type"],
+                    }
+                    for r in rows
+                ],
+                indent=2,
+            )
+        )
         sys.stdout.write("\n")
         return
 
@@ -288,6 +290,7 @@ def diff_command(
         raise typer.BadParameter("--format must be 'md' or 'json'")
 
     from devrel_swarm.project.state import open_db
+
     if not paths.state_db.is_file():
         console.print("[yellow]No state.db. Run 'devrel analytics report' first.[/yellow]")
         raise typer.Exit(code=1)
@@ -325,19 +328,19 @@ def diff_command(
             sort_key = a_val
         else:
             kind = "changed"
-            delta_pct = (
-                ((b_val - a_val) / a_val * 100.0) if a_val else 0.0
-            )
+            delta_pct = ((b_val - a_val) / a_val * 100.0) if a_val else 0.0
             sort_key = abs(delta_pct)
-        rows.append({
-            "content_id": cid,
-            "kind": kind,
-            "a": a_val,
-            "b": b_val,
-            "delta_pct": delta_pct,
-            "_sort": sort_key,
-            "metric_name": (a_by_id.get(cid) or b_by_id[cid])["metric_name"],
-        })
+        rows.append(
+            {
+                "content_id": cid,
+                "kind": kind,
+                "a": a_val,
+                "b": b_val,
+                "delta_pct": delta_pct,
+                "_sort": sort_key,
+                "metric_name": (a_by_id.get(cid) or b_by_id[cid])["metric_name"],
+            }
+        )
 
     rows.sort(key=lambda r: r["_sort"] or 0, reverse=True)
     rows = rows[:limit]
@@ -385,14 +388,18 @@ def calibration_command(
 
     lines = ["# Argus calibration", ""]
     lines.append(f"- scored recommendations: **{cal['scored_recs']}**")
-    lines.append(f"- unscored (insufficient post-period data or non-scoreable action): {cal['unscored_recs']}")
+    lines.append(
+        f"- unscored (insufficient post-period data or non-scoreable action): {cal['unscored_recs']}"
+    )
     if cal.get("high_conf_rate") is not None:
         lines.append(f"- high-confidence (≥0.8) hit rate: {cal['high_conf_rate']:.0%}")
     if cal.get("low_conf_rate") is not None:
         lines.append(f"- low-confidence (<0.5) hit rate: {cal['low_conf_rate']:.0%}")
     lines.append("")
     if not cal["by_action"]:
-        lines.append("_No scored recommendations yet. Calibration needs at least one rec with metric_history rows after its first_seen_period._")
+        lines.append(
+            "_No scored recommendations yet. Calibration needs at least one rec with metric_history rows after its first_seen_period._"
+        )
     else:
         lines.append("| action | n | panned_out | rate | avg_conf | lift vs coin-flip |")
         lines.append("|---|---|---|---|---|---|")
@@ -407,15 +414,9 @@ def calibration_command(
 
 @analytics_app.command("report")
 def report_command(
-    since: str = typer.Option(
-        "7d", "--since", help="Lookback window (e.g., 7d, 30d, 12w)."
-    ),
-    format_: str = typer.Option(
-        "md", "--format", help="stdout format: md or json."
-    ),
-    push: bool = typer.Option(
-        False, "--push", help="Push the report to configured Slack/email."
-    ),
+    since: str = typer.Option("7d", "--since", help="Lookback window (e.g., 7d, 30d, 12w)."),
+    format_: str = typer.Option("md", "--format", help="stdout format: md or json."),
+    push: bool = typer.Option(False, "--push", help="Push the report to configured Slack/email."),
     push_on_partial: bool = typer.Option(
         False,
         "--push-on-partial",
@@ -482,10 +483,9 @@ async def _push_report(report: PerformanceReport, end: datetime) -> None:
         email_sender=os.environ.get("EMAIL_SENDER", ""),
         email_password=os.environ.get("EMAIL_PASSWORD", ""),
         email_recipients=[
-            r.strip()
-            for r in os.environ.get("EMAIL_RECIPIENTS", "").split(",")
-            if r.strip()
-        ] or None,
+            r.strip() for r in os.environ.get("EMAIL_RECIPIENTS", "").split(",") if r.strip()
+        ]
+        or None,
     )
     svc = NotificationService(config)
     try:

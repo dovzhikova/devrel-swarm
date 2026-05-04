@@ -29,7 +29,12 @@ _ANOMALY_Z_THRESHOLD = 2.5
 
 ContentType = Literal["blog", "landing", "social", "email", "repo", "video"]
 RecAction = Literal[
-    "double_down", "retire", "rewrite", "retest", "amplify", "investigate",
+    "double_down",
+    "retire",
+    "rewrite",
+    "retest",
+    "amplify",
+    "investigate",
 ]
 TargetType = Literal["content", "theme", "channel"]
 
@@ -136,7 +141,12 @@ def _report_to_jsonable(r: PerformanceReport) -> dict:
 
 
 _REC_ACTION_ORDER: tuple[str, ...] = (
-    "double_down", "amplify", "rewrite", "retest", "retire", "investigate",
+    "double_down",
+    "amplify",
+    "rewrite",
+    "retest",
+    "retire",
+    "investigate",
 )
 
 # Recommendations that warrant a downstream content brief (a Mox/Kai-ready
@@ -242,7 +252,8 @@ def compute_calibration(state_db_path: Path) -> dict:
 
             scored += 1
             bucket = results.setdefault(
-                action, {"n": 0, "panned_out": 0, "_conf_sum": 0.0},
+                action,
+                {"n": 0, "panned_out": 0, "_conf_sum": 0.0},
             )
             bucket["n"] += 1
             bucket["_conf_sum"] += confidence
@@ -271,17 +282,15 @@ def compute_calibration(state_db_path: Path) -> dict:
         "scored_recs": scored,
         "unscored_recs": unscored,
         "by_action": by_action,
-        "high_conf_rate": (
-            round(high_conf_hits / high_conf_total, 3) if high_conf_total else None
-        ),
-        "low_conf_rate": (
-            round(low_conf_hits / low_conf_total, 3) if low_conf_total else None
-        ),
+        "high_conf_rate": (round(high_conf_hits / high_conf_total, 3) if high_conf_total else None),
+        "low_conf_rate": (round(low_conf_hits / low_conf_total, 3) if low_conf_total else None),
     }
 
 
 def _decide_panned_out(
-    action: str, anchors: dict[str, float], obs: list,
+    action: str,
+    anchors: dict[str, float],
+    obs: list,
 ) -> bool:
     """Did the action's prediction hold for these source content observations?
 
@@ -293,9 +302,7 @@ def _decide_panned_out(
     """
     by_content: dict[str, list[float]] = {}
     for row in obs:
-        by_content.setdefault(row["content_id"], []).append(
-            float(row["primary_metric"])
-        )
+        by_content.setdefault(row["content_id"], []).append(float(row["primary_metric"]))
 
     ratios: list[float] = []
     for cid, vals in by_content.items():
@@ -315,7 +322,8 @@ def _decide_panned_out(
 
 
 def write_recommendation_briefs(
-    report: PerformanceReport, briefs_dir: Path,
+    report: PerformanceReport,
+    briefs_dir: Path,
 ) -> list[Path]:
     """For each actionable recommendation in ``report``, stage a Mox-ready
     content brief on disk.
@@ -346,6 +354,7 @@ def write_recommendation_briefs(
 def _slugify_target(target: str) -> str:
     """Turn 'theme:python-testing' or 'blog/cli-launch' into a safe filename slug."""
     import re as _re
+
     return _re.sub(r"[^a-z0-9]+", "-", target.lower()).strip("-")[:60] or "rec"
 
 
@@ -382,17 +391,11 @@ def _render_brief(rec: Recommendation, period: str) -> str:
     lines.append("")
     lines.append("```bash")
     if rec.action == "double_down":
-        lines.append(
-            f"devrel content draft '{rec.target} — follow-up post' --type tutorial"
-        )
+        lines.append(f"devrel content draft '{rec.target} — follow-up post' --type tutorial")
     elif rec.action == "rewrite":
-        lines.append(
-            "devrel content audit deliverables/<file>  # then redraft based on findings"
-        )
+        lines.append("devrel content audit deliverables/<file>  # then redraft based on findings")
     elif rec.action == "amplify":
-        lines.append(
-            f"devrel marketing social '{rec.target}' --channels reddit,hn,twitter"
-        )
+        lines.append(f"devrel marketing social '{rec.target}' --channels reddit,hn,twitter")
     lines.append("```")
     return "\n".join(lines) + "\n"
 
@@ -411,9 +414,7 @@ def _render_markdown(report: PerformanceReport) -> str:
         lines.append(f"- llm: failed ({report.llm_error})")
     if report.insufficient_data:
         lines.append("")
-        lines.append(
-            "> **Insufficient data** — too little signal for trustworthy recommendations."
-        )
+        lines.append("> **Insufficient data** — too little signal for trustworthy recommendations.")
     lines.append("")
 
     lines.append("## Top performers")
@@ -461,9 +462,7 @@ def _render_markdown(report: PerformanceReport) -> str:
                 stale_tag = ""
                 if r.first_seen_period:
                     try:
-                        first = datetime.fromisoformat(
-                            r.first_seen_period.replace("Z", "+00:00")
-                        )
+                        first = datetime.fromisoformat(r.first_seen_period.replace("Z", "+00:00"))
                         weeks = (report.period_end - first).days // 7
                         if weeks >= 2:
                             stale_tag = f" [STALE {weeks}w]"
@@ -567,7 +566,9 @@ class Argus:
         self.llm_client = llm_client
         self.state_db_path = state_db_path
         self._system_prompt = load_agent_prompt(
-            "argus", "system_prompt.txt", self._DEFAULT_SYSTEM_PROMPT,
+            "argus",
+            "system_prompt.txt",
+            self._DEFAULT_SYSTEM_PROMPT,
         )
 
     async def run(
@@ -659,7 +660,8 @@ class Argus:
         return report
 
     async def _gather(
-        self, period: tuple[datetime, datetime],
+        self,
+        period: tuple[datetime, datetime],
     ) -> tuple[list[PerformanceMetric], dict[str, bool]]:
         """Run all four collectors in parallel; isolate per-source failures."""
         names = list(self._collectors.keys())
@@ -721,9 +723,7 @@ class Argus:
                 conn.row_factory = sqlite3.Row
                 # Prefer indexed metric_history. Pick the most recent period
                 # and pull all content_id rows from it.
-                latest = conn.execute(
-                    "SELECT MAX(period_end) AS p FROM metric_history"
-                ).fetchone()
+                latest = conn.execute("SELECT MAX(period_end) AS p FROM metric_history").fetchone()
                 if latest and latest["p"]:
                     rows = conn.execute(
                         "SELECT content_id, primary_metric FROM metric_history "
@@ -735,8 +735,7 @@ class Argus:
 
                 # Fallback: legacy blob in analytics_reports.
                 row = conn.execute(
-                    "SELECT report_json FROM analytics_reports "
-                    "ORDER BY period_end DESC LIMIT 1"
+                    "SELECT report_json FROM analytics_reports ORDER BY period_end DESC LIMIT 1"
                 ).fetchone()
         except sqlite3.OperationalError:
             return {}
@@ -758,7 +757,9 @@ class Argus:
         return baseline
 
     async def _persist(
-        self, report: PerformanceReport, all_metrics: list[PerformanceMetric],
+        self,
+        report: PerformanceReport,
+        all_metrics: list[PerformanceMetric],
     ) -> None:
         """Async wrapper that delegates the SQLite write to a thread."""
         if not self.state_db_path:
@@ -766,7 +767,9 @@ class Argus:
         await asyncio.to_thread(self._persist_sync, report, all_metrics)
 
     def _persist_sync(
-        self, report: PerformanceReport, all_metrics: list[PerformanceMetric],
+        self,
+        report: PerformanceReport,
+        all_metrics: list[PerformanceMetric],
     ) -> None:
         """Serialize the full report to three tables in one transaction:
 
@@ -800,8 +803,7 @@ class Argus:
                 "(content_id, period_end, primary_metric, metric_name, content_type) "
                 "VALUES (?, ?, ?, ?, ?)",
                 [
-                    (m.content_id, period_end_iso, m.primary_metric,
-                     m.metric_name, m.content_type)
+                    (m.content_id, period_end_iso, m.primary_metric, m.metric_name, m.content_type)
                     for m in all_metrics
                 ],
             )
@@ -816,20 +818,23 @@ class Argus:
                         "WHERE action = ? AND target = ?",
                         (r.action, r.target),
                     ).fetchone()
-                    first_seen = (
-                        prior["first"] if prior and prior["first"]
-                        else period_end_iso
-                    )
+                    first_seen = prior["first"] if prior and prior["first"] else period_end_iso
                     # Stamp on the in-memory rec too so to_json/to_markdown see it
                     r.first_seen_period = first_seen
-                    rec_rows.append((
-                        report_id, period_end_iso,
-                        r.action, r.target, r.target_type,
-                        r.rationale, r.confidence,
-                        json.dumps(list(r.source_ids)),
-                        json.dumps(list(r.evidence)),
-                        first_seen,
-                    ))
+                    rec_rows.append(
+                        (
+                            report_id,
+                            period_end_iso,
+                            r.action,
+                            r.target,
+                            r.target_type,
+                            r.rationale,
+                            r.confidence,
+                            json.dumps(list(r.source_ids)),
+                            json.dumps(list(r.evidence)),
+                            first_seen,
+                        )
+                    )
                 conn.executemany(
                     "INSERT INTO analytics_recommendations "
                     "(report_id, period_end, action, target, target_type, "
@@ -909,12 +914,9 @@ Confidence below 0.5 means "investigate" — do not recommend a directional acti
             sections.append("\n".join(section_lines))
 
         if types_dropped:
-            dropped_summary = ", ".join(
-                f"{ctype} ({n} items)" for ctype, n in types_dropped
-            )
+            dropped_summary = ", ".join(f"{ctype} ({n} items)" for ctype, n in types_dropped)
             sections.append(
-                f"### TRUNCATED\nEntire content types omitted from prompt: "
-                f"{dropped_summary}"
+                f"### TRUNCATED\nEntire content types omitted from prompt: {dropped_summary}"
             )
 
         leaderboard = "\n\n".join(sections)

@@ -26,7 +26,21 @@ from devrel_swarm.core.vox import Vox
 from devrel_swarm.core.watchdog import Watchdog
 
 __all__ = [
-    "Argus", "Atlas", "Dex", "Echo", "Kai", "Mox", "Sage",
-    "Iris", "Nova", "Pax", "Rex", "Sentinel", "Vox", "Watchdog",
-    "PerformanceMetric", "PerformanceReport", "Recommendation",
+    "Argus",
+    "Atlas",
+    "Dex",
+    "Echo",
+    "Kai",
+    "Mox",
+    "Sage",
+    "Iris",
+    "Nova",
+    "Pax",
+    "Rex",
+    "Sentinel",
+    "Vox",
+    "Watchdog",
+    "PerformanceMetric",
+    "PerformanceReport",
+    "Recommendation",
 ]

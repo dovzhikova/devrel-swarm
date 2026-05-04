@@ -18,6 +18,7 @@ VALID_ACTION_TYPES = {"click", "type", "wait", "scroll", "hover"}
 @dataclass
 class BrowserAction:
     """A single browser interaction."""
+
     action_type: str
     selector: Optional[str] = None
     value: Optional[str] = None
@@ -97,9 +98,7 @@ class BrowserRecorder:
             if action.action_type != "wait":
                 await asyncio.sleep(action.delay)
         except Exception as exc:
-            logger.warning(
-                f"Action failed ({action.action_type} {action.selector}): {exc}"
-            )
+            logger.warning(f"Action failed ({action.action_type} {action.selector}): {exc}")
 
     def parse_actions(self, action_dicts: list[dict]) -> list[BrowserAction]:
         actions = []

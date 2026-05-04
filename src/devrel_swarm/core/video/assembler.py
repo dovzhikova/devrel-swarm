@@ -23,9 +23,7 @@ async def _communicate_with_timeout(process: asyncio.subprocess.Process):
     failure instead of waiting indefinitely.
     """
     try:
-        return await asyncio.wait_for(
-            process.communicate(), timeout=FFMPEG_TIMEOUT_S
-        )
+        return await asyncio.wait_for(process.communicate(), timeout=FFMPEG_TIMEOUT_S)
     except asyncio.TimeoutError as exc:
         process.kill()
         await process.wait()
@@ -46,9 +44,7 @@ class VideoAssembler:
         output_filename: str = "tutorial.mp4",
     ) -> Path:
         if len(step_videos) != len(step_audios):
-            raise ValueError(
-                f"Mismatch: {len(step_videos)} videos vs {len(step_audios)} audios"
-            )
+            raise ValueError(f"Mismatch: {len(step_videos)} videos vs {len(step_audios)} audios")
         merged_steps = []
         for i, (video, audio) in enumerate(zip(step_videos, step_audios, strict=True)):
             merged_path = self.output_dir / f"merged_step_{i + 1}.mp4"
@@ -79,14 +75,21 @@ class VideoAssembler:
             logger.error(f"FFmpeg merge failed: {err_text[:500]}")
             raise RuntimeError(f"Audio/video merge failed: {err_text[:200]}")
 
-    async def _concatenate_videos(
-        self, video_paths: list[Path], output_path: Path
-    ) -> None:
+    async def _concatenate_videos(self, video_paths: list[Path], output_path: Path) -> None:
         concat_file = self.output_dir / "concat_list.txt"
         concat_file.write_text(self._build_concat_file_content(video_paths))
         cmd = [
-            "ffmpeg", "-y", "-f", "concat", "-safe", "0",
-            "-i", str(concat_file), "-c", "copy", str(output_path),
+            "ffmpeg",
+            "-y",
+            "-f",
+            "concat",
+            "-safe",
+            "0",
+            "-i",
+            str(concat_file),
+            "-c",
+            "copy",
+            str(output_path),
         ]
         logger.info(f"Concatenating {len(video_paths)} steps")
         process = await asyncio.create_subprocess_exec(
@@ -97,9 +100,7 @@ class VideoAssembler:
         if process.returncode != 0:
             err_text = stderr.decode()
             logger.error(f"FFmpeg concat failed: {err_text[:500]}")
-            raise RuntimeError(
-                f"Video concatenation failed: {err_text[:200]}"
-            )
+            raise RuntimeError(f"Video concatenation failed: {err_text[:200]}")
 
     def _build_concat_file_content(self, video_paths: list[Path]) -> str:
         lines = [f"file '{path}'" for path in video_paths]
@@ -109,14 +110,22 @@ class VideoAssembler:
         self, video_path: Path, audio_path: Path, output_path: Path
     ) -> list[str]:
         return [
-            "ffmpeg", "-y",
-            "-i", str(video_path),
-            "-i", str(audio_path),
-            "-c:v", "copy",
-            "-c:a", "aac",
-            "-b:a", "192k",
-            "-map", "0:v:0",
-            "-map", "1:a:0",
+            "ffmpeg",
+            "-y",
+            "-i",
+            str(video_path),
+            "-i",
+            str(audio_path),
+            "-c:v",
+            "copy",
+            "-c:a",
+            "aac",
+            "-b:a",
+            "192k",
+            "-map",
+            "0:v:0",
+            "-map",
+            "1:a:0",
             "-shortest",
             str(output_path),
         ]

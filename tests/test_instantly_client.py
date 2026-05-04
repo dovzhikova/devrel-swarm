@@ -39,31 +39,51 @@ class TestInstantlyDTOs:
 
     def test_campaign_creation(self):
         c = InstantlyCampaign(
-            id="camp_123", name="Q1 Outreach", status="draft",
-            accounts=["sender@co.com"], sequences=[],
+            id="camp_123",
+            name="Q1 Outreach",
+            status="draft",
+            accounts=["sender@co.com"],
+            sequences=[],
         )
         assert c.status == "draft"
 
     def test_email_with_thread(self):
         e = InstantlyEmail(
-            id="em_1", campaign_id="camp_1", lead_email="lead@co.com",
-            subject="Hi", body="Hello", is_reply=True, timestamp="2026-03-17",
+            id="em_1",
+            campaign_id="camp_1",
+            lead_email="lead@co.com",
+            subject="Hi",
+            body="Hello",
+            is_reply=True,
+            timestamp="2026-03-17",
             thread_id="thread_abc",
         )
         assert e.thread_id == "thread_abc"
 
     def test_email_without_thread(self):
         e = InstantlyEmail(
-            id="em_2", campaign_id="camp_1", lead_email="lead@co.com",
-            subject="Hi", body="Hello", is_reply=False, timestamp="2026-03-17",
+            id="em_2",
+            campaign_id="camp_1",
+            lead_email="lead@co.com",
+            subject="Hi",
+            body="Hello",
+            is_reply=False,
+            timestamp="2026-03-17",
         )
         assert e.thread_id is None
 
     def test_analytics_rates(self):
         a = CampaignAnalytics(
-            campaign_id="c1", campaign_name="Test", total_leads=100,
-            emails_sent=80, emails_opened=40, emails_replied=10,
-            emails_bounced=5, open_rate=0.5, reply_rate=0.125, bounce_rate=0.0625,
+            campaign_id="c1",
+            campaign_name="Test",
+            total_leads=100,
+            emails_sent=80,
+            emails_opened=40,
+            emails_replied=10,
+            emails_bounced=5,
+            open_rate=0.5,
+            reply_rate=0.125,
+            bounce_rate=0.0625,
         )
         assert a.open_rate == 0.5
 
@@ -117,13 +137,21 @@ class TestCampaignMethods:
     @respx.mock
     async def test_create_campaign(self, instantly_client):
         respx.post("https://api.instantly.ai/api/v2/campaigns").mock(
-            return_value=httpx.Response(200, json={
-                "id": "camp_1", "name": "Test", "status": "draft",
-                "accounts": [], "sequences": [],
-            })
+            return_value=httpx.Response(
+                200,
+                json={
+                    "id": "camp_1",
+                    "name": "Test",
+                    "status": "draft",
+                    "accounts": [],
+                    "sequences": [],
+                },
+            )
         )
         campaign = await instantly_client.create_campaign(
-            name="Test", sequences=[], accounts=["sender@co.com"],
+            name="Test",
+            sequences=[],
+            accounts=["sender@co.com"],
         )
         assert campaign.id == "camp_1"
         assert campaign.status == "draft"
@@ -132,10 +160,16 @@ class TestCampaignMethods:
     @respx.mock
     async def test_get_campaign(self, instantly_client):
         respx.get("https://api.instantly.ai/api/v2/campaigns/camp_1").mock(
-            return_value=httpx.Response(200, json={
-                "id": "camp_1", "name": "Test", "status": "active",
-                "accounts": [], "sequences": [],
-            })
+            return_value=httpx.Response(
+                200,
+                json={
+                    "id": "camp_1",
+                    "name": "Test",
+                    "status": "active",
+                    "accounts": [],
+                    "sequences": [],
+                },
+            )
         )
         campaign = await instantly_client.get_campaign("camp_1")
         assert campaign.name == "Test"
@@ -144,12 +178,27 @@ class TestCampaignMethods:
     @respx.mock
     async def test_list_campaigns(self, instantly_client):
         respx.get("https://api.instantly.ai/api/v2/campaigns").mock(
-            return_value=httpx.Response(200, json={
-                "items": [
-                    {"id": "c1", "name": "A", "status": "active", "accounts": [], "sequences": []},
-                    {"id": "c2", "name": "B", "status": "draft", "accounts": [], "sequences": []},
-                ],
-            })
+            return_value=httpx.Response(
+                200,
+                json={
+                    "items": [
+                        {
+                            "id": "c1",
+                            "name": "A",
+                            "status": "active",
+                            "accounts": [],
+                            "sequences": [],
+                        },
+                        {
+                            "id": "c2",
+                            "name": "B",
+                            "status": "draft",
+                            "accounts": [],
+                            "sequences": [],
+                        },
+                    ],
+                },
+            )
         )
         campaigns = await instantly_client.list_campaigns()
         assert len(campaigns) == 2
@@ -176,12 +225,21 @@ class TestCampaignMethods:
     @respx.mock
     async def test_get_campaign_analytics(self, instantly_client):
         respx.get("https://api.instantly.ai/api/v2/campaigns/camp_1/analytics/overview").mock(
-            return_value=httpx.Response(200, json={
-                "campaign_id": "camp_1", "campaign_name": "Test",
-                "total_leads": 100, "emails_sent": 80, "emails_opened": 40,
-                "emails_replied": 10, "emails_bounced": 5,
-                "open_rate": 0.5, "reply_rate": 0.125, "bounce_rate": 0.0625,
-            })
+            return_value=httpx.Response(
+                200,
+                json={
+                    "campaign_id": "camp_1",
+                    "campaign_name": "Test",
+                    "total_leads": 100,
+                    "emails_sent": 80,
+                    "emails_opened": 40,
+                    "emails_replied": 10,
+                    "emails_bounced": 5,
+                    "open_rate": 0.5,
+                    "reply_rate": 0.125,
+                    "bounce_rate": 0.0625,
+                },
+            )
         )
         analytics = await instantly_client.get_campaign_analytics("camp_1")
         assert analytics.reply_rate == 0.125
@@ -198,8 +256,10 @@ class TestLeadMethods:
             return_value=httpx.Response(200, json={"id": "lead_1", "email": "test@co.com"})
         )
         result = await instantly_client.create_lead(
-            email="test@co.com", campaign_id="camp_1",
-            first_name="Ada", last_name="Lovelace",
+            email="test@co.com",
+            campaign_id="camp_1",
+            first_name="Ada",
+            last_name="Lovelace",
         )
         assert result["email"] == "test@co.com"
 
@@ -209,10 +269,7 @@ class TestLeadMethods:
         respx.post("https://api.instantly.ai/api/v2/leads/bulk-add").mock(
             return_value=httpx.Response(200, json={"added": 3, "skipped": 0})
         )
-        leads = [
-            InstantlyLead(email=f"user{i}@co.com", first_name=f"User{i}")
-            for i in range(3)
-        ]
+        leads = [InstantlyLead(email=f"user{i}@co.com", first_name=f"User{i}") for i in range(3)]
         result = await instantly_client.add_leads_bulk("camp_1", leads)
         assert result["added"] == 3
 
@@ -220,9 +277,12 @@ class TestLeadMethods:
     @respx.mock
     async def test_list_leads(self, instantly_client):
         respx.post("https://api.instantly.ai/api/v2/leads/list").mock(
-            return_value=httpx.Response(200, json={
-                "items": [{"id": "l1", "email": "a@b.com"}],
-            })
+            return_value=httpx.Response(
+                200,
+                json={
+                    "items": [{"id": "l1", "email": "a@b.com"}],
+                },
+            )
         )
         result = await instantly_client.list_leads("camp_1")
         assert len(result) == 1
@@ -244,13 +304,23 @@ class TestEmailMethods:
     @respx.mock
     async def test_list_emails(self, instantly_client):
         respx.get("https://api.instantly.ai/api/v2/emails").mock(
-            return_value=httpx.Response(200, json={
-                "items": [
-                    {"id": "e1", "campaign_id": "c1", "lead_email": "a@b.com",
-                     "subject": "Hi", "body": "Hello", "is_reply": True,
-                     "timestamp": "2026-03-17", "thread_id": "t1"},
-                ],
-            })
+            return_value=httpx.Response(
+                200,
+                json={
+                    "items": [
+                        {
+                            "id": "e1",
+                            "campaign_id": "c1",
+                            "lead_email": "a@b.com",
+                            "subject": "Hi",
+                            "body": "Hello",
+                            "is_reply": True,
+                            "timestamp": "2026-03-17",
+                            "thread_id": "t1",
+                        },
+                    ],
+                },
+            )
         )
         emails = await instantly_client.list_emails(campaign_id="c1", is_reply=True)
         assert len(emails) == 1
@@ -264,7 +334,9 @@ class TestEmailMethods:
             return_value=httpx.Response(200, json={"id": "reply_1", "status": "sent"})
         )
         result = await instantly_client.reply_to_email(
-            email_id="e1", campaign_id="c1", body="Thanks for your interest!",
+            email_id="e1",
+            campaign_id="c1",
+            body="Thanks for your interest!",
             thread_id="t1",
         )
         assert result["status"] == "sent"

@@ -45,7 +45,9 @@ async def test_uses_pipeline_when_devrel_project_present(tmp_path, monkeypatch):
         final_text="pipeline output",
         stages=[MagicMock(detail="stage detail", issues=["pipeline issue"])],
     )
-    with patch("devrel_swarm.quality.editorial.run_pipeline", new=AsyncMock(return_value=fake_result)):
+    with patch(
+        "devrel_swarm.quality.editorial.run_pipeline", new=AsyncMock(return_value=fake_result)
+    ):
         text, strengths, issues = await generate_with_pipeline(
             llm_client=client,
             system_prompt="sys",
@@ -70,6 +72,7 @@ async def test_falls_back_on_abort_loud(tmp_path, monkeypatch):
     legacy_trace = MagicMock(critiques=[MagicMock(strengths=[], issues=[])])
     client.generate_with_revision = AsyncMock(return_value=("legacy fallback", legacy_trace))
     from devrel_swarm.quality.editorial import AbortLoud
+
     with patch(
         "devrel_swarm.quality.editorial.run_pipeline",
         new=AsyncMock(side_effect=AbortLoud("slop persisted: delve")),

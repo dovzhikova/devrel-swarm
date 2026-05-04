@@ -188,7 +188,9 @@ class SharedContext:
 
     @classmethod
     def load_with_history(
-        cls, archive_dir: Path, history_weeks: int = 4,
+        cls,
+        archive_dir: Path,
+        history_weeks: int = 4,
     ) -> "SharedContext":
         """Load a fresh context with previous weeks' memory summaries.
 
@@ -278,6 +280,7 @@ class Atlas:
             and project_paths.state_db.is_file()
         ):
             from devrel_swarm.project.cost_sink import make_sqlite_sink
+
             self.llm_client.set_cost_sink(make_sqlite_sink(project_paths.state_db))
 
         # Apply config retry settings
@@ -403,9 +406,7 @@ class Atlas:
             try:
                 logger.info(f"Delegating to {agent_name} (attempt {attempt}): {task[:80]}...")
                 ctx_mgr = (
-                    self.llm_client.agent_context(agent_name)
-                    if self.llm_client
-                    else _nullcontext()
+                    self.llm_client.agent_context(agent_name) if self.llm_client else _nullcontext()
                 )
                 with ctx_mgr:
                     result = await asyncio.wait_for(
@@ -520,6 +521,7 @@ class Atlas:
         Produces a run report with timing, cost, and quality data.
         """
         from devrel_swarm.tools.run_report import RunReport
+
         run_report = RunReport(
             week_of=self.context.week_of,
             started_at=datetime.now().isoformat(),
@@ -670,11 +672,7 @@ class Atlas:
             self._checkpoint(5, completed_agents=completed_agents)
 
         # Stage 5b: Argus content performance analyst (post-Sentinel, pre-OKR)
-        if (
-            resume_stage <= 5
-            and self.config.analytics_in_run
-            and "argus" not in completed_agents
-        ):
+        if resume_stage <= 5 and self.config.analytics_in_run and "argus" not in completed_agents:
             try:
                 argus = self._build_argus()
                 end = datetime.now(timezone.utc)
@@ -688,11 +686,7 @@ class Atlas:
             self._checkpoint(5, completed_agents=completed_agents)
 
         # Stage 6: Instantly sync (analytics + reply triage)
-        if (
-            resume_stage <= 6
-            and self.instantly_client
-            and "instantly_sync" not in completed_agents
-        ):
+        if resume_stage <= 6 and self.instantly_client and "instantly_sync" not in completed_agents:
             await self._run_instantly_sync()
             completed_agents.add("instantly_sync")
             self._checkpoint(6, completed_agents=completed_agents)
@@ -708,9 +702,7 @@ class Atlas:
         try:
             from devrel_swarm.tools.self_improve import run_self_improvement
         except ImportError as exc:
-            logger.warning(
-                "Self-improvement module not available; skipping: %s", exc
-            )
+            logger.warning("Self-improvement module not available; skipping: %s", exc)
         else:
             try:
                 improve_report = run_self_improvement(
@@ -723,9 +715,7 @@ class Atlas:
                         extra={"agents_updated": list(improve_report["recurring_issues"].keys())},
                     )
             except Exception:
-                logger.exception(
-                    "Self-improvement step raised; continuing weekly cycle"
-                )
+                logger.exception("Self-improvement step raised; continuing weekly cycle")
 
         # Stage 8: Publish to content calendar + send notifications
         await self._publish_and_notify()
@@ -785,10 +775,13 @@ class Atlas:
         if sheets_id:
             try:
                 from devrel_swarm.tools.sheets import ContentCalendar, SheetsConfig
-                cal = ContentCalendar(SheetsConfig(
-                    spreadsheet_id=sheets_id,
-                    access_token=sheets_token,
-                ))
+
+                cal = ContentCalendar(
+                    SheetsConfig(
+                        spreadsheet_id=sheets_id,
+                        access_token=sheets_token,
+                    )
+                )
                 added = await cal.publish_content(ctx_dict)
                 logger.info(f"Published to sheets: {added}")
                 await cal.close()
@@ -801,16 +794,20 @@ class Atlas:
         if tg_token or email_sender:
             try:
                 from devrel_swarm.tools.notifications import NotificationConfig, NotificationService
-                svc = NotificationService(NotificationConfig(
-                    telegram_bot_token=tg_token,
-                    telegram_chat_id=os.environ.get("TELEGRAM_CHAT_ID", ""),
-                    email_sender=email_sender,
-                    email_password=os.environ.get("EMAIL_PASSWORD", ""),
-                    email_recipients=(
-                        os.environ.get("EMAIL_RECIPIENTS", "").split(",")
-                        if os.environ.get("EMAIL_RECIPIENTS") else None
-                    ),
-                ))
+
+                svc = NotificationService(
+                    NotificationConfig(
+                        telegram_bot_token=tg_token,
+                        telegram_chat_id=os.environ.get("TELEGRAM_CHAT_ID", ""),
+                        email_sender=email_sender,
+                        email_password=os.environ.get("EMAIL_PASSWORD", ""),
+                        email_recipients=(
+                            os.environ.get("EMAIL_RECIPIENTS", "").split(",")
+                            if os.environ.get("EMAIL_RECIPIENTS")
+                            else None
+                        ),
+                    )
+                )
                 result = await svc.send_digest(ctx_dict, mode="weekly")
                 logger.info(f"Notifications sent: {result}")
                 await svc.close()
@@ -898,18 +895,10 @@ class Atlas:
                 self.context.rex_competitive.get("competitors_discovered", [])
             ),
             "emails_sent": self.context.instantly_analytics.get("total_sent", 0),
-            "emails_opened": self.context.instantly_analytics.get(
-                "total_opened", 0
-            ),
-            "emails_replied": self.context.instantly_analytics.get(
-                "total_replied", 0
-            ),
-            "reply_rate": self.context.instantly_analytics.get(
-                "avg_reply_rate", 0
-            ),
-            "followups_pending": len(
-                self.context.instantly_replies.get("drafts", [])
-            ),
+            "emails_opened": self.context.instantly_analytics.get("total_opened", 0),
+            "emails_replied": self.context.instantly_analytics.get("total_replied", 0),
+            "reply_rate": self.context.instantly_analytics.get("avg_reply_rate", 0),
+            "followups_pending": len(self.context.instantly_replies.get("drafts", [])),
             "status": "complete",
         }
 
@@ -944,17 +933,13 @@ async def process_draft(draft: dict, instantly_client: InstantlyClient) -> str:
     elif choice == "e":
         import tempfile
 
-        with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".txt", delete=False
-        ) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
             f.write(draft["draft_body"])
             tmp_path = f.name
         editor = os.environ.get("EDITOR", "vi")
         editor_path = shutil.which(editor)
         if editor_path is None:
-            logger.warning(
-                "EDITOR=%s not found on PATH; skipping interactive edit", editor
-            )
+            logger.warning("EDITOR=%s not found on PATH; skipping interactive edit", editor)
             edited_body = draft["draft_body"]
         else:
             subprocess.run([editor_path, str(tmp_path)], check=False)
@@ -981,6 +966,7 @@ def _build_apollo_client(api_key: Optional[str]) -> Optional["ApolloClient"]:
     if not api_key:
         return None
     from devrel_swarm.tools.apollo_client import ApolloClient  # noqa: PLC0415
+
     return ApolloClient(api_key=api_key)
 
 

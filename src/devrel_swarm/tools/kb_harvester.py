@@ -94,23 +94,32 @@ class KBHarvester:
         for source, result in zip(self.sources, results, strict=True):
             if isinstance(result, Exception):
                 report["failed"] += 1
-                report["sources"].append({
-                    "name": source.name, "status": "failed", "error": str(result),
-                })
+                report["sources"].append(
+                    {
+                        "name": source.name,
+                        "status": "failed",
+                        "error": str(result),
+                    }
+                )
             elif result:
                 report["harvested"] += 1
-                report["sources"].append({
-                    "name": source.name, "status": "ok", "file": result.filename,
-                })
+                report["sources"].append(
+                    {
+                        "name": source.name,
+                        "status": "ok",
+                        "file": result.filename,
+                    }
+                )
             else:
                 report["failed"] += 1
-                report["sources"].append({
-                    "name": source.name, "status": "empty",
-                })
+                report["sources"].append(
+                    {
+                        "name": source.name,
+                        "status": "empty",
+                    }
+                )
 
-        logger.info(
-            f"Harvest complete: {report['harvested']} OK, {report['failed']} failed"
-        )
+        logger.info(f"Harvest complete: {report['harvested']} OK, {report['failed']} failed")
         return report
 
     async def _harvest_source(self, source: HarvestSource) -> HarvestedDoc | None:
@@ -293,13 +302,15 @@ async def main() -> None:
     parser.add_argument("--url", help="Single URL to harvest")
     parser.add_argument("--category", default="misc", help="KB category for --url")
     parser.add_argument(
-        "--sources-file", help="JSON file with custom harvest sources",
+        "--sources-file",
+        help="JSON file with custom harvest sources",
     )
     args = parser.parse_args()
 
     sources = None
     if args.sources_file:
         import json
+
         sources = json.loads(Path(args.sources_file).read_text())
 
     harvester = KBHarvester(

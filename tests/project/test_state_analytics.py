@@ -31,19 +31,13 @@ def test_init_db_creates_analytics_reports_on_fresh_db(tmp_path):
 def test_init_db_is_idempotent_on_existing_v1_db(tmp_path):
     db = tmp_path / "state.db"
     with sqlite3.connect(db) as conn:
-        conn.execute(
-            "CREATE TABLE schema_meta (version INTEGER PRIMARY KEY, applied_at TEXT)"
-        )
-        conn.execute(
-            "INSERT INTO schema_meta (version, applied_at) VALUES (1, datetime('now'))"
-        )
+        conn.execute("CREATE TABLE schema_meta (version INTEGER PRIMARY KEY, applied_at TEXT)")
+        conn.execute("INSERT INTO schema_meta (version, applied_at) VALUES (1, datetime('now'))")
         conn.execute(
             "CREATE TABLE jobs (id TEXT PRIMARY KEY, kind TEXT, status TEXT, "
             "started_at TEXT, finished_at TEXT, error TEXT)"
         )
-        conn.execute(
-            "INSERT INTO jobs (id, kind, status) VALUES ('job-1', 'run', 'completed')"
-        )
+        conn.execute("INSERT INTO jobs (id, kind, status) VALUES ('job-1', 'run', 'completed')")
         conn.commit()
 
     init_db(db)
@@ -68,7 +62,5 @@ def test_can_insert_and_read_analytics_report(tmp_path):
             ("2026-04-25T00:00:00Z", "2026-05-02T00:00:00Z", '{"foo": "bar"}'),
         )
         conn.commit()
-        row = conn.execute(
-            "SELECT report_json FROM analytics_reports WHERE id = 1"
-        ).fetchone()
+        row = conn.execute("SELECT report_json FROM analytics_reports WHERE id = 1").fetchone()
         assert row["report_json"] == '{"foo": "bar"}'

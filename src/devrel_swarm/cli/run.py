@@ -24,7 +24,11 @@ def run_command(
     async def _do() -> None:
         if health:
             result = await atlas.run_single_task("watchdog", "Check system health")
-            console.print(f"[green]✓[/green] watchdog: {str(result.result)[:300]}" if result.success else f"[red]✗[/red] {result.error}")
+            console.print(
+                f"[green]✓[/green] watchdog: {str(result.result)[:300]}"
+                if result.success
+                else f"[red]✗[/red] {result.error}"
+            )
             return
         if agent:
             t = task or f"Run {agent} with default settings"

@@ -32,8 +32,7 @@ def rex(posthog_client, knowledge_base_path):
 def rex_with_llm(posthog_client, knowledge_base_path, mock_llm_client):
     """Rex instance with a mocked LLM client."""
     mock_llm_client.generate = AsyncMock(
-        return_value='{"summary":"Test report","competitors":[],'
-        '"threats":[],"opportunities":[]}'
+        return_value='{"summary":"Test report","competitors":[],"threats":[],"opportunities":[]}'
     )
     return Rex(
         api_client=posthog_client,
@@ -152,9 +151,7 @@ class TestCompetitorDiscovery:
             knowledge_base_path=kb_with_competitors,
             product_name="TestProduct",
         )
-        competitors = rex._discover_competitors(
-            "Analyze landscape for: Mixpanel, Amplitude"
-        )
+        competitors = rex._discover_competitors("Analyze landscape for: Mixpanel, Amplitude")
         # Mixpanel appears in both task and KB — should only appear once
         assert competitors.count("Mixpanel") == 1
 
@@ -242,9 +239,7 @@ class TestRexExecute:
 
     @pytest.mark.asyncio
     async def test_execute_finds_competitors(self, rex):
-        result = await rex.execute(
-            "Competitive analysis for: Mixpanel, Amplitude"
-        )
+        result = await rex.execute("Competitive analysis for: Mixpanel, Amplitude")
         assert "Mixpanel" in result["competitors_discovered"]
         assert "Amplitude" in result["competitors_discovered"]
 
@@ -278,16 +273,16 @@ class TestRexExecute:
 
     @pytest.mark.asyncio
     async def test_execute_web_search_failure_graceful(
-        self, posthog_client, knowledge_base_path, mock_llm_client,
+        self,
+        posthog_client,
+        knowledge_base_path,
+        mock_llm_client,
     ):
         """Web search failure should not crash execute."""
         mock_search = MagicMock(spec=SearchTools)
-        mock_search.web_search = AsyncMock(
-            side_effect=Exception("Network error")
-        )
+        mock_search.web_search = AsyncMock(side_effect=Exception("Network error"))
         mock_llm_client.generate = AsyncMock(
-            return_value='{"summary":"ok","competitors":[],'
-            '"threats":[],"opportunities":[]}'
+            return_value='{"summary":"ok","competitors":[],"threats":[],"opportunities":[]}'
         )
 
         rex = Rex(
@@ -311,15 +306,16 @@ class TestRexExecute:
 
     @pytest.mark.asyncio
     async def test_execute_parse_error_preserves_raw(
-        self, posthog_client, knowledge_base_path, mock_llm_client,
+        self,
+        posthog_client,
+        knowledge_base_path,
+        mock_llm_client,
     ):
         """Wave 2: invalid JSON from the LLM yields parse_error status,
         keeps the raw text under raw_content, and content is an empty
         dict (so consumers calling result['content'].get(...) work).
         """
-        mock_llm_client.generate = AsyncMock(
-            return_value="not valid json {[ at all"
-        )
+        mock_llm_client.generate = AsyncMock(return_value="not valid json {[ at all")
         rex = Rex(
             api_client=posthog_client,
             knowledge_base_path=knowledge_base_path,
@@ -334,7 +330,9 @@ class TestRexExecute:
 
     @pytest.mark.asyncio
     async def test_execute_with_search_tools(
-        self, posthog_client, knowledge_base_path,
+        self,
+        posthog_client,
+        knowledge_base_path,
     ):
         """Verify web search results are gathered per competitor."""
         mock_search = MagicMock(spec=SearchTools)
@@ -410,7 +408,8 @@ class TestSearchConcurrency:
 
         # Force-push a list of 8 competitors so we exceed SEARCH_CONCURRENCY.
         monkeypatch.setattr(
-            rex, "_discover_competitors",
+            rex,
+            "_discover_competitors",
             lambda task: [f"Comp{i}" for i in range(8)],
         )
 

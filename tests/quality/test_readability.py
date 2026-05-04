@@ -30,11 +30,7 @@ def test_count_syllables_silent_e_handling():
 
 
 def test_compute_readability_basic_text():
-    text = (
-        "The cat sat on the mat. "
-        "It was a small cat. "
-        "The mat was red and warm."
-    )
+    text = "The cat sat on the mat. It was a small cat. The mat was red and warm."
     s = compute_readability(text)
     assert isinstance(s, ReadabilityScores)
     assert s.word_count == 17

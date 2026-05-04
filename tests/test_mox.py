@@ -108,7 +108,10 @@ class TestMoxTaskParsing:
         assert mox._parse_content_type("Write an SEO blog post about AI assistants") == "blog"
 
     def test_landing_page(self, mox):
-        assert mox._parse_content_type("Write landing page copy for WhatsApp integration") == "landing_page"
+        assert (
+            mox._parse_content_type("Write landing page copy for WhatsApp integration")
+            == "landing_page"
+        )
 
     def test_social_batch(self, mox):
         assert mox._parse_content_type("Generate social media posts for Twitter") == "social"
@@ -120,7 +123,9 @@ class TestMoxTaskParsing:
         assert mox._parse_content_type("Write a press release for 1.0") == "press_release"
 
     def test_announcement_maps_to_press_release(self, mox):
-        assert mox._parse_content_type("Write an announcement for the new feature") == "press_release"
+        assert (
+            mox._parse_content_type("Write an announcement for the new feature") == "press_release"
+        )
 
     def test_case_study(self, mox):
         assert mox._parse_content_type("Create a case study framework for DevOps") == "case_study"

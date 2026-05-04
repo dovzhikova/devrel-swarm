@@ -28,8 +28,13 @@ def test_init_db_creates_file_and_tables(tmp_path):
             )
         )
     assert names == [
-        "analytics_recommendations", "analytics_reports", "checkpoints", "costs",
-        "jobs", "metric_history", "schema_meta",
+        "analytics_recommendations",
+        "analytics_reports",
+        "checkpoints",
+        "costs",
+        "jobs",
+        "metric_history",
+        "schema_meta",
     ]
 
 

@@ -107,13 +107,15 @@ class RunReport:
             errors=data.get("errors", []),
         )
         for t in data.get("agent_timings", []):
-            report.agent_timings.append(AgentTiming(
-                agent=t["agent"],
-                stage=t.get("stage", 0),
-                duration_seconds=t.get("duration_seconds", 0),
-                success=t.get("success", True),
-                error=t.get("error", ""),
-            ))
+            report.agent_timings.append(
+                AgentTiming(
+                    agent=t["agent"],
+                    stage=t.get("stage", 0),
+                    duration_seconds=t.get("duration_seconds", 0),
+                    success=t.get("success", True),
+                    error=t.get("error", ""),
+                )
+            )
         return report
 
     def summary(self) -> str:
@@ -142,8 +144,7 @@ class RunReport:
                 )
                 for name, data in sorted_agents[:5]:
                     lines.append(
-                        f"  {name}: ${data.get('cost_usd', 0):.4f} "
-                        f"({data.get('calls', 0)} calls)"
+                        f"  {name}: ${data.get('cost_usd', 0):.4f} ({data.get('calls', 0)} calls)"
                     )
 
         # Quality

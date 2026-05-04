@@ -35,7 +35,7 @@ OPTIONAL_ENV = (
 @dataclass
 class CheckResult:
     name: str
-    status: str           # 'pass' | 'warn' | 'fail'
+    status: str  # 'pass' | 'warn' | 'fail'
     detail: str = ""
 
 
@@ -48,9 +48,7 @@ def _run_checks(paths: ProjectPaths) -> list[CheckResult]:
     if (py.major, py.minor) >= (3, 12):
         results.append(CheckResult("python_version", "pass", py_str))
     else:
-        results.append(
-            CheckResult("python_version", "fail", f"{py_str} (requires >=3.12)")
-        )
+        results.append(CheckResult("python_version", "fail", f"{py_str} (requires >=3.12)"))
 
     # Required files.
     for label, fp in [
@@ -68,9 +66,7 @@ def _run_checks(paths: ProjectPaths) -> list[CheckResult]:
     if paths.config_file.is_file():
         try:
             cfg = ProjectConfig.load(paths.config_file)
-            results.append(
-                CheckResult("config_parses", "pass", f"project={cfg.project.name}")
-            )
+            results.append(CheckResult("config_parses", "pass", f"project={cfg.project.name}"))
         except ConfigError as e:
             results.append(CheckResult("config_parses", "fail", str(e)))
 
@@ -107,9 +103,7 @@ def _run_checks(paths: ProjectPaths) -> list[CheckResult]:
     # KB freshness.
     if paths.kb_dir.is_dir():
         n = sum(1 for _ in paths.kb_dir.rglob("*.md"))
-        results.append(
-            CheckResult("kb_files", "pass" if n > 0 else "warn", f"{n} markdown files")
-        )
+        results.append(CheckResult("kb_files", "pass" if n > 0 else "warn", f"{n} markdown files"))
     else:
         results.append(CheckResult("kb_files", "warn", "kb/ missing"))
 

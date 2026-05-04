@@ -263,9 +263,7 @@ class TestWebSearch:
             },
         }
         with respx.mock:
-            respx.post("https://api.firecrawl.dev/v1/search").mock(
-                return_value=httpx.Response(500)
-            )
+            respx.post("https://api.firecrawl.dev/v1/search").mock(return_value=httpx.Response(500))
             brave_route = respx.get("https://api.search.brave.com/res/v1/web/search").mock(
                 return_value=httpx.Response(200, json=brave_payload)
             )
@@ -610,9 +608,7 @@ class TestFetchOfficialDocs:
             respx.get("https://gitmcp.io/openclaw/openclaw").mock(
                 side_effect=httpx.ConnectError("Connection refused")
             )
-            respx.get("https://example.com/api/search").mock(
-                return_value=httpx.Response(500)
-            )
+            respx.get("https://example.com/api/search").mock(return_value=httpx.Response(500))
             # Fallback web search also returns nothing
             search = SearchTools()
             try:

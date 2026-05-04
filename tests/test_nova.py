@@ -218,9 +218,7 @@ class TestNovaFunnelDataSource:
     """Funnel block must declare whether counts came from the API or are default estimates."""
 
     @pytest.mark.asyncio
-    async def test_funnel_marks_default_estimates_when_api_client_lacks_get_funnel(
-        self, nova
-    ):
+    async def test_funnel_marks_default_estimates_when_api_client_lacks_get_funnel(self, nova):
         """Without a real funnel API the funnel must be marked as default estimates."""
         # The default PostHog api_client doesn't expose ``get_funnel`` —
         # consumers reading the result need an unambiguous signal so they

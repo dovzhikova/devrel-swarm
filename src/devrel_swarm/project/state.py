@@ -109,8 +109,7 @@ def init_db(db_path: Path) -> None:
     with sqlite3.connect(db_path) as conn:
         conn.executescript(SCHEMA)
         conn.execute(
-            "INSERT OR REPLACE INTO schema_meta (version, applied_at) "
-            "VALUES (?, datetime('now'))",
+            "INSERT OR REPLACE INTO schema_meta (version, applied_at) VALUES (?, datetime('now'))",
             (SCHEMA_VERSION,),
         )
         conn.commit()

@@ -51,9 +51,7 @@ async def generate_with_pipeline(
         issues = [i for s in result.stages for i in s.issues]
         return result.final_text, strengths, issues
     except (ProjectNotFoundError, AbortLoud) as e:
-        logger.warning(
-            "editorial pipeline unavailable, using single-revision: %s", e
-        )
+        logger.warning("editorial pipeline unavailable, using single-revision: %s", e)
         content, trace = await llm_client.generate_with_revision(
             system_prompt=system_prompt,
             user_prompt=user_prompt,

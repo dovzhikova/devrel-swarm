@@ -18,8 +18,18 @@ SHEETS_API = "https://sheets.googleapis.com/v4/spreadsheets"
 
 # Content calendar column layout
 CALENDAR_HEADERS = [
-    "Date", "Day", "Platform", "Type", "Pillar", "Agent",
-    "Hook", "Content", "CTA", "Status", "Quality Score", "Notes",
+    "Date",
+    "Day",
+    "Platform",
+    "Type",
+    "Pillar",
+    "Agent",
+    "Hook",
+    "Content",
+    "CTA",
+    "Status",
+    "Quality Score",
+    "Notes",
 ]
 
 
@@ -59,11 +69,17 @@ class ContentCalendar:
         await self._client.aclose()
 
     async def _request(
-        self, method: str, url: str, **kwargs: Any,
+        self,
+        method: str,
+        url: str,
+        **kwargs: Any,
     ) -> dict[str, Any]:
         """Make an authenticated Sheets API request."""
         resp = await self._client.request(
-            method, url, headers=self._headers, **kwargs,
+            method,
+            url,
+            headers=self._headers,
+            **kwargs,
         )
         resp.raise_for_status()
         return resp.json() if resp.content else {}
@@ -72,10 +88,7 @@ class ContentCalendar:
         """Create the header row if the sheet is empty."""
         if not self.config.spreadsheet_id:
             return
-        url = (
-            f"{SHEETS_API}/{self.config.spreadsheet_id}/values/"
-            f"{self.SHEET_NAME}!A1:L1"
-        )
+        url = f"{SHEETS_API}/{self.config.spreadsheet_id}/values/{self.SHEET_NAME}!A1:L1"
         try:
             data = await self._request("GET", url)
             values = data.get("values", [])
@@ -87,14 +100,16 @@ class ContentCalendar:
 
     async def _append_rows(self, rows: list[list[str]]) -> None:
         """Append rows to the content calendar sheet."""
-        url = (
-            f"{SHEETS_API}/{self.config.spreadsheet_id}/values/"
-            f"{self.SHEET_NAME}!A:L:append"
+        url = f"{SHEETS_API}/{self.config.spreadsheet_id}/values/{self.SHEET_NAME}!A:L:append"
+        await self._request(
+            "POST",
+            url,
+            params={
+                "valueInputOption": "USER_ENTERED",
+                "insertDataOption": "INSERT_ROWS",
+            },
+            json={"values": rows},
         )
-        await self._request("POST", url, params={
-            "valueInputOption": "USER_ENTERED",
-            "insertDataOption": "INSERT_ROWS",
-        }, json={"values": rows})
 
     async def publish_content(self, context: dict[str, Any]) -> dict[str, int]:
         """Extract content from SharedContext and publish to the calendar.
@@ -111,6 +126,7 @@ class ContentCalendar:
         added: dict[str, int] = {}
 
         from datetime import datetime
+
         today = datetime.now().strftime("%Y-%m-%d")
         day_name = datetime.now().strftime("%A")
 
@@ -118,12 +134,22 @@ class ContentCalendar:
         kai = context.get("kai_content")
         if isinstance(kai, dict) and kai.get("content"):
             rev = kai.get("revision", {})
-            rows.append([
-                today, day_name, "Blog/Docs", "Tutorial", "DevRel",
-                "Kai", kai.get("task", "")[:100],
-                kai.get("content", "")[:500], "",
-                "draft", str(rev.get("final_score", "")), "",
-            ])
+            rows.append(
+                [
+                    today,
+                    day_name,
+                    "Blog/Docs",
+                    "Tutorial",
+                    "DevRel",
+                    "Kai",
+                    kai.get("task", "")[:100],
+                    kai.get("content", "")[:500],
+                    "",
+                    "draft",
+                    str(rev.get("final_score", "")),
+                    "",
+                ]
+            )
             added["kai"] = 1
 
         # Mox content
@@ -131,26 +157,49 @@ class ContentCalendar:
         if isinstance(mox, dict) and mox.get("content"):
             content_type = mox.get("content_type", "marketing")
             platform = {
-                "blog": "Blog", "social": "Social",
-                "landing_page": "Website", "email_campaign": "Email",
+                "blog": "Blog",
+                "social": "Social",
+                "landing_page": "Website",
+                "email_campaign": "Email",
             }.get(content_type, "Marketing")
-            rows.append([
-                today, day_name, platform, content_type, "Growth",
-                "Mox", mox.get("task", "")[:100],
-                mox.get("content", "")[:500], "",
-                "draft", str(mox.get("revision", {}).get("final_score", "")), "",
-            ])
+            rows.append(
+                [
+                    today,
+                    day_name,
+                    platform,
+                    content_type,
+                    "Growth",
+                    "Mox",
+                    mox.get("task", "")[:100],
+                    mox.get("content", "")[:500],
+                    "",
+                    "draft",
+                    str(mox.get("revision", {}).get("final_score", "")),
+                    "",
+                ]
+            )
             added["mox"] = 1
 
         # Rex competitive intel
         rex = context.get("rex_competitive")
         if isinstance(rex, dict) and rex.get("competitors_discovered"):
             comps = ", ".join(rex["competitors_discovered"][:5])
-            rows.append([
-                today, day_name, "Internal", "Competitive Intel", "Strategy",
-                "Rex", f"Competitors: {comps}", "", "",
-                "complete", "", "",
-            ])
+            rows.append(
+                [
+                    today,
+                    day_name,
+                    "Internal",
+                    "Competitive Intel",
+                    "Strategy",
+                    "Rex",
+                    f"Competitors: {comps}",
+                    "",
+                    "",
+                    "complete",
+                    "",
+                    "",
+                ]
+            )
             added["rex"] = 1
 
         if rows:
@@ -168,10 +217,7 @@ class ContentCalendar:
         if not self.config.spreadsheet_id:
             return []
 
-        url = (
-            f"{SHEETS_API}/{self.config.spreadsheet_id}/values/"
-            f"{self.SHEET_NAME}!A:L"
-        )
+        url = f"{SHEETS_API}/{self.config.spreadsheet_id}/values/{self.SHEET_NAME}!A:L"
         try:
             data = await self._request("GET", url)
             rows = data.get("values", [])

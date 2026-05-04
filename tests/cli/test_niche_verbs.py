@@ -17,7 +17,9 @@ def _init(tmp_path):
     cwd = os.getcwd()
     os.chdir(tmp_path)
     try:
-        runner.invoke(app, ["init", "--non-interactive", "--name", "x", "--url", "", "--github-repo", ""])
+        runner.invoke(
+            app, ["init", "--non-interactive", "--name", "x", "--url", "", "--github-repo", ""]
+        )
     finally:
         os.chdir(cwd)
 
@@ -26,7 +28,9 @@ def _init(tmp_path):
 def mock_atlas():
     with patch("devrel_swarm.cli._common.Atlas") as M:
         inst = M.return_value
-        inst.run_single_task = AsyncMock(return_value=MagicMock(success=True, agent="?", result="ok", error=None))
+        inst.run_single_task = AsyncMock(
+            return_value=MagicMock(success=True, agent="?", result="ok", error=None)
+        )
         yield inst
 
 

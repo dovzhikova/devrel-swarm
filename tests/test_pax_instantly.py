@@ -13,9 +13,13 @@ from devrel_swarm.core.pax import Pax
 def mock_instantly():
     client = MagicMock()
     client.add_leads_bulk = AsyncMock(return_value={"added": 3, "skipped": 0})
-    client.create_campaign = AsyncMock(return_value=MagicMock(
-        id="camp_1", name="Test", status="draft",
-    ))
+    client.create_campaign = AsyncMock(
+        return_value=MagicMock(
+            id="camp_1",
+            name="Test",
+            status="draft",
+        )
+    )
     client.list_emails = AsyncMock(return_value=[])
     client.close = AsyncMock()
     return client
@@ -94,13 +98,22 @@ class TestPaxDraftFollowups:
 
     @pytest.mark.asyncio
     async def test_drafts_for_interested(self, pax_with_instantly, mock_llm_client):
-        mock_llm_client.generate = AsyncMock(return_value=json.dumps({
-            "subject": "Re: Great to hear from you",
-            "body": "Thanks for your interest! Here's how to get started...",
-        }))
+        mock_llm_client.generate = AsyncMock(
+            return_value=json.dumps(
+                {
+                    "subject": "Re: Great to hear from you",
+                    "body": "Thanks for your interest! Here's how to get started...",
+                }
+            )
+        )
         replies = [
-            {"reply_id": "r1", "email_id": "e1", "category": "interested",
-             "body": "Sounds interesting, tell me more", "lead_email": "a@co.com"},
+            {
+                "reply_id": "r1",
+                "email_id": "e1",
+                "category": "interested",
+                "body": "Sounds interesting, tell me more",
+                "lead_email": "a@co.com",
+            },
         ]
         drafts = await pax_with_instantly.draft_followups(replies)
         assert len(drafts) == 1
@@ -110,23 +123,42 @@ class TestPaxDraftFollowups:
     @pytest.mark.asyncio
     async def test_skips_unsubscribe_and_auto_reply(self, pax_with_instantly):
         replies = [
-            {"reply_id": "r1", "email_id": "e1", "category": "unsubscribe",
-             "body": "Please remove me", "lead_email": "a@co.com"},
-            {"reply_id": "r2", "email_id": "e2", "category": "auto_reply",
-             "body": "Out of office", "lead_email": "b@co.com"},
+            {
+                "reply_id": "r1",
+                "email_id": "e1",
+                "category": "unsubscribe",
+                "body": "Please remove me",
+                "lead_email": "a@co.com",
+            },
+            {
+                "reply_id": "r2",
+                "email_id": "e2",
+                "category": "auto_reply",
+                "body": "Out of office",
+                "lead_email": "b@co.com",
+            },
         ]
         drafts = await pax_with_instantly.draft_followups(replies)
         assert len(drafts) == 0
 
     @pytest.mark.asyncio
     async def test_drafts_for_objection(self, pax_with_instantly, mock_llm_client):
-        mock_llm_client.generate = AsyncMock(return_value=json.dumps({
-            "subject": "Re: Addressing your concern",
-            "body": "I understand your concern about pricing...",
-        }))
+        mock_llm_client.generate = AsyncMock(
+            return_value=json.dumps(
+                {
+                    "subject": "Re: Addressing your concern",
+                    "body": "I understand your concern about pricing...",
+                }
+            )
+        )
         replies = [
-            {"reply_id": "r1", "email_id": "e1", "category": "objection",
-             "body": "Too expensive for us", "lead_email": "a@co.com"},
+            {
+                "reply_id": "r1",
+                "email_id": "e1",
+                "category": "objection",
+                "body": "Too expensive for us",
+                "lead_email": "a@co.com",
+            },
         ]
         drafts = await pax_with_instantly.draft_followups(replies)
         assert len(drafts) == 1

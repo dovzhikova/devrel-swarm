@@ -160,9 +160,7 @@ async def _slop_stage(
     re_lint = await llm_lint(rewritten, voice, llm_client)
     if re_regex or re_lint:
         offenders = sorted({h.phrase for h in re_regex} | set(re_lint))
-        raise AbortLoud(
-            "Slop persisted after rewrite: " + ", ".join(offenders)
-        )
+        raise AbortLoud("Slop persisted after rewrite: " + ", ".join(offenders))
     return rewritten, StageResult(
         name="anti_slop",
         text_before=text_before,
@@ -241,7 +239,9 @@ async def run_pipeline(
         name="developmental_edit",
         system=_DEV_EDIT_SYSTEM,
         text_before=initial_draft,
-        voice=voice, style=style_md, content_type=content_type,
+        voice=voice,
+        style=style_md,
+        content_type=content_type,
         llm_client=llm_client,
     )
     stages.append(sr)
@@ -250,7 +250,9 @@ async def run_pipeline(
         name="line_edit",
         system=_LINE_EDIT_SYSTEM,
         text_before=text,
-        voice=voice, style=style_md, content_type=content_type,
+        voice=voice,
+        style=style_md,
+        content_type=content_type,
         llm_client=llm_client,
     )
     stages.append(sr)
@@ -259,20 +261,28 @@ async def run_pipeline(
         name="copy_edit",
         system=_COPY_EDIT_SYSTEM,
         text_before=text,
-        voice=voice, style=style_md, content_type=content_type,
+        voice=voice,
+        style=style_md,
+        content_type=content_type,
         llm_client=llm_client,
     )
     stages.append(sr)
 
     # Stage 5: anti-slop. May raise AbortLoud — let it propagate.
     text, sr = await _slop_stage(
-        text_before=text, blocklist=blocklist, voice=voice, llm_client=llm_client,
+        text_before=text,
+        blocklist=blocklist,
+        voice=voice,
+        llm_client=llm_client,
     )
     stages.append(sr)
 
     # Stage 6: persona.
     persona_sr = await _persona_stage(
-        text=text, content_type=content_type, voice=voice, llm_client=llm_client,
+        text=text,
+        content_type=content_type,
+        voice=voice,
+        llm_client=llm_client,
     )
     stages.append(persona_sr)
 
@@ -290,7 +300,9 @@ async def run_pipeline(
             name="copy_edit",
             system=_COPY_EDIT_SYSTEM,
             text_before=text,
-            voice=voice, style=style_md, content_type=content_type,
+            voice=voice,
+            style=style_md,
+            content_type=content_type,
             llm_client=llm_client,
             extra=extra,
         )
@@ -298,18 +310,22 @@ async def run_pipeline(
 
         # Re-run anti-slop, persona, readability one more time.
         text, sr = await _slop_stage(
-            text_before=text, blocklist=blocklist, voice=voice, llm_client=llm_client,
+            text_before=text,
+            blocklist=blocklist,
+            voice=voice,
+            llm_client=llm_client,
         )
         stages.append(sr)
 
         persona2 = await _persona_stage(
-            text=text, content_type=content_type, voice=voice, llm_client=llm_client,
+            text=text,
+            content_type=content_type,
+            voice=voice,
+            llm_client=llm_client,
         )
         stages.append(persona2)
 
-        readability2 = _readability_stage(
-            text=text, content_type=content_type, style_md=style_md
-        )
+        readability2 = _readability_stage(text=text, content_type=content_type, style_md=style_md)
         stages.append(readability2)
 
         # Readability re-runs are informational only — short test/mock text

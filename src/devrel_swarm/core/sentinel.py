@@ -27,7 +27,11 @@ logger = logging.getLogger(__name__)
 _AGENT_CONTENT_FIELDS: dict[str, list[str]] = {
     "kai_content": ["content", "body"],
     "mox_campaigns": [
-        "blog_post", "landing_page", "social_batch", "campaign_brief", "content",
+        "blog_post",
+        "landing_page",
+        "social_batch",
+        "campaign_brief",
+        "content",
     ],
     "pax_sales": ["body", "battle_card", "sequence", "content"],
     "rex_competitive": ["analysis", "summary", "content"],
@@ -102,7 +106,9 @@ Be strict. Generic AI slop scores 3-4 regardless of technical accuracy."""
     @property
     def SYSTEM_PROMPT(self) -> str:
         return load_agent_prompt(
-            "sentinel", "system_prompt.txt", self._DEFAULT_SYSTEM_PROMPT,
+            "sentinel",
+            "system_prompt.txt",
+            self._DEFAULT_SYSTEM_PROMPT,
         )
 
     def __init__(
@@ -142,7 +148,8 @@ Be strict. Generic AI slop scores 3-4 regardless of technical accuracy."""
         return self._structural_audit(task, pieces)
 
     def _collect_content(
-        self, context: Any,
+        self,
+        context: Any,
     ) -> list[dict[str, str]]:
         """Extract all content pieces from SharedContext for auditing.
 
@@ -164,33 +171,38 @@ Be strict. Generic AI slop scores 3-4 regardless of technical accuracy."""
             for fld in candidate_fields:
                 value = agent_data.get(fld)
                 if isinstance(value, str) and value.strip():
-                    pieces.append({
-                        "agent": context_key,
-                        "content_type": fld,
-                        "content": value[:5000],
-                    })
+                    pieces.append(
+                        {
+                            "agent": context_key,
+                            "content_type": fld,
+                            "content": value[:5000],
+                        }
+                    )
                     break  # one piece per agent
                 if isinstance(value, list) and value:
                     joined = "\n\n".join(str(v) for v in value[:3])[:5000]
                     if joined.strip():
-                        pieces.append({
-                            "agent": context_key,
-                            "content_type": fld,
-                            "content": joined,
-                        })
+                        pieces.append(
+                            {
+                                "agent": context_key,
+                                "content_type": fld,
+                                "content": joined,
+                            }
+                        )
                         break
 
         return pieces
 
     async def _llm_audit(
-        self, task: str, pieces: list[dict[str, str]],
+        self,
+        task: str,
+        pieces: list[dict[str, str]],
     ) -> dict[str, Any]:
         """Run comprehensive LLM-powered brand audit."""
         pieces_text = ""
         for p in pieces:
             pieces_text += (
-                f"\n\n--- [{p['agent'].upper()} — {p['content_type']}] ---\n"
-                f"{p['content']}\n"
+                f"\n\n--- [{p['agent'].upper()} — {p['content_type']}] ---\n{p['content']}\n"
             )
 
         prompt = f"""Audit all content pieces below for brand consistency.
@@ -262,7 +274,9 @@ Return JSON:
             return self._structural_audit(task, pieces)
 
     def _structural_audit(
-        self, task: str, pieces: list[dict[str, str]],
+        self,
+        task: str,
+        pieces: list[dict[str, str]],
     ) -> dict[str, Any]:
         """Fallback: basic structural quality checks without LLM."""
         items = []
@@ -275,50 +289,60 @@ Return JSON:
 
             # Check paragraph length
             paragraphs = content.split("\n\n")
-            long_paras = [
-                pp for pp in paragraphs if len(pp.split()) > 100
-            ]
+            long_paras = [pp for pp in paragraphs if len(pp.split()) > 100]
             if long_paras:
-                issues.append({
-                    "dimension": "formatting",
-                    "severity": "medium",
-                    "detail": f"{len(long_paras)} paragraphs exceed 100 words",
-                })
+                issues.append(
+                    {
+                        "dimension": "formatting",
+                        "severity": "medium",
+                        "detail": f"{len(long_paras)} paragraphs exceed 100 words",
+                    }
+                )
                 score -= 1
 
             # Check for heading structure
             if "## " not in content and "# " not in content:
-                issues.append({
-                    "dimension": "formatting",
-                    "severity": "medium",
-                    "detail": "No heading hierarchy found",
-                })
+                issues.append(
+                    {
+                        "dimension": "formatting",
+                        "severity": "medium",
+                        "detail": "No heading hierarchy found",
+                    }
+                )
                 score -= 1
 
             # Check for buzzwords
             buzzwords = [
-                "revolutionary", "game-changing", "cutting-edge",
-                "best-in-class", "world-class", "synergy",
-                "leverage", "disrupt", "paradigm",
+                "revolutionary",
+                "game-changing",
+                "cutting-edge",
+                "best-in-class",
+                "world-class",
+                "synergy",
+                "leverage",
+                "disrupt",
+                "paradigm",
             ]
-            found_buzzwords = [
-                b for b in buzzwords if b in content.lower()
-            ]
+            found_buzzwords = [b for b in buzzwords if b in content.lower()]
             if found_buzzwords:
-                issues.append({
-                    "dimension": "voice",
-                    "severity": "high",
-                    "detail": f"Marketing buzzwords found: {', '.join(found_buzzwords)}",
-                })
+                issues.append(
+                    {
+                        "dimension": "voice",
+                        "severity": "high",
+                        "detail": f"Marketing buzzwords found: {', '.join(found_buzzwords)}",
+                    }
+                )
                 score -= 2
 
-            items.append({
-                "agent": p["agent"],
-                "content_type": p["content_type"],
-                "score": max(1, score),
-                "passed": score >= 6,
-                "issues": issues,
-            })
+            items.append(
+                {
+                    "agent": p["agent"],
+                    "content_type": p["content_type"],
+                    "score": max(1, score),
+                    "passed": score >= 6,
+                    "issues": issues,
+                }
+            )
             total_score += max(1, score)
 
         # Map item average from 1-7 scale onto 10-100 scale linearly so the

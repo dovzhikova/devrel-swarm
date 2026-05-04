@@ -93,10 +93,17 @@ Always cite which knowledge base documents you referenced."""
         )
         self._kb = get_kb_search(
             knowledge_base_path,
-            extra_stop_words=frozenset({
-                "write", "technical", "tutorial", "addressing",
-                "developer", "pain", "point",
-            }),
+            extra_stop_words=frozenset(
+                {
+                    "write",
+                    "technical",
+                    "tutorial",
+                    "addressing",
+                    "developer",
+                    "pain",
+                    "point",
+                }
+            ),
         )
 
     def search_knowledge_base(self, query: str, max_results: int = 5) -> list[dict[str, str]]:
@@ -126,12 +133,8 @@ Always cite which knowledge base documents you referenced."""
             if isinstance(prev, list):
                 for week in prev:
                     if isinstance(week, dict):
-                        extracted["previous_content_titles"].extend(
-                            week.get("content_titles", [])
-                        )
-                        extracted["recurring_themes"].extend(
-                            week.get("top_themes", [])
-                        )
+                        extracted["previous_content_titles"].extend(week.get("content_titles", []))
+                        extracted["recurring_themes"].extend(week.get("top_themes", []))
 
         # Iris themes → pain points
         if "iris_themes" in context:
@@ -139,13 +142,15 @@ Always cite which knowledge base documents you referenced."""
             if isinstance(themes, dict):
                 for t in themes.get("themes", []):
                     if isinstance(t, dict):
-                        extracted["pain_points"].append({
-                            "title": t.get("title", ""),
-                            "description": t.get("description", ""),
-                            "category": t.get("category", ""),
-                            "severity": t.get("severity", 0),
-                            "issues": t.get("representative_issues", []),
-                        })
+                        extracted["pain_points"].append(
+                            {
+                                "title": t.get("title", ""),
+                                "description": t.get("description", ""),
+                                "category": t.get("category", ""),
+                                "severity": t.get("severity", 0),
+                                "issues": t.get("representative_issues", []),
+                            }
+                        )
 
         # Sage triage → real GitHub issues for examples
         if "sage_triage" in context:
@@ -153,12 +158,14 @@ Always cite which knowledge base documents you referenced."""
             if isinstance(sage, dict):
                 for issue in sage.get("issues", [])[:10]:
                     if isinstance(issue, dict):
-                        extracted["real_issues"].append({
-                            "number": issue.get("number"),
-                            "title": issue.get("title", ""),
-                            "category": issue.get("category", ""),
-                            "product_area": issue.get("product_area", ""),
-                        })
+                        extracted["real_issues"].append(
+                            {
+                                "number": issue.get("number"),
+                                "title": issue.get("title", ""),
+                                "category": issue.get("category", ""),
+                                "product_area": issue.get("product_area", ""),
+                            }
+                        )
 
         # Dex docs → architecture and API reference for accuracy
         if "dex_docs" in context:
@@ -221,8 +228,10 @@ Always cite which knowledge base documents you referenced."""
                     f"- **{pp['title']}** (severity: {pp['severity']}, "
                     f"category: {pp['category']}): {pp['description'][:200]}\n"
                 )
-                if pp['issues']:
-                    pain_section += f"  Related GitHub issues: {', '.join(f'#{i}' for i in pp['issues'][:3])}\n"
+                if pp["issues"]:
+                    pain_section += (
+                        f"  Related GitHub issues: {', '.join(f'#{i}' for i in pp['issues'][:3])}\n"
+                    )
 
         # Build real issues section
         issues_section = ""
@@ -230,8 +239,7 @@ Always cite which knowledge base documents you referenced."""
             issues_section = "Real GitHub issues developers filed this week:\n"
             for issue in real_issues[:8]:
                 issues_section += (
-                    f"- #{issue['number']}: {issue['title']} "
-                    f"[{issue['product_area']}]\n"
+                    f"- #{issue['number']}: {issue['title']} [{issue['product_area']}]\n"
                 )
 
         # Build dedup section from cross-run memory
@@ -307,13 +315,10 @@ Always cite which knowledge base documents you referenced."""
                 base_result["content"] = content
                 if issues and isinstance(issues[0], dict):
                     remaining_issues = [
-                        i for i in issues
-                        if isinstance(i, dict) and i.get("severity") == "high"
+                        i for i in issues if isinstance(i, dict) and i.get("severity") == "high"
                     ]
                 else:
-                    remaining_issues = [
-                        i for i in issues if isinstance(i, str) and i.strip()
-                    ]
+                    remaining_issues = [i for i in issues if isinstance(i, str) and i.strip()]
                 base_result["revision"] = {
                     "strengths": strengths,
                     "remaining_issues": remaining_issues,

@@ -56,11 +56,7 @@ def count_syllables(word: str) -> int:
         prev_vowel = is_v
     # Terminal silent-e, but preserve `[consonant]le` endings.
     if word.endswith("e") and syllables > 1:
-        ends_in_consonant_le = (
-            len(word) >= 3
-            and word[-2:] == "le"
-            and word[-3] not in _VOWELS
-        )
+        ends_in_consonant_le = len(word) >= 3 and word[-2:] == "le" and word[-3] not in _VOWELS
         if not ends_in_consonant_le:
             syllables -= 1
     return max(1, syllables)
@@ -98,11 +94,7 @@ def compute_readability(text: str) -> ReadabilityScores:
         return ReadabilityScores(0.0, 0.0, 0.0, 0.0, word_count, sentence_count)
 
     syllable_total = sum(count_syllables(w) for w in words)
-    flesch = (
-        206.835
-        - 1.015 * (word_count / sentence_count)
-        - 84.6 * (syllable_total / word_count)
-    )
+    flesch = 206.835 - 1.015 * (word_count / sentence_count) - 84.6 * (syllable_total / word_count)
 
     sentence_lengths = [len(_words_in(s)) for s in sentences]
     mean_sl = statistics.mean(sentence_lengths)

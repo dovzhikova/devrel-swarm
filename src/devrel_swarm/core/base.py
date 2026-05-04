@@ -9,21 +9,123 @@ from typing import Any
 logger = logging.getLogger(__name__)
 
 # Common stop words excluded from KB keyword matching
-STOP_WORDS = frozenset({
-    "the", "a", "an", "is", "are", "was", "were", "be", "been", "being",
-    "have", "has", "had", "do", "does", "did", "will", "would", "could",
-    "should", "may", "might", "shall", "can", "need", "must", "ought",
-    "i", "you", "he", "she", "it", "we", "they", "me", "him", "her", "us",
-    "my", "your", "his", "its", "our", "their", "this", "that", "these",
-    "those", "what", "which", "who", "whom", "when", "where", "why", "how",
-    "all", "each", "every", "both", "few", "more", "most", "other", "some",
-    "such", "no", "not", "only", "same", "so", "than", "too", "very",
-    "just", "because", "as", "until", "while", "of", "at", "by", "for",
-    "with", "about", "against", "between", "through", "during", "before",
-    "after", "above", "below", "to", "from", "up", "down", "in", "out",
-    "on", "off", "over", "under", "again", "further", "then", "once",
-    "and", "but", "or", "nor", "if", "else",
-})
+STOP_WORDS = frozenset(
+    {
+        "the",
+        "a",
+        "an",
+        "is",
+        "are",
+        "was",
+        "were",
+        "be",
+        "been",
+        "being",
+        "have",
+        "has",
+        "had",
+        "do",
+        "does",
+        "did",
+        "will",
+        "would",
+        "could",
+        "should",
+        "may",
+        "might",
+        "shall",
+        "can",
+        "need",
+        "must",
+        "ought",
+        "i",
+        "you",
+        "he",
+        "she",
+        "it",
+        "we",
+        "they",
+        "me",
+        "him",
+        "her",
+        "us",
+        "my",
+        "your",
+        "his",
+        "its",
+        "our",
+        "their",
+        "this",
+        "that",
+        "these",
+        "those",
+        "what",
+        "which",
+        "who",
+        "whom",
+        "when",
+        "where",
+        "why",
+        "how",
+        "all",
+        "each",
+        "every",
+        "both",
+        "few",
+        "more",
+        "most",
+        "other",
+        "some",
+        "such",
+        "no",
+        "not",
+        "only",
+        "same",
+        "so",
+        "than",
+        "too",
+        "very",
+        "just",
+        "because",
+        "as",
+        "until",
+        "while",
+        "of",
+        "at",
+        "by",
+        "for",
+        "with",
+        "about",
+        "against",
+        "between",
+        "through",
+        "during",
+        "before",
+        "after",
+        "above",
+        "below",
+        "to",
+        "from",
+        "up",
+        "down",
+        "in",
+        "out",
+        "on",
+        "off",
+        "over",
+        "under",
+        "again",
+        "further",
+        "then",
+        "once",
+        "and",
+        "but",
+        "or",
+        "nor",
+        "if",
+        "else",
+    }
+)
 
 
 def strip_markdown_fences(text: str) -> str:
@@ -65,11 +167,7 @@ def load_agent_prompt(agent_name: str, prompt_name: str, default: str) -> str:
 
 def _tokenize(text: str, stop_words: frozenset[str] = STOP_WORDS) -> list[str]:
     """Tokenize text into lowercase words, removing stop words and short tokens."""
-    return [
-        w.lower()
-        for w in re.split(r"\W+", text)
-        if w.lower() not in stop_words and len(w) > 2
-    ]
+    return [w.lower() for w in re.split(r"\W+", text) if w.lower() not in stop_words and len(w) > 2]
 
 
 _kb_cache: dict[tuple[str, frozenset[str] | None], "KnowledgeBaseSearch"] = {}
@@ -134,7 +232,8 @@ class KnowledgeBaseSearch:
             self._doc_contents[source] = content
             # Tokenize filename + content for TF-IDF
             self._doc_tokens[source] = _tokenize(
-                f"{key} {key} {content}", self.stop_words,
+                f"{key} {key} {content}",
+                self.stop_words,
             )
 
         # Compute IDF: log(N / df) for each term
@@ -145,9 +244,7 @@ class KnowledgeBaseSearch:
             for term in seen:
                 df[term] = df.get(term, 0) + 1
 
-        self._idf = {
-            term: math.log(n_docs / count) for term, count in df.items()
-        }
+        self._idf = {term: math.log(n_docs / count) for term, count in df.items()}
         logger.info(f"KB indexed {len(self.index)} documents, {len(self._idf)} terms")
 
     def _tfidf_score(self, query_tokens: list[str], source: str) -> float:
@@ -202,11 +299,13 @@ class KnowledgeBaseSearch:
         for source, content in self._doc_contents.items():
             score = self._tfidf_score(query_tokens, source)
             if score > 0:
-                scored.append({
-                    "source": source,
-                    "content": content[:content_truncate],
-                    "relevance": round(score, 4),
-                })
+                scored.append(
+                    {
+                        "source": source,
+                        "content": content[:content_truncate],
+                        "relevance": round(score, 4),
+                    }
+                )
 
         scored.sort(key=lambda x: x["relevance"], reverse=True)
 
@@ -216,11 +315,13 @@ class KnowledgeBaseSearch:
             for source, content in self._doc_contents.items():
                 if source in existing_sources:
                     continue
-                scored.append({
-                    "source": source,
-                    "content": content[:content_truncate],
-                    "relevance": 0,
-                })
+                scored.append(
+                    {
+                        "source": source,
+                        "content": content[:content_truncate],
+                        "relevance": 0,
+                    }
+                )
                 if len(scored) >= limit:
                     break
 
@@ -233,6 +334,4 @@ class KnowledgeBaseSearch:
         as a single string to the LLM prompt.
         """
         results = self.search(query, limit=limit, content_truncate=2000)
-        return "\n\n".join(
-            f"[{r['source']}]\n{r['content']}" for r in results
-        )
+        return "\n\n".join(f"[{r['source']}]\n{r['content']}" for r in results)

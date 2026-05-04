@@ -90,7 +90,9 @@ class TestEchoExecute:
         assert result["platforms"] == {}
 
     @pytest.mark.asyncio
-    async def test_execute_with_search_results(self, echo, mock_search_tools, sample_search_results):
+    async def test_execute_with_search_results(
+        self, echo, mock_search_tools, sample_search_results
+    ):
         mock_search_tools.web_search = AsyncMock(return_value=sample_search_results)
         result = await echo.execute("Scan social media")
         # Should find mentions (excluding the unrelated post)
@@ -275,16 +277,34 @@ class TestPlatformSummaries:
     def test_groups_by_platform(self, echo):
         mentions = [
             SocialMention(
-                platform="reddit", title="Post 1", url="url1", author="a",
-                content="PostHog", sentiment="positive", engagement=10, posted_at="2026-03-14",
+                platform="reddit",
+                title="Post 1",
+                url="url1",
+                author="a",
+                content="PostHog",
+                sentiment="positive",
+                engagement=10,
+                posted_at="2026-03-14",
             ),
             SocialMention(
-                platform="reddit", title="Post 2", url="url2", author="b",
-                content="PostHog", sentiment="negative", engagement=5, posted_at="2026-03-14",
+                platform="reddit",
+                title="Post 2",
+                url="url2",
+                author="b",
+                content="PostHog",
+                sentiment="negative",
+                engagement=5,
+                posted_at="2026-03-14",
             ),
             SocialMention(
-                platform="hackernews", title="Post 3", url="url3", author="c",
-                content="PostHog", sentiment="neutral", engagement=50, posted_at="2026-03-14",
+                platform="hackernews",
+                title="Post 3",
+                url="url3",
+                author="c",
+                content="PostHog",
+                sentiment="neutral",
+                engagement=50,
+                posted_at="2026-03-14",
             ),
         ]
         summaries = echo._build_platform_summaries(mentions)
@@ -295,16 +315,34 @@ class TestPlatformSummaries:
     def test_sentiment_breakdown_per_platform(self, echo):
         mentions = [
             SocialMention(
-                platform="reddit", title="Post 1", url="u1", author="a",
-                content="PostHog", sentiment="positive", engagement=10, posted_at="2026-03-14",
+                platform="reddit",
+                title="Post 1",
+                url="u1",
+                author="a",
+                content="PostHog",
+                sentiment="positive",
+                engagement=10,
+                posted_at="2026-03-14",
             ),
             SocialMention(
-                platform="reddit", title="Post 2", url="u2", author="b",
-                content="PostHog", sentiment="positive", engagement=5, posted_at="2026-03-14",
+                platform="reddit",
+                title="Post 2",
+                url="u2",
+                author="b",
+                content="PostHog",
+                sentiment="positive",
+                engagement=5,
+                posted_at="2026-03-14",
             ),
             SocialMention(
-                platform="reddit", title="Post 3", url="u3", author="c",
-                content="PostHog", sentiment="negative", engagement=1, posted_at="2026-03-14",
+                platform="reddit",
+                title="Post 3",
+                url="u3",
+                author="c",
+                content="PostHog",
+                sentiment="negative",
+                engagement=1,
+                posted_at="2026-03-14",
             ),
         ]
         summaries = echo._build_platform_summaries(mentions)
@@ -319,16 +357,34 @@ class TestAggregateSentiment:
     def test_counts_all_sentiments(self, echo):
         mentions = [
             SocialMention(
-                platform="reddit", title="t", url="u", author="a",
-                content="c", sentiment="positive", engagement=0, posted_at="d",
+                platform="reddit",
+                title="t",
+                url="u",
+                author="a",
+                content="c",
+                sentiment="positive",
+                engagement=0,
+                posted_at="d",
             ),
             SocialMention(
-                platform="reddit", title="t", url="u", author="a",
-                content="c", sentiment="positive", engagement=0, posted_at="d",
+                platform="reddit",
+                title="t",
+                url="u",
+                author="a",
+                content="c",
+                sentiment="positive",
+                engagement=0,
+                posted_at="d",
             ),
             SocialMention(
-                platform="reddit", title="t", url="u", author="a",
-                content="c", sentiment="negative", engagement=0, posted_at="d",
+                platform="reddit",
+                title="t",
+                url="u",
+                author="a",
+                content="c",
+                sentiment="negative",
+                engagement=0,
+                posted_at="d",
             ),
         ]
         result = echo._aggregate_sentiment(mentions)
@@ -347,14 +403,24 @@ class TestExtractTopics:
     def test_extracts_matching_topics(self, echo):
         mentions = [
             SocialMention(
-                platform="reddit", title="OpenClaw voice assistant review", url="u",
-                author="a", content="Voice and privacy features are great",
-                sentiment="positive", engagement=10, posted_at="d",
+                platform="reddit",
+                title="OpenClaw voice assistant review",
+                url="u",
+                author="a",
+                content="Voice and privacy features are great",
+                sentiment="positive",
+                engagement=10,
+                posted_at="d",
             ),
             SocialMention(
-                platform="reddit", title="OpenClaw voice setup on WhatsApp", url="u2",
-                author="b", content="How to set up voice on WhatsApp with OpenClaw",
-                sentiment="neutral", engagement=5, posted_at="d",
+                platform="reddit",
+                title="OpenClaw voice setup on WhatsApp",
+                url="u2",
+                author="b",
+                content="How to set up voice on WhatsApp with OpenClaw",
+                sentiment="neutral",
+                engagement=5,
+                posted_at="d",
             ),
         ]
         topics = echo._extract_topics(mentions)
@@ -408,6 +474,7 @@ class TestQuestionSignalsConstant:
 
     def test_question_signals_named_constant_used(self):
         from devrel_swarm.core.echo import QUESTION_SIGNALS
+
         assert "?" in QUESTION_SIGNALS
         assert "how do" in QUESTION_SIGNALS
         assert "anyone know" in QUESTION_SIGNALS
@@ -451,5 +518,6 @@ class TestNoOpenClawTypo:
         import inspect
 
         from devrel_swarm.core import echo
+
         source = inspect.getsource(echo)
         assert "OpenClaw' " not in source

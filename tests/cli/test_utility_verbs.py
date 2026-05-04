@@ -44,13 +44,19 @@ def _seed_costs(tmp_path, rows):
                 "INSERT INTO costs (agent, model, input_tokens, output_tokens, "
                 "cache_read_tokens, cache_write_tokens, cost_usd) "
                 "VALUES (?, ?, ?, ?, 0, 0, ?)",
-                (r["agent"], r.get("model", "claude-sonnet-4-6"),
-                 r.get("input", 100), r.get("output", 50), r["usd"]),
+                (
+                    r["agent"],
+                    r.get("model", "claude-sonnet-4-6"),
+                    r.get("input", 100),
+                    r.get("output", 50),
+                    r["usd"],
+                ),
             )
         conn.commit()
 
 
 # ---- cost ------------------------------------------------------------
+
 
 def test_cost_empty_db_outputs_zero(tmp_path):
     _init(tmp_path)
@@ -61,11 +67,14 @@ def test_cost_empty_db_outputs_zero(tmp_path):
 
 def test_cost_aggregates_by_agent(tmp_path):
     _init(tmp_path)
-    _seed_costs(tmp_path, [
-        {"agent": "kai", "usd": 0.12},
-        {"agent": "kai", "usd": 0.08},
-        {"agent": "mox", "usd": 0.50},
-    ])
+    _seed_costs(
+        tmp_path,
+        [
+            {"agent": "kai", "usd": 0.12},
+            {"agent": "kai", "usd": 0.08},
+            {"agent": "mox", "usd": 0.50},
+        ],
+    )
     r = _run(tmp_path, ["cost"])
     assert r.exit_code == 0, r.output
     assert "$0.7000" in r.output  # total
@@ -76,10 +85,13 @@ def test_cost_aggregates_by_agent(tmp_path):
 
 def test_cost_json_output(tmp_path):
     _init(tmp_path)
-    _seed_costs(tmp_path, [
-        {"agent": "kai", "usd": 0.25},
-        {"agent": "rex", "usd": 0.15},
-    ])
+    _seed_costs(
+        tmp_path,
+        [
+            {"agent": "kai", "usd": 0.25},
+            {"agent": "rex", "usd": 0.15},
+        ],
+    )
     r = _run(tmp_path, ["cost", "--json"])
     assert r.exit_code == 0, r.output
     data = json.loads(r.output)
@@ -135,6 +147,7 @@ def test_cost_month_filter(tmp_path):
 
 
 # ---- deliverables ----------------------------------------------------
+
 
 def test_deliverables_list_empty(tmp_path):
     _init(tmp_path)
@@ -217,6 +230,7 @@ def test_deliverables_show_multiple_matches(tmp_path):
 
 # ---- config ----------------------------------------------------------
 
+
 def test_config_get_existing_key(tmp_path):
     _init(tmp_path)
     r = _run(tmp_path, ["config", "get", "project.name"])
@@ -255,6 +269,7 @@ def test_config_set_bool_and_string(tmp_path):
 
 
 # ---- content slop ----------------------------------------------------
+
 
 def test_content_slop_clean_file(tmp_path):
     _init(tmp_path)

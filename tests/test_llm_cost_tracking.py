@@ -95,9 +95,7 @@ class TestLLMClientUsageTracking:
         mock_response_2.usage.input_tokens = 200
         mock_response_2.usage.output_tokens = 60
 
-        client._client.messages.create = AsyncMock(
-            side_effect=[mock_response_1, mock_response_2]
-        )
+        client._client.messages.create = AsyncMock(side_effect=[mock_response_1, mock_response_2])
 
         await client.generate(system_prompt="s", user_prompt="p1")
         await client.generate(system_prompt="s", user_prompt="p2")
