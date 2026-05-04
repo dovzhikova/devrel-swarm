@@ -294,8 +294,11 @@ Copy `config/env.example` to `.env` and fill in values.
 ## Commands
 
 ```bash
-# Install
-pip install -r requirements.txt
+# Install (editable, with dev extras for tests)
+pip install -e ".[dev]"
+
+# Or from PyPI (end users)
+pipx install devrel-swarm
 
 # Bootstrap a project (Phase 2)
 devrel init --name openclaw --url https://openclaw.ai --github-repo openclaw/openclaw

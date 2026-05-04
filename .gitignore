@@ -144,3 +144,7 @@ context_archive/
 
 # Per-project state created by `devrel init` should never live in this repo —
 # the canonical path is `.devrel/deliverables/` inside each user's own project.
+
+# Vox writes rendered videos to `output/videos/` in CWD by default.
+# Local-only artifacts; never commit.
+output/
