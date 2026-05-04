@@ -2,26 +2,23 @@ FROM python:3.12-slim
 
 WORKDIR /app
 
-# System deps for optional features
+# System deps for Vox (video TTS pipeline)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 
-# Python deps
-COPY requirements.txt pyproject.toml ./
-RUN pip install --no-cache-dir -r requirements.txt
-
-# Application code
+# Install via pyproject.toml (single source of truth for deps)
+COPY pyproject.toml README.md LICENSE ./
 COPY src/ src/
-COPY pyproject.toml ./
-RUN pip install -e .
+RUN pip install --no-cache-dir .
+
+# Optional maintainer assets — useful when the container is the dev-environment
+# rather than just a runtime. Drop these COPYs if you only need the CLI.
 COPY config/ config/
 COPY knowledge_base/ knowledge_base/
 COPY optimize/ optimize/
 
-# Create output directories
-RUN mkdir -p deliverables context_archive
-
-# Default: run the full weekly cycle
+# Default: drop into the CLI. Override with e.g. `devrel doctor`.
 ENV PYTHONUNBUFFERED=1
-CMD ["python", "-m", "devrel_swarm.core.atlas", "--weekly-cycle"]
+ENTRYPOINT ["devrel"]
+CMD ["--help"]
