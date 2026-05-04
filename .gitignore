@@ -138,5 +138,9 @@ knowledge_base/drafts/
 logs/
 *.pid
 config/local_*.yaml
-deliverables/*.json
-context_archive/*.json
+deliverables/
+context_archive/
+.devrel/
+
+# Per-project state created by `devrel init` should never live in this repo —
+# the canonical path is `.devrel/deliverables/` inside each user's own project.
