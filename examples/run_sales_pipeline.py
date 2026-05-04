@@ -241,7 +241,7 @@ async def main():
         # Print LLM usage stats
         if llm_client and hasattr(llm_client, "usage"):
             usage = llm_client.usage
-            print(f"\nLLM Usage:")
+            print("\nLLM Usage:")
             print(f"  Calls: {usage.total_calls}")
             print(f"  Input tokens: {usage.total_input_tokens:,}")
             print(f"  Output tokens: {usage.total_output_tokens:,}")

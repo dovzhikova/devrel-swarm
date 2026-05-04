@@ -7,15 +7,13 @@ channels. Ranks pain points and maps the developer journey.
 
 import json
 import logging
-import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Optional
 
+from devrel_swarm.core.base import strip_markdown_fences
 from devrel_swarm.core.llm import LLMClient
 from devrel_swarm.tools.api_client import PostHogClient
-
-from devrel_swarm.core.base import strip_markdown_fences
 
 logger = logging.getLogger(__name__)
 

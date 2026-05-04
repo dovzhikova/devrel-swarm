@@ -6,14 +6,12 @@ import json
 import os
 import sys
 from dataclasses import asdict, dataclass
-from pathlib import Path
 
 import typer
 from rich.console import Console
 
 from devrel_swarm.project.config import ConfigError, ProjectConfig
 from devrel_swarm.project.paths import (
-    DEVREL_DIR_NAME,
     ProjectNotFoundError,
     ProjectPaths,
     find_devrel_root,

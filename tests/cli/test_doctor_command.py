@@ -5,7 +5,6 @@ from __future__ import annotations
 import json
 import os
 
-import pytest
 from typer.testing import CliRunner
 
 from devrel_swarm.cli import app

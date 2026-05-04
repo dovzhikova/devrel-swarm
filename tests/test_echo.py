@@ -5,10 +5,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from devrel_swarm.core.echo import (
-    ENGAGEMENT_SIGNALS,
-    RISK_SIGNALS,
     Echo,
-    PlatformSummary,
     SocialListeningReport,
     SocialMention,
 )
@@ -452,6 +449,7 @@ class TestNoOpenClawTypo:
         # Any well-formed possessive ("OpenClaw's") is fine — only the
         # space-after-apostrophe variant indicates the bug.
         import inspect
+
         from devrel_swarm.core import echo
         source = inspect.getsource(echo)
         assert "OpenClaw' " not in source

@@ -467,7 +467,7 @@ Output formats:
     def generate_architecture_doc(self, analysis: RepoAnalysis) -> str:
         """Generate a markdown architecture overview from repo analysis."""
         lines: list[str] = []
-        lines.append(f"# Architecture Overview\n")
+        lines.append("# Architecture Overview\n")
         lines.append(f"**Root:** `{analysis.root}`\n")
         lines.append(f"**Files:** {analysis.total_files} | "
                       f"**Lines:** {analysis.total_lines}\n")

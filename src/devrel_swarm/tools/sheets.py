@@ -6,10 +6,8 @@ for editorial review and scheduling. Uses Google Sheets API v4
 via service account or OAuth credentials.
 """
 
-import json
 import logging
 from dataclasses import dataclass
-from pathlib import Path
 from typing import Any
 
 import httpx
@@ -183,7 +181,7 @@ class ContentCalendar:
             pending = []
             for row in rows[1:]:
                 padded = row + [""] * (len(headers) - len(row))
-                entry = dict(zip(headers, padded))
+                entry = dict(zip(headers, padded, strict=True))
                 if entry.get("Status", "").lower() == "draft":
                     pending.append(entry)
             return pending

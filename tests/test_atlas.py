@@ -363,8 +363,9 @@ class TestAtlasArgusStage:
         )
         atlas.config.analytics_in_run = True
 
-        from devrel_swarm.core.argus import PerformanceReport
         from datetime import datetime, timezone
+
+        from devrel_swarm.core.argus import PerformanceReport
 
         fake_report = PerformanceReport(
             period_start=datetime(2026, 4, 25, tzinfo=timezone.utc),

@@ -13,8 +13,8 @@ Rate limits: Emails endpoint 20 req/min; others higher.
 """
 
 import asyncio
-import os
 import logging
+import os
 from dataclasses import dataclass, field
 from typing import Any
 

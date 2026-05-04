@@ -8,7 +8,6 @@ and error data. Stored alongside context archives for post-hoc analysis.
 import json
 import logging
 from dataclasses import dataclass, field
-from datetime import datetime
 from pathlib import Path
 from typing import Any
 

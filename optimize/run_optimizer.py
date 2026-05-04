@@ -19,7 +19,6 @@ import asyncio
 import json
 import logging
 import os
-import shutil
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -73,8 +72,8 @@ Return your response as JSON:
 
 async def get_current_scores() -> dict:
     """Run the eval harness and return JSON scores."""
-    from optimize.eval_harness import run_eval, generate_email, score_email, PRODUCT_NAME
     from devrel_swarm.core.llm import LLMClient
+    from optimize.eval_harness import generate_email, score_email
 
     api_key = os.environ.get("ANTHROPIC_API_KEY", "")
     llm = LLMClient(api_key=api_key)
@@ -118,8 +117,8 @@ async def propose_modification(
     target: str,
 ) -> dict | None:
     """Ask the LLM to propose a prompt modification."""
-    from devrel_swarm.core.llm import LLMClient
     from devrel_swarm.core.base import strip_markdown_fences
+    from devrel_swarm.core.llm import LLMClient
 
     api_key = os.environ.get("ANTHROPIC_API_KEY", "")
     llm = LLMClient(api_key=api_key)
@@ -181,7 +180,7 @@ async def run_optimizer(iterations: int = 10, target: str = "both"):
     iteration_start = len(history) + 1
 
     print(f"\n{'=' * 60}")
-    print(f"Pax Email Optimizer — Autoresearch Loop")
+    print("Pax Email Optimizer — Autoresearch Loop")
     print(f"{'=' * 60}")
 
     # Get baseline score
@@ -242,13 +241,13 @@ async def run_optimizer(iterations: int = 10, target: str = "both"):
 
         if new_avg > best_score:
             print(f"  IMPROVED: {best_score:.1f} → {new_avg:.1f} (+{new_avg - best_score:.1f})")
-            print(f"  Keeping modification.")
+            print("  Keeping modification.")
             record["kept"] = True
             best_score = new_avg
             baseline = new_scores
         else:
             print(f"  NO IMPROVEMENT: {best_score:.1f} → {new_avg:.1f} ({new_avg - best_score:+.1f})")
-            print(f"  Reverting.")
+            print("  Reverting.")
             prompt_file.write_text(backup)
 
         history.append(record)
@@ -256,7 +255,7 @@ async def run_optimizer(iterations: int = 10, target: str = "both"):
 
     # Final summary
     print(f"\n{'=' * 60}")
-    print(f"Optimization Complete")
+    print("Optimization Complete")
     print(f"{'=' * 60}")
     print(f"  Iterations: {iterations}")
     print(f"  Final score: {best_score}/100")
@@ -265,7 +264,7 @@ async def run_optimizer(iterations: int = 10, target: str = "both"):
     # Show history of kept changes
     kept = [h for h in history if h["kept"]]
     if kept:
-        print(f"\n  Kept modifications:")
+        print("\n  Kept modifications:")
         for h in kept[-5:]:
             print(f"    [{h['iteration']}] {h['change_description']}: {h['before_score']:.1f} → {h['after_score']:.1f}")
 

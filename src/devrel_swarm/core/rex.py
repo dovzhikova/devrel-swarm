@@ -9,14 +9,19 @@ import asyncio
 import json
 import logging
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Optional
 
 if TYPE_CHECKING:
     from devrel_swarm.tools.apollo_client import ApolloClient
 
-from devrel_swarm.core.base import STOP_WORDS, get_kb_search, load_agent_prompt, strip_markdown_fences
+from devrel_swarm.core.base import (
+    STOP_WORDS,
+    get_kb_search,
+    load_agent_prompt,
+    strip_markdown_fences,
+)
 from devrel_swarm.core.llm import LLMClient
 from devrel_swarm.tools.api_client import PostHogClient
 from devrel_swarm.tools.search_tools import SearchTools

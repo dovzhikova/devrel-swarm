@@ -8,7 +8,6 @@ from devrel_swarm.core.llm import LLMClient
 from devrel_swarm.tools.api_client import PostHogClient
 from devrel_swarm.tools.github_tools import GitHubIssue, GitHubTools
 
-
 # Baseline test drift accepted at v0.2.0 → v0.2.4. These tests assert against
 # pre-restructure behavior that production code has since moved past. They are
 # kept around so future fixes can flip them green; xfail keeps CI green without

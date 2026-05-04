@@ -1,6 +1,5 @@
 """Tests for the Dex documentation generator agent."""
 
-from pathlib import Path
 from unittest.mock import AsyncMock
 
 import pytest
@@ -9,9 +8,6 @@ from devrel_swarm.core.dex import (
     Dex,
     ParsedModule,
     ParsedSymbol,
-    RepoAnalysis,
-    SKIP_DIRS,
-    SUPPORTED_EXTENSIONS,
 )
 
 

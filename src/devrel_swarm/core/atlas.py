@@ -23,6 +23,7 @@ if TYPE_CHECKING:
     from devrel_swarm.tools.apollo_client import ApolloClient
 
 from devrel_swarm.core.agent_config import AgentConfig, load_config
+from devrel_swarm.core.argus import Argus
 from devrel_swarm.core.dex import Dex
 from devrel_swarm.core.echo import Echo
 from devrel_swarm.core.iris import Iris
@@ -34,7 +35,6 @@ from devrel_swarm.core.pax import Pax
 from devrel_swarm.core.rex import Rex
 from devrel_swarm.core.sage import Sage
 from devrel_swarm.core.sentinel import Sentinel
-from devrel_swarm.core.argus import Argus
 from devrel_swarm.core.vox import Vox
 from devrel_swarm.core.watchdog import Watchdog
 from devrel_swarm.tools.api_client import PostHogClient
@@ -100,7 +100,7 @@ class WeeklyMemory:
             pain_points_addressed=pain_points[:10],
             competitors_tracked=competitors[:10],
             experiments_run=experiments[:5],
-            top_themes=[p for p in pain_points[:5]],
+            top_themes=list(pain_points[:5]),
             okr_snapshot=ctx.okr_progress,
         )
 
@@ -579,7 +579,7 @@ class Atlas:
                 }
                 coros = [self.delegate(a, tasks_1[a]) for a in stage_1_pending]
                 results = await asyncio.gather(*coros)
-                for agent_name, res in zip(stage_1_pending, results):
+                for agent_name, res in zip(stage_1_pending, results, strict=True):
                     if res.success:
                         if agent_name == "sage":
                             self.context.sage_triage = res.output
@@ -608,7 +608,7 @@ class Atlas:
                 }
                 coros = [self.delegate(a, tasks_2[a]) for a in stage_2_pending]
                 results = await asyncio.gather(*coros)
-                for agent_name, res in zip(stage_2_pending, results):
+                for agent_name, res in zip(stage_2_pending, results, strict=True):
                     if res.success:
                         if agent_name == "rex":
                             self.context.rex_competitive = res.output
@@ -636,7 +636,7 @@ class Atlas:
                 }
                 coros = [self.delegate(a, tasks_3[a]) for a in stage_3_pending]
                 results = await asyncio.gather(*coros)
-                for agent_name, res in zip(stage_3_pending, results):
+                for agent_name, res in zip(stage_3_pending, results, strict=True):
                     if res.success:
                         if agent_name == "nova":
                             self.context.nova_experiments = res.output

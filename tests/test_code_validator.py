@@ -2,7 +2,7 @@
 
 import pytest
 
-from devrel_swarm.tools.code_validator import CodeBlock, CodeValidator, ValidationReport
+from devrel_swarm.tools.code_validator import CodeBlock, CodeValidator
 
 
 @pytest.fixture

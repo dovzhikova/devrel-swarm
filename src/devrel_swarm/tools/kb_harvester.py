@@ -91,7 +91,7 @@ class KBHarvester:
         results = await asyncio.gather(*tasks, return_exceptions=True)
 
         report: dict[str, Any] = {"harvested": 0, "failed": 0, "sources": []}
-        for source, result in zip(self.sources, results):
+        for source, result in zip(self.sources, results, strict=True):
             if isinstance(result, Exception):
                 report["failed"] += 1
                 report["sources"].append({

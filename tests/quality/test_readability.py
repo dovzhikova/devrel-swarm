@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import pytest
-
 from devrel_swarm.quality.readability import (
     ReadabilityScores,
     check_against_target,

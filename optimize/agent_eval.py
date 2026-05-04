@@ -961,7 +961,7 @@ async def main():
         targets = [agents_to_eval]
 
     print(f"\n{'=' * 60}")
-    print(f"Agent Evaluation Harness")
+    print("Agent Evaluation Harness")
     print(f"{'=' * 60}")
 
     results = {}

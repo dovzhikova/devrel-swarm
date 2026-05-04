@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import pytest
-
 from devrel_swarm.project.paths import ProjectPaths
 from devrel_swarm.quality.style import (
     DEFAULT_TARGETS,

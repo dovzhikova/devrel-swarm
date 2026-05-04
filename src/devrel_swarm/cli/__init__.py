@@ -9,26 +9,25 @@ from __future__ import annotations
 import typer
 
 from devrel_swarm import __version__
-from devrel_swarm.cli.init import init_command
-from devrel_swarm.cli.doctor import doctor_command
+from devrel_swarm.cli.analytics import analytics_app
+from devrel_swarm.cli.config import config_app
 from devrel_swarm.cli.content import content_app
-from devrel_swarm.cli.run import run_command
-from devrel_swarm.cli.triage import triage_command
-from devrel_swarm.cli.listen import listen_command
-from devrel_swarm.cli.synthesize import synthesize_command
-from devrel_swarm.cli.experiment import experiment_command
-from devrel_swarm.cli.intel import intel_command
-from devrel_swarm.cli.sales import sales_app
-from devrel_swarm.cli.marketing import marketing_app
-from devrel_swarm.cli.kb import kb_app
-from devrel_swarm.cli.schedule import schedule_app
 from devrel_swarm.cli.cost import cost_command
 from devrel_swarm.cli.deliverables import deliverables_app
-from devrel_swarm.cli.config import config_app
 from devrel_swarm.cli.docs import docs_app
+from devrel_swarm.cli.doctor import doctor_command
+from devrel_swarm.cli.experiment import experiment_command
+from devrel_swarm.cli.init import init_command
+from devrel_swarm.cli.intel import intel_command
+from devrel_swarm.cli.kb import kb_app
+from devrel_swarm.cli.listen import listen_command
+from devrel_swarm.cli.marketing import marketing_app
+from devrel_swarm.cli.run import run_command
+from devrel_swarm.cli.sales import sales_app
+from devrel_swarm.cli.schedule import schedule_app
+from devrel_swarm.cli.synthesize import synthesize_command
+from devrel_swarm.cli.triage import triage_command
 from devrel_swarm.cli.video import video_app
-from devrel_swarm.cli.analytics import analytics_app
-
 
 app = typer.Typer(
     name="devrel",

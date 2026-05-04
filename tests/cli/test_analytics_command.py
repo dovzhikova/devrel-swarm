@@ -13,7 +13,6 @@ from devrel_swarm.cli import app
 from devrel_swarm.core.argus import PerformanceReport
 from devrel_swarm.project.state import init_db
 
-
 runner = CliRunner()
 
 

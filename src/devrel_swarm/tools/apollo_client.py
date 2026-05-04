@@ -14,7 +14,7 @@ Rate limits: ~50 RPM standard plan; handled via tenacity retry on 429.
 
 import logging
 from dataclasses import dataclass, field
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import httpx
 from tenacity import (
@@ -23,6 +23,9 @@ from tenacity import (
     stop_after_attempt,
     wait_exponential,
 )
+
+if TYPE_CHECKING:
+    from devrel_swarm.tools.instantly_client import InstantlyLead
 
 logger = logging.getLogger(__name__)
 

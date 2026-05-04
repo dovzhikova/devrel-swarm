@@ -113,6 +113,11 @@ fail_under = 75
 [tool.ruff]
 line-length = 100
 target-version = "py312"
+# examples/ and optimize/ are scripts run with `python <file>`, not part of
+# the published package — they intentionally use sys.path tricks (E402) and
+# long top-level main() functions (C901) that don't apply to library code.
+extend-exclude = ["examples", "optimize", "landing"]
+
 [tool.ruff.lint]
 select = [
     "E",    # pycodestyle errors
@@ -124,7 +129,15 @@ select = [
 ]
 ignore = [
     "E501",  # line too long (handled by ruff format)
+    "C901",  # function too complex — accepted in this codebase
+    "B008",  # function call in default arg — common in CLI definitions (typer)
 ]
+
+[tool.ruff.lint.per-file-ignores]
+# Tests use long fixtures, occasional unused locals for self-documenting names,
+# semicolon-compact mock setup, and import patterns that don't apply to
+# library code.
+"tests/**" = ["F841", "E741", "B007", "E702", "E402"]
 
 [tool.ruff.lint.isort]
 combine-as-imports = true

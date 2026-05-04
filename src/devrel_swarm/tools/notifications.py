@@ -5,7 +5,6 @@ Provides async delivery of content digests and alerts to configured channels.
 """
 
 import asyncio
-import functools
 import logging
 import smtplib
 import ssl

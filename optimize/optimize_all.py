@@ -62,8 +62,8 @@ Return JSON:
 
 async def eval_agent_scores(agent_name: str) -> dict:
     """Run eval for one agent and return scores."""
-    from optimize.agent_eval import eval_agent, generate_for_agent, SCORERS, AGENTS_DIR
     from devrel_swarm.core.llm import LLMClient
+    from optimize.agent_eval import AGENTS_DIR, SCORERS, generate_for_agent
 
     api_key = os.environ.get("ANTHROPIC_API_KEY", "")
     llm = LLMClient(api_key=api_key)
@@ -90,8 +90,8 @@ async def eval_agent_scores(agent_name: str) -> dict:
 
 async def propose_modification(agent_name: str, current_scores: dict, history: list) -> dict | None:
     """Ask LLM to propose a prompt modification."""
-    from devrel_swarm.core.llm import LLMClient
     from devrel_swarm.core.base import strip_markdown_fences
+    from devrel_swarm.core.llm import LLMClient
 
     api_key = os.environ.get("ANTHROPIC_API_KEY", "")
     llm = LLMClient(api_key=api_key)
@@ -165,7 +165,7 @@ async def optimize_agent(agent_name: str, iterations: int = 5):
     iteration_start = len(history) + 1
 
     # Baseline
-    print(f"  Running baseline evaluation...")
+    print("  Running baseline evaluation...")
     baseline = await eval_agent_scores(agent_name)
     best_score = baseline["average_score"]
     print(f"  Baseline: {best_score}/100")
@@ -177,7 +177,7 @@ async def optimize_agent(agent_name: str, iterations: int = 5):
         # Propose
         modification = await propose_modification(agent_name, baseline, history)
         if not modification or not modification.get("new_prompt"):
-            print(f"    Failed to get modification. Skipping.")
+            print("    Failed to get modification. Skipping.")
             continue
 
         print(f"    Change: {modification['change_description'][:80]}...")
@@ -232,7 +232,7 @@ async def main():
     agents = [target_agent] if target_agent else ALL_AGENTS
 
     print(f"\n{'=' * 60}")
-    print(f"Multi-Agent Optimizer — Autoresearch Loop")
+    print("Multi-Agent Optimizer — Autoresearch Loop")
     print(f"  Agents: {', '.join(agents)}")
     print(f"  Iterations per agent: {iterations}")
     print(f"{'=' * 60}")

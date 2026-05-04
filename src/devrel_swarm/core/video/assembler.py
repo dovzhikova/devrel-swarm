@@ -50,7 +50,7 @@ class VideoAssembler:
                 f"Mismatch: {len(step_videos)} videos vs {len(step_audios)} audios"
             )
         merged_steps = []
-        for i, (video, audio) in enumerate(zip(step_videos, step_audios)):
+        for i, (video, audio) in enumerate(zip(step_videos, step_audios, strict=True)):
             merged_path = self.output_dir / f"merged_step_{i + 1}.mp4"
             await self._merge_audio_video(video, audio, merged_path)
             merged_steps.append(merged_path)

@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from devrel_swarm.core.llm import CritiqueResult, LLMClient, RevisionTrace
+from devrel_swarm.core.llm import CritiqueResult, LLMClient
 
 
 class TestLLMClient:

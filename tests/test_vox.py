@@ -1,15 +1,15 @@
 """Tests for the Vox video tutorial agent — ScriptParser and dataclasses."""
 
+from pathlib import Path
+from unittest.mock import AsyncMock, MagicMock, patch
+
 import pytest
 
-from unittest.mock import AsyncMock, MagicMock, patch
-from pathlib import Path
-
 from devrel_swarm.core.video import ScriptParser, TutorialStep, VideoTutorial
-from devrel_swarm.core.video.tts_engine import TTSEngine
-from devrel_swarm.core.video.browser_recorder import BrowserRecorder, BrowserAction
-from devrel_swarm.core.video.overlay_renderer import OverlayRenderer, OverlayConfig
 from devrel_swarm.core.video.assembler import VideoAssembler
+from devrel_swarm.core.video.browser_recorder import BrowserAction, BrowserRecorder
+from devrel_swarm.core.video.overlay_renderer import OverlayConfig, OverlayRenderer
+from devrel_swarm.core.video.tts_engine import TTSEngine
 
 
 class TestTutorialStep:
@@ -440,7 +440,21 @@ class TestAtlasIntegration:
 # Desktop recorder tests
 # ---------------------------------------------------------------------------
 
-from devrel_swarm.core.video.desktop_recorder import DesktopRecorder, DesktopAction, _get_ffmpeg_input_format
+import os
+
+from devrel_swarm.core.video.desktop_recorder import (
+    DesktopAction,
+    DesktopRecorder,
+    _get_ffmpeg_input_format,
+)
+
+# pyautogui (used by DesktopRecorder) requires an X11 DISPLAY on Linux. CI
+# runs headless, so skip those tests there. macOS does not need DISPLAY, so
+# the recorder tests still run locally.
+_NEEDS_DISPLAY = pytest.mark.skipif(
+    not os.environ.get("DISPLAY") and os.uname().sysname == "Linux",
+    reason="DesktopRecorder requires X11 DISPLAY (pyautogui dependency)",
+)
 
 
 class TestDesktopAction:
@@ -467,6 +481,7 @@ class TestDesktopAction:
         assert action.delay == 0.5
 
 
+@_NEEDS_DISPLAY
 class TestDesktopRecorder:
     @pytest.fixture
     def recorder(self, tmp_path):

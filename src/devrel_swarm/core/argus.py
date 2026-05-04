@@ -387,7 +387,7 @@ def _render_brief(rec: Recommendation, period: str) -> str:
         )
     elif rec.action == "rewrite":
         lines.append(
-            f"devrel content audit deliverables/<file>  # then redraft based on findings"
+            "devrel content audit deliverables/<file>  # then redraft based on findings"
         )
     elif rec.action == "amplify":
         lines.append(
