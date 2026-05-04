@@ -6,11 +6,32 @@ Generates .mp3 audio files from narration text, one per tutorial step.
 import asyncio
 import logging
 from pathlib import Path
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 
-from openai import AsyncOpenAI
+if TYPE_CHECKING:
+    from openai import AsyncOpenAI
 
 logger = logging.getLogger(__name__)
+
+
+def _require_openai() -> "type[AsyncOpenAI]":
+    """Import `openai` lazily so non-video users don't pay for the dep.
+
+    Vox-related deps (`openai`, `playwright`, `pyautogui`) live in the
+    optional `[video]` extra. Importing this module is cheap; only
+    instantiating `TTSEngine` requires `openai` to be installed.
+    """
+    try:
+        from openai import AsyncOpenAI as _AsyncOpenAI
+
+        return _AsyncOpenAI
+    except ImportError as e:
+        raise ImportError(
+            "TTSEngine requires the `openai` package. Install the optional "
+            "video extra: `pip install 'devrel-swarm[video]'` (or `pipx "
+            "install 'devrel-swarm[video]'`)."
+        ) from e
+
 
 DEFAULT_MODEL = "tts-1"
 DEFAULT_VOICE = "alloy"
@@ -27,7 +48,7 @@ class TTSEngine:
         model: str = DEFAULT_MODEL,
         voice: str = DEFAULT_VOICE,
     ):
-        self._client = AsyncOpenAI(api_key=api_key)
+        self._client = _require_openai()(api_key=api_key)
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
         self.model = model

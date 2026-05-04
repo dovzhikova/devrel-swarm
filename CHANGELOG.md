@@ -1,5 +1,30 @@
 # Changelog
 
+## Unreleased — 2026-05-04 (pre-publish polish for 0.2.4)
+
+Final pre-publish pass across linting, packaging, and dependency footprint.
+No agent or pipeline behavior changes for pipx end users.
+
+### Changed
+
+- **Dependency footprint reduced**: `openai`, `playwright`, `pyautogui` moved from core dependencies into a new `[video]` optional extra. Default `pip install devrel-swarm` now skips ~150MB of Playwright browsers + pyobjc + the OpenAI SDK. Vox users opt in with `pip install 'devrel-swarm[video]'` (or `pipx install 'devrel-swarm[video]'`). Calling `TTSEngine` without the extra raises a clear `ImportError` pointing at the install command.
+- **`tts_engine`**: `openai.AsyncOpenAI` is now imported lazily inside `_require_openai()`. Module-load no longer touches `openai`. Locked in by `tests/core/test_video_lazy_imports.py`.
+- **Dropped unused dependencies**: `requests`, `aiohttp`, and `ffmpeg-python` had zero imports across `src/` and `tests/` and have been removed from `pyproject.toml`. Pure cruft from earlier scaffolding; CLAUDE.md already mandates `httpx` for all HTTP work.
+- **Codebase ruff-clean**: full lint pass + format pass; CI now enforces both `ruff check` and `ruff format --check` (the format gate had been deferred since the original ruff adoption).
+
+### Fixed
+
+- **`load_agent_prompt` actually loads on-disk prompts now**: `_OPTIMIZE_DIR` had been resolving to `src/devrel_swarm/optimize/` (a path that never existed) since the Phase 1 src/-layout move, so every agent silently fell through to its inline default. Replaced with a `_resolve_optimize_dir()` walk-up that finds the repo root via `pyproject.toml`+`optimize/` co-location, returns `None` for installed users (preserving their current behavior), and accepts both layouts the repo currently uses (top-level `optimize/{agent}/` and nested `optimize/agents/{agent}/`). Dev-tree users will see the maintainer's optimized prompts taking effect for the first time. Coverage in `tests/core/test_load_agent_prompt.py`.
+- **`tests/test_vox.py`**: `DesktopRecorder` tests now skip on headless Linux (CI was breaking because `pyautogui` needs an X11 `DISPLAY`). Marked with `_NEEDS_DISPLAY`.
+
+### Internal
+
+- 47-file ruff lint pass: `zip(..., strict=True)` everywhere, import sorting, unused-import removal, `list()` over copy-comprehensions.
+- 92-file ruff format pass (whitespace-only).
+- `pyproject.toml`: added `extend-exclude` for `examples/`/`optimize/`/`landing/` (script-style, not library code), per-file ignores for tests, and ignores for `C901`+`B008`.
+- CLAUDE.md install instruction updated from the dead `pip install -r requirements.txt` to `pip install -e ".[dev]"` + the pipx end-user route. `output/` (Vox's default render dir) added to `.gitignore`.
+- New regression coverage: 7 tests for `load_agent_prompt` + 8 tests for video lazy-import. Suite is now 815 pass / 21 xfail / 76% coverage.
+
 ## 0.2.4 — 2026-05-03
 
 Argus — the 13th agent, plus a 20-item enhancement pass derived from a multi-lens code review of the v1 ship.
