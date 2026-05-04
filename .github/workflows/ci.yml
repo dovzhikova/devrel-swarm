@@ -18,10 +18,8 @@ jobs:
         run: pip install -e ".[dev]"
       - name: Ruff check
         run: ruff check .
-      # Format-check is intentionally not enforced yet: 91 files would be
-      # reformatted on first run. Re-enable as a separate commit:
-      # `ruff format . && git commit -am "style: ruff format codebase"`,
-      # then add `- run: ruff format --check .` back here.
+      - name: Ruff format check
+        run: ruff format --check .
 
   test:
     runs-on: ubuntu-latest
