@@ -641,6 +641,56 @@ async def test_argus_persists_recommendations_to_analytics_recommendations_table
 
 
 @pytest.mark.asyncio
+async def test_argus_persists_with_pillar_and_target_kind(tmp_path):
+    """After Wave 0/Task 6, every Argus row carries pillar='argus' and
+    target_kind='content_id' (written explicitly via shared growth enums)."""
+    db = tmp_path / "state.db"
+    init_db(db)
+
+    posthog = MagicMock()
+    posthog.collect = AsyncMock(
+        return_value=[
+            PerformanceMetric(
+                content_id="blog/x",
+                content_type="blog",
+                title="X",
+                url=None,
+                published_at=_utc(2026, 4, 30),
+                primary_metric=100.0,
+                metric_name="page_views",
+            )
+        ]
+    )
+    empty_c = MagicMock()
+    empty_c.collect = AsyncMock(return_value=[])
+    llm = MagicMock()
+    llm.generate = AsyncMock(
+        return_value=(
+            '{"recommendations": ['
+            '{"action": "rewrite", "target": "blog/x", "target_type": "content", '
+            '"rationale": "weak hero", "evidence": ["blog/x: p20"], '
+            '"confidence": 0.8, "source_ids": ["blog/x"]},'
+            '{"action": "double_down", "target": "theme:python", '
+            '"target_type": "theme", "rationale": "trending up", '
+            '"evidence": ["blog/y: p95"], "confidence": 0.9, "source_ids": ["blog/y"]}'
+            '], "trend_signals": []}'
+        )
+    )
+
+    argus = Argus(posthog, empty_c, empty_c, empty_c, llm_client=llm, state_db_path=db)
+    await argus.run(_utc(2026, 4, 25), _utc(2026, 5, 2))
+
+    with open_db(db) as conn:
+        rows = conn.execute(
+            "SELECT pillar, target_kind FROM analytics_recommendations ORDER BY id"
+        ).fetchall()
+    assert len(rows) == 2
+    for row in rows:
+        assert row["pillar"] == "argus"
+        assert row["target_kind"] == "content_id"
+
+
+@pytest.mark.asyncio
 async def test_argus_two_runs_use_metric_history_for_wow(tmp_path):
     """End-to-end: first run persists metric_history; second run's WoW
     delta comes from the indexed table, not the legacy JSON blob fallback."""

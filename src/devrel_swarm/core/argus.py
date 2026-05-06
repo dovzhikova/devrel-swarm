@@ -22,6 +22,7 @@ from pathlib import Path
 from typing import Any, Literal, Optional
 
 from devrel_swarm.core.base import load_agent_prompt, strip_markdown_fences
+from devrel_swarm.core.growth import Pillar, TargetKind
 
 logger = logging.getLogger(__name__)
 
@@ -833,14 +834,16 @@ class Argus:
                             json.dumps(list(r.source_ids)),
                             json.dumps(list(r.evidence)),
                             first_seen,
+                            Pillar.ARGUS.value,
+                            TargetKind.CONTENT_ID.value,
                         )
                     )
                 conn.executemany(
                     "INSERT INTO analytics_recommendations "
                     "(report_id, period_end, action, target, target_type, "
                     "rationale, confidence, source_ids_json, evidence_json, "
-                    "first_seen_period) "
-                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    "first_seen_period, pillar, target_kind) "
+                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                     rec_rows,
                 )
             conn.commit()
