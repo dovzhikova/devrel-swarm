@@ -63,6 +63,28 @@ video = [
     "playwright>=1.49.0",
     "pyautogui>=0.9.54",
 ]
+
+# SEO auditor (Selene). Pulls Google API client + OAuth flow + HTML parser.
+# Install with `pip install 'devrel-swarm[seo]'` (or `[growth]` for the full pipeline).
+seo = [
+    "google-api-python-client>=2.150.0",
+    "google-auth-oauthlib>=1.2.0",
+    "google-auth-httplib2>=0.2.0",
+    "beautifulsoup4>=4.12.0",
+]
+
+# Optional 5th GEO engine (Google AI Overviews via SerpAPI). Off by default;
+# enable in config.toml `[geo].include_google_ai_overviews = true`.
+geo-google = [
+    "google-search-results>=2.4.2",
+]
+
+# Convenience: full Growth pipeline (Selene + Vega + Cyra). GEO + CRO have
+# zero new deps; their AI clients reuse existing openai/anthropic/httpx.
+growth = [
+    "devrel-swarm[seo]",
+]
+
 dev = [
     "pytest>=7.4.0",
     "pytest-asyncio>=0.21.0",
@@ -72,8 +94,8 @@ dev = [
     "mypy>=1.5.0",
     "build>=1.0.0",
     "twine>=5.0.0",
-    # dev installs always pull video deps so tests can exercise the full pipeline
-    "devrel-swarm[video]",
+    # dev installs always pull video + growth deps so tests can exercise the full pipeline
+    "devrel-swarm[video,growth]",
 ]
 
 [project.urls]
