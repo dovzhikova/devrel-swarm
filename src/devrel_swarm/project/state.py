@@ -162,12 +162,52 @@ CREATE INDEX IF NOT EXISTS idx_cro_funnel_period
 """
 
 
+def _migrate_to_v5(conn: sqlite3.Connection) -> None:
+    """Add pillar + target_kind columns to analytics_recommendations if absent.
+
+    SQLite's ALTER TABLE ADD COLUMN is non-idempotent: running twice raises
+    OperationalError. We probe PRAGMA table_info first.
+    """
+    cur = conn.execute("PRAGMA table_info(analytics_recommendations)")
+    cols = {row[1] for row in cur.fetchall()}
+    if "pillar" not in cols:
+        conn.execute(
+            "ALTER TABLE analytics_recommendations "
+            "ADD COLUMN pillar TEXT NOT NULL DEFAULT 'argus'"
+        )
+    if "target_kind" not in cols:
+        conn.execute(
+            "ALTER TABLE analytics_recommendations "
+            "ADD COLUMN target_kind TEXT NOT NULL DEFAULT 'content_id'"
+        )
+    # Backfill any rows that pre-date these columns. DEFAULT covers fresh
+    # inserts but old rows from a partial v4 db benefit from explicit values.
+    conn.execute(
+        "UPDATE analytics_recommendations "
+        "SET pillar = COALESCE(NULLIF(pillar, ''), 'argus'), "
+        "    target_kind = COALESCE(NULLIF(target_kind, ''), 'content_id') "
+        "WHERE pillar IS NULL OR pillar = '' "
+        "   OR target_kind IS NULL OR target_kind = ''"
+    )
+    # Indexes that reference the newly-added columns. Created here (not in
+    # SCHEMA) because SCHEMA's executescript runs before the ALTER TABLEs above.
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_recs_pillar_period "
+        "ON analytics_recommendations(pillar, first_seen_period DESC)"
+    )
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_recs_target "
+        "ON analytics_recommendations(target_kind, target)"
+    )
+
+
 def init_db(db_path: Path) -> None:
-    """Create the DB file and apply the schema. Idempotent — preserves
+    """Create the DB file and apply the schema. Idempotent: preserves
     existing data and bumps schema_meta to the current SCHEMA_VERSION."""
     db_path.parent.mkdir(parents=True, exist_ok=True)
     with sqlite3.connect(db_path) as conn:
         conn.executescript(SCHEMA)
+        _migrate_to_v5(conn)
         conn.execute(
             "INSERT OR REPLACE INTO schema_meta (version, applied_at) VALUES (?, datetime('now'))",
             (SCHEMA_VERSION,),

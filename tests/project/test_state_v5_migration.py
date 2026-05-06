@@ -59,3 +59,84 @@ class TestSchemaV5:
             cols = _columns(conn, "cro_funnel_metrics")
             assert {"funnel_id", "step_index", "period_end", "conversion_rate",
                     "sample_size", "segment_breakdown_json"} <= cols
+
+
+class TestPillarColumns:
+    def test_init_adds_pillar_column(self, tmp_path: Path):
+        db = tmp_path / "state.db"
+        state.init_db(db)
+        with sqlite3.connect(db) as conn:
+            assert "pillar" in _columns(conn, "analytics_recommendations")
+
+    def test_init_adds_target_kind_column(self, tmp_path: Path):
+        db = tmp_path / "state.db"
+        state.init_db(db)
+        with sqlite3.connect(db) as conn:
+            assert "target_kind" in _columns(conn, "analytics_recommendations")
+
+    def test_existing_v4_db_migrates_to_v5(self, tmp_path: Path):
+        """Simulate an existing v4 database (with analytics_recommendations
+        missing the new columns) and assert init_db migrates it cleanly."""
+        db = tmp_path / "state.db"
+        # Hand-build a v4-shaped database (matches the v4 SCHEMA exactly)
+        with sqlite3.connect(db) as conn:
+            conn.executescript("""
+                CREATE TABLE schema_meta (version INTEGER, applied_at TEXT);
+                INSERT INTO schema_meta VALUES (4, datetime('now'));
+                CREATE TABLE analytics_reports (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    period_start TEXT NOT NULL,
+                    period_end TEXT NOT NULL,
+                    report_json TEXT NOT NULL,
+                    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+                );
+                INSERT INTO analytics_reports (id, period_start, period_end, report_json)
+                    VALUES (1, '2026-03-25', '2026-04-01', '{}');
+                CREATE TABLE analytics_recommendations (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    report_id INTEGER NOT NULL,
+                    period_end TEXT NOT NULL,
+                    action TEXT NOT NULL,
+                    target TEXT NOT NULL,
+                    target_type TEXT NOT NULL,
+                    rationale TEXT NOT NULL,
+                    confidence REAL NOT NULL,
+                    source_ids_json TEXT NOT NULL DEFAULT '[]',
+                    evidence_json TEXT NOT NULL DEFAULT '[]',
+                    first_seen_period TEXT NOT NULL,
+                    applied_at TEXT,
+                    FOREIGN KEY (report_id) REFERENCES analytics_reports(id) ON DELETE CASCADE
+                );
+                INSERT INTO analytics_recommendations
+                    (report_id, period_end, action, target, target_type, rationale,
+                     confidence, source_ids_json, first_seen_period)
+                VALUES (1, '2026-04-01', 'double_down', 'doc-quickstart',
+                        'content_id', 'High engagement', 0.8, '["c1"]', '2026-04-01');
+            """)
+
+        # Run init_db, should migrate to v5
+        state.init_db(db)
+
+        with sqlite3.connect(db) as conn:
+            cols = _columns(conn, "analytics_recommendations")
+            assert "pillar" in cols
+            assert "target_kind" in cols
+            # Backfill: existing row should now have pillar='argus', target_kind='content_id'
+            cur = conn.execute(
+                "SELECT pillar, target_kind FROM analytics_recommendations "
+                "WHERE report_id=1 AND target='doc-quickstart'"
+            )
+            row = cur.fetchone()
+            assert row == ("argus", "content_id")
+            # Schema version bumped
+            cur = conn.execute("SELECT MAX(version) FROM schema_meta")
+            assert cur.fetchone()[0] == 5
+
+    def test_migration_is_idempotent(self, tmp_path: Path):
+        """Running init_db twice on a v5 database is a no-op, not a crash."""
+        db = tmp_path / "state.db"
+        state.init_db(db)
+        state.init_db(db)  # second call must not fail
+        with sqlite3.connect(db) as conn:
+            cur = conn.execute("SELECT MAX(version) FROM schema_meta")
+            assert cur.fetchone()[0] == 5
