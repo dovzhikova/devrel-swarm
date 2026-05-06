@@ -10,6 +10,7 @@ import typer
 
 from devrel_swarm import __version__
 from devrel_swarm.cli.analytics import analytics_app
+from devrel_swarm.cli.argus import argus_app
 from devrel_swarm.cli.config import config_app
 from devrel_swarm.cli.content import content_app
 from devrel_swarm.cli.cost import cost_command
@@ -75,6 +76,7 @@ app.add_typer(deliverables_app, name="deliverables")
 app.add_typer(config_app, name="config")
 app.add_typer(docs_app, name="docs")
 app.add_typer(video_app, name="video")
+app.add_typer(argus_app, name="argus")
 app.add_typer(analytics_app, name="analytics")
 
 

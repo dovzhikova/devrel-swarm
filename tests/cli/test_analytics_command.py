@@ -1,4 +1,4 @@
-"""Test the `devrel analytics report` CLI verb."""
+"""Test the `devrel argus report` CLI verb."""
 
 from __future__ import annotations
 
@@ -42,10 +42,10 @@ def project_dir(tmp_path, monkeypatch):
 
 
 def test_analytics_report_writes_markdown_deliverable(project_dir):
-    with patch("devrel_swarm.cli.analytics._build_argus") as build:
+    with patch("devrel_swarm.cli.argus._build_argus") as build:
         argus = build.return_value
         argus.run = AsyncMock(return_value=_stub_report())
-        result = runner.invoke(app, ["analytics", "report", "--since", "7d"])
+        result = runner.invoke(app, ["argus", "report", "--since", "7d"])
 
     assert result.exit_code == 0, result.stdout
     deliverables = list((project_dir / ".devrel" / "deliverables").glob("analytics-*.md"))
@@ -54,10 +54,10 @@ def test_analytics_report_writes_markdown_deliverable(project_dir):
 
 
 def test_analytics_report_json_format_emits_json(project_dir):
-    with patch("devrel_swarm.cli.analytics._build_argus") as build:
+    with patch("devrel_swarm.cli.argus._build_argus") as build:
         argus = build.return_value
         argus.run = AsyncMock(return_value=_stub_report())
-        result = runner.invoke(app, ["analytics", "report", "--format", "json"])
+        result = runner.invoke(app, ["argus", "report", "--format", "json"])
 
     assert result.exit_code == 0
     payload = json.loads(result.stdout)
@@ -67,7 +67,7 @@ def test_analytics_report_json_format_emits_json(project_dir):
 def test_analytics_report_push_calls_notification_service(project_dir):
     """--push flow should construct NotificationService and call telegram + email."""
     with (
-        patch("devrel_swarm.cli.analytics._build_argus") as build,
+        patch("devrel_swarm.cli.argus._build_argus") as build,
         patch("devrel_swarm.tools.notifications.NotificationService") as svc_cls,
     ):
         argus = build.return_value
@@ -77,7 +77,7 @@ def test_analytics_report_push_calls_notification_service(project_dir):
         svc.send_email = AsyncMock(return_value=True)
         svc.close = AsyncMock()
 
-        result = runner.invoke(app, ["analytics", "report", "--push"])
+        result = runner.invoke(app, ["argus", "report", "--push"])
 
     assert result.exit_code == 0
     svc.send_telegram.assert_awaited_once()
@@ -103,7 +103,7 @@ def test_analytics_history_renders_metric_trajectory(project_dir):
         )
         conn.commit()
 
-    result = runner.invoke(app, ["analytics", "history", "blog/cli"])
+    result = runner.invoke(app, ["argus", "history", "blog/cli"])
     assert result.exit_code == 0
     assert "blog/cli" in result.stdout
     assert "2026-04-18" in result.stdout
@@ -124,14 +124,14 @@ def test_analytics_history_json_format(project_dir):
         )
         conn.commit()
 
-    result = runner.invoke(app, ["analytics", "history", "blog/x", "--format", "json"])
+    result = runner.invoke(app, ["argus", "history", "blog/x", "--format", "json"])
     assert result.exit_code == 0
     payload = json.loads(result.stdout)
     assert payload[0]["primary_metric"] == 42.0
 
 
 def test_analytics_history_unknown_content_id_exits_with_code_1(project_dir):
-    result = runner.invoke(app, ["analytics", "history", "blog/never"])
+    result = runner.invoke(app, ["argus", "history", "blog/never"])
     assert result.exit_code == 1
 
 
@@ -155,7 +155,7 @@ def test_analytics_diff_shows_top_movers(project_dir):
         )
         conn.commit()
 
-    result = runner.invoke(app, ["analytics", "diff", "2026-04-25", "2026-05-02"])
+    result = runner.invoke(app, ["argus", "diff", "2026-04-25", "2026-05-02"])
     assert result.exit_code == 0
     # Big mover ranks first (largest absolute delta)
     out = result.stdout
@@ -185,7 +185,7 @@ def test_analytics_diff_json_format(project_dir):
         conn.commit()
 
     result = runner.invoke(
-        app, ["analytics", "diff", "2026-04-25", "2026-05-02", "--format", "json"]
+        app, ["argus", "diff", "2026-04-25", "2026-05-02", "--format", "json"]
     )
     assert result.exit_code == 0
     payload = json.loads(result.stdout)
@@ -231,7 +231,7 @@ def test_analytics_calibration_scores_double_down_recs(project_dir):
         )
         conn.commit()
 
-    result = runner.invoke(app, ["analytics", "calibration", "--format", "json"])
+    result = runner.invoke(app, ["argus", "calibration", "--format", "json"])
     assert result.exit_code == 0
     cal = json.loads(result.stdout)
     assert cal["scored_recs"] == 1
@@ -241,7 +241,7 @@ def test_analytics_calibration_scores_double_down_recs(project_dir):
 
 
 def test_analytics_calibration_handles_empty_db(project_dir):
-    result = runner.invoke(app, ["analytics", "calibration"])
+    result = runner.invoke(app, ["argus", "calibration"])
     assert result.exit_code == 0
     assert "0" in result.stdout  # scored count is 0
     assert "No scored recommendations" in result.stdout
@@ -271,7 +271,7 @@ def test_analytics_summary_aggregates_across_projects(tmp_path, monkeypatch):
     # Cd somewhere outside; use --root flag explicitly
     monkeypatch.chdir(tmp_path)
     result = runner.invoke(
-        app, ["analytics", "summary", "--root", str(tmp_path), "--format", "json"]
+        app, ["argus", "summary", "--root", str(tmp_path), "--format", "json"]
     )
     assert result.exit_code == 0, result.stdout
     payload = json.loads(result.stdout)
@@ -286,7 +286,7 @@ def test_analytics_summary_aggregates_across_projects(tmp_path, monkeypatch):
 def test_analytics_summary_empty_root_returns_zero_projects(tmp_path):
     """A root with no .devrel/ trees should produce an empty project list."""
     result = runner.invoke(
-        app, ["analytics", "summary", "--root", str(tmp_path), "--format", "json"]
+        app, ["argus", "summary", "--root", str(tmp_path), "--format", "json"]
     )
     assert result.exit_code == 0
     assert json.loads(result.stdout) == []
@@ -304,7 +304,7 @@ def test_analytics_report_push_skipped_when_sources_partial(project_dir):
         sources_ok={"posthog": True, "github": False, "instantly": True, "social": True},
     )
     with (
-        patch("devrel_swarm.cli.analytics._build_argus") as build,
+        patch("devrel_swarm.cli.argus._build_argus") as build,
         patch("devrel_swarm.tools.notifications.NotificationService") as svc_cls,
     ):
         argus = build.return_value
@@ -314,7 +314,7 @@ def test_analytics_report_push_skipped_when_sources_partial(project_dir):
         svc.send_email = AsyncMock()
         svc.close = AsyncMock()
 
-        result = runner.invoke(app, ["analytics", "report", "--push"])
+        result = runner.invoke(app, ["argus", "report", "--push"])
 
     assert result.exit_code == 0
     svc.send_telegram.assert_not_awaited()
@@ -333,7 +333,7 @@ def test_analytics_report_push_on_partial_overrides_gate(project_dir):
         sources_ok={"posthog": False, "github": True, "instantly": True, "social": True},
     )
     with (
-        patch("devrel_swarm.cli.analytics._build_argus") as build,
+        patch("devrel_swarm.cli.argus._build_argus") as build,
         patch("devrel_swarm.tools.notifications.NotificationService") as svc_cls,
     ):
         argus = build.return_value
@@ -343,7 +343,7 @@ def test_analytics_report_push_on_partial_overrides_gate(project_dir):
         svc.send_email = AsyncMock(return_value=True)
         svc.close = AsyncMock()
 
-        result = runner.invoke(app, ["analytics", "report", "--push", "--push-on-partial"])
+        result = runner.invoke(app, ["argus", "report", "--push", "--push-on-partial"])
 
     assert result.exit_code == 0
     svc.send_telegram.assert_awaited_once()
@@ -353,7 +353,7 @@ def test_analytics_report_push_on_partial_overrides_gate(project_dir):
 def test_analytics_report_push_failure_does_not_crash(project_dir):
     """If push raises, exit code stays 0 and a warning is printed to stderr."""
     with (
-        patch("devrel_swarm.cli.analytics._build_argus") as build,
+        patch("devrel_swarm.cli.argus._build_argus") as build,
         patch("devrel_swarm.tools.notifications.NotificationService") as svc_cls,
     ):
         argus = build.return_value
@@ -363,7 +363,7 @@ def test_analytics_report_push_failure_does_not_crash(project_dir):
         svc.send_email = AsyncMock(return_value=True)
         svc.close = AsyncMock()
 
-        result = runner.invoke(app, ["analytics", "report", "--push"])
+        result = runner.invoke(app, ["argus", "report", "--push"])
 
     assert result.exit_code == 0  # graceful — push failure must not break the verb
     svc.close.assert_awaited_once()  # finally: still ran
