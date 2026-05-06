@@ -134,7 +134,7 @@ def summary_command(
     if format_ != "md":
         raise typer.BadParameter("--format must be 'md' or 'json'")
 
-    lines = [f"# Argus cross-project summary — {len(projects)} projects under {root_path}", ""]
+    lines = [f"# Argus cross-project summary: {len(projects)} projects under {root_path}", ""]
     if not projects:
         lines.append("_No .devrel/state.db files found._")
         sys.stdout.write("\n".join(lines) + "\n")
@@ -143,7 +143,7 @@ def summary_command(
     lines.append("|---|---|---|---|---|")
     for p in sorted(projects, key=lambda x: x["last_report"] or "", reverse=True):
         lines.append(
-            f"| {p['project']} | {(p['last_report'] or '—')[:10]} | "
+            f"| {p['project']} | {(p['last_report'] or '-')[:10]} | "
             f"{p['total_recs']} | {p['total_metrics']} | ${p['spend_usd']:.2f} |"
         )
     sys.stdout.write("\n".join(lines) + "\n")
@@ -191,7 +191,7 @@ def _summarize_project_db(state_db: Path) -> dict | None:
                     "SELECT COUNT(*) AS c FROM analytics_recommendations"
                 ).fetchone()
                 hist_row = conn.execute("SELECT COUNT(*) AS c FROM metric_history").fetchone()
-            except Exception:  # noqa: BLE001 — table missing means not an Argus project
+            except Exception:  # noqa: BLE001: table missing means not an Argus project
                 return None
             cost_row = conn.execute(
                 "SELECT COALESCE(SUM(cost_usd), 0.0) AS total FROM costs WHERE agent = 'argus'"
@@ -264,7 +264,7 @@ def history_command(
     for r in rows:
         v = r["primary_metric"]
         if prev is None:
-            delta = "—"
+            delta = "-"
         else:
             d = ((v - prev) / prev * 100) if prev else 0.0
             delta = f"{d:+.1f}%"
@@ -355,9 +355,9 @@ def diff_command(
     lines.append("| content_id | kind | a | b | delta |")
     lines.append("|---|---|---|---|---|")
     for r in rows:
-        a_disp = f"{r['a']:g}" if r["a"] is not None else "—"
-        b_disp = f"{r['b']:g}" if r["b"] is not None else "—"
-        d_disp = f"{r['delta_pct']:+.1f}%" if r["delta_pct"] is not None else "—"
+        a_disp = f"{r['a']:g}" if r["a"] is not None else "-"
+        b_disp = f"{r['b']:g}" if r["b"] is not None else "-"
+        d_disp = f"{r['delta_pct']:+.1f}%" if r["delta_pct"] is not None else "-"
         lines.append(f"| {r['content_id']} | {r['kind']} | {a_disp} | {b_disp} | {d_disp} |")
     sys.stdout.write("\n".join(lines) + "\n")
 
@@ -490,7 +490,7 @@ async def _push_report(report: PerformanceReport, end: datetime) -> None:
     svc = NotificationService(config)
     try:
         markdown = report.to_markdown()
-        subject = f"Argus report — {end.date().isoformat()}"
+        subject = f"Argus report: {end.date().isoformat()}"
         await svc.send_telegram(markdown[:4000])
         await svc.send_email(subject, f"<pre>{markdown}</pre>")
     finally:
