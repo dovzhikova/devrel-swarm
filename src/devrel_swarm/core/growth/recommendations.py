@@ -11,10 +11,11 @@ from __future__ import annotations
 
 import json
 import sqlite3
+from collections import defaultdict
 from dataclasses import dataclass
 from datetime import date, timedelta
 from pathlib import Path
-from typing import Optional
+from typing import Callable, Optional
 
 from devrel_swarm.core.growth.target_kinds import (
     Pillar,
@@ -162,3 +163,59 @@ def find_stale(
             (pillar.value, cutoff.isoformat()),
         )
         return [_row_to_recommendation(row) for row in cur.fetchall()]
+
+
+def calibrate(
+    db_path: Path,
+    pillar: Pillar,
+    *,
+    outcome_scorer: Callable[[Recommendation], str],
+) -> dict[str, dict[str, float | int]]:
+    """Per-action hit-rate calibration for one pillar's applied recommendations.
+
+    `outcome_scorer(rec)` returns one of {'improved', 'unchanged', 'regressed'}.
+    Each pillar implements its own scorer based on subsequent fact-table rows
+    (for example, SEO checks if keyword position improved; CRO checks if
+    conversion rate rose). This helper just aggregates.
+
+    Returns: {action: {applied_count, hit_rate, lift_vs_coinflip,
+                       avg_confidence, high_conf_hit_rate}}
+    """
+    with sqlite3.connect(db_path) as conn:
+        cur = conn.execute(
+            """
+            SELECT pillar, action, target, target_kind, confidence,
+                   source_ids_json, first_seen_period, applied_at, rationale
+            FROM analytics_recommendations
+            WHERE pillar = ? AND applied_at IS NOT NULL
+            """,
+            (pillar.value,),
+        )
+        rows = cur.fetchall()
+
+    by_action: dict[str, list[tuple[Recommendation, str]]] = defaultdict(list)
+    for row in rows:
+        rec = _row_to_recommendation(row)
+        outcome = outcome_scorer(rec)
+        by_action[rec.action].append((rec, outcome))
+
+    result: dict[str, dict[str, float | int]] = {}
+    for action, items in by_action.items():
+        n = len(items)
+        improved = sum(1 for _, o in items if o == "improved")
+        hit_rate = improved / n if n else 0.0
+        avg_conf = sum(r.confidence for r, _ in items) / n if n else 0.0
+        # high-conf = top half by confidence
+        sorted_items = sorted(items, key=lambda t: t[0].confidence, reverse=True)
+        high_half = sorted_items[: max(1, n // 2)]
+        high_improved = sum(1 for _, o in high_half if o == "improved")
+        high_hit = high_improved / len(high_half) if high_half else 0.0
+
+        result[action] = {
+            "applied_count": n,
+            "hit_rate": hit_rate,
+            "lift_vs_coinflip": hit_rate - 0.5,
+            "avg_confidence": avg_conf,
+            "high_conf_hit_rate": high_hit,
+        }
+    return result

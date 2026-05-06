@@ -2,6 +2,7 @@
 
 from devrel_swarm.core.growth.recommendations import (
     Recommendation,
+    calibrate,
     find_open_by_target,
     find_stale,
     mark_applied,
@@ -21,5 +22,6 @@ __all__ = [
     "find_open_by_target",
     "mark_applied",
     "find_stale",
+    "calibrate",
     "validate_target_kind_for_pillar",
 ]
