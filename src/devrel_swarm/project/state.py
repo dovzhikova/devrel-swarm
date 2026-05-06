@@ -15,7 +15,7 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Iterator
 
-SCHEMA_VERSION = 4
+SCHEMA_VERSION = 5
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS schema_meta (
@@ -99,6 +99,66 @@ CREATE INDEX IF NOT EXISTS idx_analytics_recommendations_period
 
 CREATE INDEX IF NOT EXISTS idx_analytics_recommendations_action_open
     ON analytics_recommendations(action, applied_at);
+
+CREATE TABLE IF NOT EXISTS seo_keyword_metrics (
+    keyword TEXT NOT NULL,
+    page_url TEXT NOT NULL,
+    period_end TEXT NOT NULL,
+    position REAL,
+    ctr REAL,
+    impressions INTEGER,
+    clicks INTEGER,
+    PRIMARY KEY (keyword, page_url, period_end)
+);
+
+CREATE INDEX IF NOT EXISTS idx_seo_keyword_metrics_period
+    ON seo_keyword_metrics(period_end DESC);
+
+CREATE TABLE IF NOT EXISTS seo_page_profiles (
+    page_url TEXT NOT NULL,
+    period_end TEXT NOT NULL,
+    title_len INTEGER,
+    meta_len INTEGER,
+    h1_count INTEGER,
+    word_count INTEGER,
+    has_schema INTEGER,
+    schema_types_json TEXT,
+    internal_links INTEGER,
+    inp_ms INTEGER,
+    lcp_ms INTEGER,
+    redirect_chain_len INTEGER,
+    crawled_at TEXT NOT NULL,
+    PRIMARY KEY (page_url, period_end)
+);
+
+CREATE TABLE IF NOT EXISTS geo_visibility (
+    prompt_id TEXT NOT NULL,
+    engine TEXT NOT NULL,
+    period_end TEXT NOT NULL,
+    is_mentioned INTEGER,
+    mention_type TEXT,
+    position_score INTEGER,
+    citation_share REAL,
+    quality_score INTEGER,
+    response_path TEXT,
+    PRIMARY KEY (prompt_id, engine, period_end)
+);
+
+CREATE INDEX IF NOT EXISTS idx_geo_visibility_engine_period
+    ON geo_visibility(engine, period_end DESC);
+
+CREATE TABLE IF NOT EXISTS cro_funnel_metrics (
+    funnel_id TEXT NOT NULL,
+    step_index INTEGER NOT NULL,
+    period_end TEXT NOT NULL,
+    conversion_rate REAL,
+    sample_size INTEGER,
+    segment_breakdown_json TEXT,
+    PRIMARY KEY (funnel_id, step_index, period_end)
+);
+
+CREATE INDEX IF NOT EXISTS idx_cro_funnel_period
+    ON cro_funnel_metrics(funnel_id, period_end DESC);
 """
 
 

@@ -32,9 +32,13 @@ def test_init_db_creates_file_and_tables(tmp_path):
         "analytics_reports",
         "checkpoints",
         "costs",
+        "cro_funnel_metrics",
+        "geo_visibility",
         "jobs",
         "metric_history",
         "schema_meta",
+        "seo_keyword_metrics",
+        "seo_page_profiles",
     ]
 
 
