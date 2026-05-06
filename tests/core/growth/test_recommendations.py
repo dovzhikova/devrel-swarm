@@ -8,10 +8,10 @@ import pytest
 
 from devrel_swarm.core.growth.recommendations import (
     Recommendation,
-    persist_recommendation,
     find_open_by_target,
-    mark_applied,
     find_stale,
+    mark_applied,
+    persist_recommendation,
 )
 from devrel_swarm.core.growth.target_kinds import Pillar, TargetKind
 from devrel_swarm.project import state
@@ -83,12 +83,22 @@ class TestPersist:
 class TestFindOpenByTarget:
     def test_returns_unapplied_only(self, db: Path, report_id: int):
         rec1 = Recommendation(
-            pillar=Pillar.SEO, action="rewrite", target="/a", target_kind=TargetKind.URL,
-            confidence=0.9, source_ids=[], first_seen_period="2026-04-01",
+            pillar=Pillar.SEO,
+            action="rewrite",
+            target="/a",
+            target_kind=TargetKind.URL,
+            confidence=0.9,
+            source_ids=[],
+            first_seen_period="2026-04-01",
         )
         rec2 = Recommendation(
-            pillar=Pillar.SEO, action="amplify", target="/b", target_kind=TargetKind.URL,
-            confidence=0.8, source_ids=[], first_seen_period="2026-04-01",
+            pillar=Pillar.SEO,
+            action="amplify",
+            target="/b",
+            target_kind=TargetKind.URL,
+            confidence=0.8,
+            source_ids=[],
+            first_seen_period="2026-04-01",
         )
         persist_recommendation(db, report_id, rec1)
         persist_recommendation(db, report_id, rec2)
@@ -105,12 +115,22 @@ class TestFindOpenByTarget:
 
     def test_filters_by_pillar(self, db: Path, report_id: int):
         seo_rec = Recommendation(
-            pillar=Pillar.SEO, action="rewrite", target="/a", target_kind=TargetKind.URL,
-            confidence=0.9, source_ids=[], first_seen_period="2026-04-01",
+            pillar=Pillar.SEO,
+            action="rewrite",
+            target="/a",
+            target_kind=TargetKind.URL,
+            confidence=0.9,
+            source_ids=[],
+            first_seen_period="2026-04-01",
         )
         cro_rec = Recommendation(
-            pillar=Pillar.CRO, action="retest", target="signup", target_kind=TargetKind.FUNNEL_STEP,
-            confidence=0.8, source_ids=[], first_seen_period="2026-04-01",
+            pillar=Pillar.CRO,
+            action="retest",
+            target="signup",
+            target_kind=TargetKind.FUNNEL_STEP,
+            confidence=0.8,
+            source_ids=[],
+            first_seen_period="2026-04-01",
         )
         persist_recommendation(db, report_id, seo_rec)
         persist_recommendation(db, report_id, cro_rec)
@@ -126,8 +146,13 @@ class TestFindOpenByTarget:
 class TestMarkApplied:
     def test_mark_applied_sets_timestamp(self, db: Path, report_id: int):
         rec = Recommendation(
-            pillar=Pillar.SEO, action="rewrite", target="/x", target_kind=TargetKind.URL,
-            confidence=0.9, source_ids=[], first_seen_period="2026-04-01",
+            pillar=Pillar.SEO,
+            action="rewrite",
+            target="/x",
+            target_kind=TargetKind.URL,
+            confidence=0.9,
+            source_ids=[],
+            first_seen_period="2026-04-01",
         )
         persist_recommendation(db, report_id, rec)
 
@@ -143,8 +168,13 @@ class TestMarkApplied:
 class TestFindStale:
     def test_stale_returns_recs_older_than_n_periods(self, db: Path, report_id: int):
         rec = Recommendation(
-            pillar=Pillar.SEO, action="rewrite", target="/old", target_kind=TargetKind.URL,
-            confidence=0.9, source_ids=[], first_seen_period="2026-03-01",
+            pillar=Pillar.SEO,
+            action="rewrite",
+            target="/old",
+            target_kind=TargetKind.URL,
+            confidence=0.9,
+            source_ids=[],
+            first_seen_period="2026-03-01",
         )
         persist_recommendation(db, report_id, rec)
 
@@ -154,8 +184,13 @@ class TestFindStale:
 
     def test_stale_excludes_recent(self, db: Path, report_id: int):
         rec = Recommendation(
-            pillar=Pillar.SEO, action="rewrite", target="/new", target_kind=TargetKind.URL,
-            confidence=0.9, source_ids=[], first_seen_period="2026-03-25",
+            pillar=Pillar.SEO,
+            action="rewrite",
+            target="/new",
+            target_kind=TargetKind.URL,
+            confidence=0.9,
+            source_ids=[],
+            first_seen_period="2026-03-25",
         )
         persist_recommendation(db, report_id, rec)
 

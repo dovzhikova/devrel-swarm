@@ -37,13 +37,23 @@ class TestCalibrate:
     def test_per_action_hit_rate(self, db: Path, report_id: int):
         """Two double_down recs, one applied: hit rate 1.0 (only applied counts)."""
         rec1 = Recommendation(
-            pillar=Pillar.SEO, action="double_down", target="/a", target_kind=TargetKind.URL,
-            confidence=0.9, source_ids=[], first_seen_period="2026-03-01",
+            pillar=Pillar.SEO,
+            action="double_down",
+            target="/a",
+            target_kind=TargetKind.URL,
+            confidence=0.9,
+            source_ids=[],
+            first_seen_period="2026-03-01",
             applied_at="2026-03-08T00:00:00",
         )
         rec2 = Recommendation(
-            pillar=Pillar.SEO, action="double_down", target="/b", target_kind=TargetKind.URL,
-            confidence=0.8, source_ids=[], first_seen_period="2026-03-01",
+            pillar=Pillar.SEO,
+            action="double_down",
+            target="/b",
+            target_kind=TargetKind.URL,
+            confidence=0.8,
+            source_ids=[],
+            first_seen_period="2026-03-01",
             applied_at=None,
         )
         persist_recommendation(db, report_id, rec1)
@@ -59,8 +69,13 @@ class TestCalibrate:
     def test_pillar_filter(self, db: Path, report_id: int):
         """Calibration filters by pillar: SEO recs do not show up in CRO calibration."""
         seo_rec = Recommendation(
-            pillar=Pillar.SEO, action="double_down", target="/a", target_kind=TargetKind.URL,
-            confidence=0.9, source_ids=[], first_seen_period="2026-03-01",
+            pillar=Pillar.SEO,
+            action="double_down",
+            target="/a",
+            target_kind=TargetKind.URL,
+            confidence=0.9,
+            source_ids=[],
+            first_seen_period="2026-03-01",
             applied_at="2026-03-08T00:00:00",
         )
         persist_recommendation(db, report_id, seo_rec)
@@ -72,16 +87,19 @@ class TestCalibrate:
         """3 of 4 applied recs improved: hit_rate=0.75; lift_vs_coinflip = 0.25."""
         for i in range(4):
             rec = Recommendation(
-                pillar=Pillar.SEO, action="double_down", target=f"/p{i}", target_kind=TargetKind.URL,
-                confidence=0.8, source_ids=[], first_seen_period="2026-03-01",
-                applied_at=f"2026-03-{i+8:02d}T00:00:00",
+                pillar=Pillar.SEO,
+                action="double_down",
+                target=f"/p{i}",
+                target_kind=TargetKind.URL,
+                confidence=0.8,
+                source_ids=[],
+                first_seen_period="2026-03-01",
+                applied_at=f"2026-03-{i + 8:02d}T00:00:00",
             )
             persist_recommendation(db, report_id, rec)
 
         outcomes_iter = iter(["improved", "improved", "improved", "regressed"])
-        result = calibrate(
-            db, Pillar.SEO, outcome_scorer=lambda r: next(outcomes_iter)
-        )
+        result = calibrate(db, Pillar.SEO, outcome_scorer=lambda r: next(outcomes_iter))
         assert result["double_down"]["applied_count"] == 4
         assert result["double_down"]["hit_rate"] == 0.75
         assert result["double_down"]["lift_vs_coinflip"] == pytest.approx(0.25)

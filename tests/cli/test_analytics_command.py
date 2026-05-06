@@ -184,9 +184,7 @@ def test_analytics_diff_json_format(project_dir):
         )
         conn.commit()
 
-    result = runner.invoke(
-        app, ["argus", "diff", "2026-04-25", "2026-05-02", "--format", "json"]
-    )
+    result = runner.invoke(app, ["argus", "diff", "2026-04-25", "2026-05-02", "--format", "json"])
     assert result.exit_code == 0
     payload = json.loads(result.stdout)
     assert payload[0]["content_id"] == "blog/x"
@@ -270,9 +268,7 @@ def test_analytics_summary_aggregates_across_projects(tmp_path, monkeypatch):
 
     # Cd somewhere outside; use --root flag explicitly
     monkeypatch.chdir(tmp_path)
-    result = runner.invoke(
-        app, ["argus", "summary", "--root", str(tmp_path), "--format", "json"]
-    )
+    result = runner.invoke(app, ["argus", "summary", "--root", str(tmp_path), "--format", "json"])
     assert result.exit_code == 0, result.stdout
     payload = json.loads(result.stdout)
     projects = {p["project"]: p for p in payload}
@@ -285,9 +281,7 @@ def test_analytics_summary_aggregates_across_projects(tmp_path, monkeypatch):
 
 def test_analytics_summary_empty_root_returns_zero_projects(tmp_path):
     """A root with no .devrel/ trees should produce an empty project list."""
-    result = runner.invoke(
-        app, ["argus", "summary", "--root", str(tmp_path), "--format", "json"]
-    )
+    result = runner.invoke(app, ["argus", "summary", "--root", str(tmp_path), "--format", "json"])
     assert result.exit_code == 0
     assert json.loads(result.stdout) == []
 

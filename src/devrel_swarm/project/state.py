@@ -172,8 +172,7 @@ def _migrate_to_v5(conn: sqlite3.Connection) -> None:
     cols = {row[1] for row in cur.fetchall()}
     if "pillar" not in cols:
         conn.execute(
-            "ALTER TABLE analytics_recommendations "
-            "ADD COLUMN pillar TEXT NOT NULL DEFAULT 'argus'"
+            "ALTER TABLE analytics_recommendations ADD COLUMN pillar TEXT NOT NULL DEFAULT 'argus'"
         )
     if "target_kind" not in cols:
         conn.execute(

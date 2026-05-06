@@ -48,9 +48,7 @@ class Recommendation:
             self.target_kind = TargetKind(self.target_kind)
 
 
-def persist_recommendation(
-    db_path: Path, report_id: int, rec: Recommendation
-) -> None:
+def persist_recommendation(db_path: Path, report_id: int, rec: Recommendation) -> None:
     """Insert a Recommendation into `analytics_recommendations`.
 
     Validates `(pillar, target_kind)` before INSERT: accidental cross-pillar
