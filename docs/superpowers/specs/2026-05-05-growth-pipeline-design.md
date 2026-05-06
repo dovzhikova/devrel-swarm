@@ -49,27 +49,49 @@ All three agents are **pure auditors**. They read external systems and emit `Rec
 
 **Purpose:** identify content gaps, technical SEO regressions, and keyword opportunities on the user's product website. Emit recommendations Mox turns into blog/landing-page briefs.
 
+**Purpose (expanded 2026-05-06):** position Selene as the **Multi-Surface Search auditor** — moving past blue-link rankings to measure brand visibility across traditional SERPs, AI Overviews / SGE, and standalone LLM citations. Selene runs an Infrastructure-First hierarchy: technical health is the prerequisite for semantic and generative visibility.
+
 **Inputs:**
 
-- Sitemap-driven crawl (`<product_url>/sitemap.xml` → async fetch + BeautifulSoup parse for `<title>`, `<meta>`, `<h1..h6>`, internal-link graph, schema.org JSON-LD presence). Override: `[growth].seo_pages = [...]`.
+- Sitemap-driven crawl (`<product_url>/sitemap.xml` → async fetch + BeautifulSoup parse for `<title>`, `<meta>`, `<h1..h6>`, internal-link graph, schema.org JSON-LD typed inventory). Override: `[growth].seo_pages = [...]`.
+- `robots.txt` + `<product_url>/llms.txt` parsing — beyond Googlebot, also recognize `OAI-SearchBot`, `Anthropic-User`, `PerplexityBot`, `ClaudeBot` user-agents and verify allow rules.
 - Rex's competitor profiles (`SharedContext.rex_competitive`) for gap analysis.
 - GSC keyword performance via `searchanalytics.query` (rolling 90-day CTR / position / impressions per page).
+- **PageSpeed Insights API** (free, no auth required at our scale) for Core Web Vitals 2.0 — Interaction to Next Paint (INP) and Largest Contentful Paint (LCP) per top page. Cached 30 days; only re-fetches on content drift.
+- **Cross-pillar read: Vega's `geo_visibility` table** for `citation_share` + `quality_score` per URL across the 4 engines. Selene does NOT re-call AI engines; it consumes Vega's measurements as a data source for its Multi-Surface report.
 
 **Core algorithm:**
 
-1. Crawl pages, build `PageProfile` dataclass (`url`, `title_len`, `meta_len`, `h1_count`, `internal_links`, `word_count`, `has_schema`).
-2. Heuristic checks against on-page profile: missing meta description, duplicate H1s, title >60 chars, orphaned page (zero inbound internal links), schema.org absent.
-3. LLM gap analysis: per top-10 GSC-impressions page, Sonnet reads our content + 3 competitor pages on the same query and lists missing topics, entities, internal-link opportunities.
-4. Decay/opportunity flag from GSC trend: position worsened ≥3 ranks vs. 30d-prior with stable impressions → `decay`; position 5..15 with rising impressions → `opportunity`.
+1. **Infrastructure crawl** → build `PageProfile` dataclass (`url`, `title_len`, `meta_len`, `h_counts`, `internal_links_count`, `external_links_count`, `word_count`, `has_schema`, `schema_types: list[str]`, `inp_ms: int | None`, `lcp_ms: int | None`, `redirect_chain_len: int`).
+2. **Technical heuristics:** missing meta, duplicate H1s, title >60 chars, thin content (<200 words), redirect chain >3 hops, soft-404 detection (200 status + low content + canonical mismatch), `llms.txt` absent OR no AI-bot allowlist, INP >200ms, LCP >2.5s, typed schema gap (no `Organization`+`sameAs`, no `Product`/`FAQPage`/`Author` where applicable).
+3. **Semantic + generative gap analysis:** per top-10 GSC-impressions page, Sonnet reads our content + 3 competitor pages on the same query and returns:
+   - Missing topics + entities aligned with the Knowledge Graph (entity-first, not keyword-frequency framing)
+   - Atomic-answer suggestion: 40-60-word extractable summary for top-of-page (advisory; Kai materializes)
+   - Internal-link opportunities scoped to the topical cluster (semantic strengthening, not random)
+   - Information-gain assessment: what unique insight our page offers vs. top-ranking competitors (drives `rewrite` confidence)
+4. **GSC trend:** decay (position worsened ≥3 ranks vs. 30d-prior with stable impressions) / opportunity (position 5-15 with rising impressions ≥30%) flagging.
+5. **Multi-Surface visibility (cross-pillar):** read `geo_visibility` rows for URLs in our sitemap; aggregate `citation_share` + `quality_score` per URL across all engines; flag URLs that ARE cited but score badly (rewrite candidates) and URLs that should be cited but aren't (visibility gaps).
 
 **Recommendation outputs** (action × `target_kind`):
 
-- `rewrite × url` (gap analysis hits, decay)
-- `amplify × keyword` (opportunity)
-- `investigate × url` (technical issue)
-- `retire × url` (zero-traffic + zero inbound links)
+- `rewrite × url` — gap analysis hits, decay, low-quality citations from `geo_visibility`, missing atomic answer
+- `amplify × keyword` — opportunity (GSC trend)
+- `investigate × url` — any technical issue (meta/H1/redirect/INP/LCP/typed-schema gap/llms.txt missing). `source_ids[0]` carries the issue kind so the brief generator can specialize the recommendation copy.
+- `retire × url` — zero-traffic + zero inbound links
 
-**Cost:** ~$0.40/cycle (10 LLM gap calls × $0.04). GSC + crawl free.
+**Operational standards** (reflected in implementation):
+
+- **Reviewer-first:** Selene's findings are validated against a source-of-truth before persistence — technical signals come from PSI/GSC (authoritative); semantic findings ground on competitor pages Rex actually crawled (not just Sonnet hallucinations).
+- **Progressive disclosure:** report markdown lists findings in revenue/impact order (top-impressions pages first), not crawl order.
+- **Human-in-the-Loop:** Selene only writes Recommendations + briefs. Mox + a human approve creative strategy before publishing. The auditor/maker boundary stays.
+- **Monthly monitoring loop:** weekly cycle is stricter than the recommended 30-day cadence; calibration reports (`devrel seo calibration`) measure whether earlier `amplify`/`rewrite` recs actually moved keyword position, hit rate vs. coin-flip.
+
+**Success metrics tracked:**
+
+- Traditional: per-keyword position trend (from `seo_keyword_metrics`), Core Web Vitals pass rate (from `seo_page_profiles`), technical issue burndown (from `analytics_recommendations` lifecycle).
+- Generative (read from Vega's tables): citation rate per URL across engines, share-of-model-voice vs. competitors.
+
+**Cost:** ~$0.40/cycle (10 LLM gap calls × $0.04). GSC + sitemap crawl + PSI API are free at this scale. Cross-pillar geo_visibility reads have zero cost (already-persisted data).
 
 ### 3.2 Vega — GEO (AI-search) Auditor
 
@@ -366,15 +388,16 @@ Validates multi-engine aggregation; biggest LLM cost.
 5. `cli/geo.py` — `report` + `history` + `diff` + `calibration` + `refresh-prompts`.
 6. Tests: respx fixtures per engine; offline corpus of 5 canned responses per engine for assertion stability.
 
-### Wave 3 — Selene (SEO) — 6 days
+### Wave 3 — Selene (SEO) — 8 days
 
-Highest implementation risk (GSC OAuth). Done last so the agent pattern is well-understood.
+Highest implementation risk (GSC OAuth). Done last so the agent pattern is well-understood. Scope expanded 2026-05-06 with the Multi-Surface Search direction — adds llms.txt + AI-bot directives, PageSpeed Insights API for INP/LCP, typed-schema inventory, cross-pillar reads of Vega's `geo_visibility`, and a reframed gap-analysis LLM prompt focused on entity-mapping + atomic answers.
 
 1. `tools/gsc_client.py` — full installed-app OAuth flow: `connect-gsc` opens browser, listens on `localhost:8765`, exchanges code, encrypted-stores refresh token at `.devrel/credentials/gsc.json`. `searchanalytics.query` wrapper with quota handling + 30-day rolling window.
-2. `tools/seo_crawler.py` — async sitemap walker with `crawl_delay_ms` + `max_crawl_pages` cap. BeautifulSoup parse → `PageProfile`. Caches HTML to `.devrel/seo/crawls/`.
-3. `core/selene.py` — heuristic checks, LLM gap analysis (Sonnet reads our top page + 3 competitor pages on same query), decay/opportunity flagging from GSC trend.
-4. `cli/seo.py` — `connect-gsc`, `crawl`, `report`, `history`, `diff`, `calibration`.
-5. Tests: respx for GSC API + canned crawl HTML fixtures.
+2. `tools/psi_client.py` — net-new PageSpeed Insights API client (free tier, no auth). Returns INP + LCP + redirect-chain length per URL. Caches results 30 days in `.devrel/seo/psi-cache/`.
+3. `tools/seo_crawler.py` — async sitemap walker with `crawl_delay_ms` + `max_crawl_pages` cap. BeautifulSoup parse → `PageProfile` (now with `schema_types`, `inp_ms`, `lcp_ms`, `redirect_chain_len`). Caches HTML to `.devrel/seo/crawls/`. Parses `robots.txt` recognizing `OAI-SearchBot`/`Anthropic-User`/`PerplexityBot`/`ClaudeBot` and `<product_url>/llms.txt`.
+4. `core/selene.py` — heuristic checks (existing + INP, LCP, typed-schema, llms.txt, redirect-chain), LLM gap analysis with the new entity-mapping + atomic-answer + information-gain framing, decay/opportunity flagging from GSC trend, **cross-pillar Multi-Surface aggregation** that reads `geo_visibility` rows for our sitemap URLs.
+5. `cli/seo.py` — `connect-gsc`, `crawl`, `report`, `history`, `diff`, `calibration`. The `report` markdown groups findings by Infrastructure → Semantic → Generative tiers (progressive disclosure by impact).
+6. Tests: respx for GSC + PSI APIs; canned crawl HTML fixtures with embedded JSON-LD; cross-pillar test seeds `geo_visibility` rows for assertions.
 
 ### Wave 4 — Polish + Atlas integration (2 days)
 
@@ -391,11 +414,11 @@ Highest implementation risk (GSC OAuth). Done last so the agent pattern is well-
 | 0 — Foundation | 2 | Week 1 (Mon-Tue) |
 | 1 — Cyra | 3 | Week 1 (Wed-Fri) |
 | 2 — Vega | 5 | Week 2 (Mon-Fri) |
-| 3 — Selene | 6 | Week 3 (Mon-Mon) |
-| 4 — Polish | 2 | Week 4 (Tue-Wed) |
-| **Total** | **18 days** | **~3.5 weeks** |
+| 3 — Selene | 8 | Week 3 (Mon-Wed Wk4) |
+| 4 — Polish | 2 | Week 4 (Thu-Fri) |
+| **Total** | **20 days** | **~4 weeks** |
 
-Ship target: v0.3.0 in late May 2026 (~2026-05-29 if work starts Mon 2026-05-12).
+Ship target: v0.3.0 ~2026-06-05 (if work starts Mon 2026-05-12). The +2 days vs. the original 18-day plan are the Multi-Surface Search additions to Wave 3 (PSI client + llms.txt + typed schema + cross-pillar aggregation).
 
 ## 9. Risk register
 

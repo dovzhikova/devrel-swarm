@@ -88,8 +88,11 @@ class TestSchemaV5:
         with sqlite3.connect(db) as conn:
             assert "seo_page_profiles" in _tables(conn)
             cols = _columns(conn, "seo_page_profiles")
-            assert {"page_url", "period_end", "title_len", "meta_len", "h1_count",
-                    "word_count", "has_schema", "internal_links", "crawled_at"} <= cols
+            assert {
+                "page_url", "period_end", "title_len", "meta_len", "h1_count",
+                "word_count", "has_schema", "schema_types_json", "internal_links",
+                "inp_ms", "lcp_ms", "redirect_chain_len", "crawled_at",
+            } <= cols
 
     def test_init_creates_geo_visibility(self, tmp_path: Path):
         db = tmp_path / "state.db"
@@ -152,7 +155,11 @@ CREATE TABLE IF NOT EXISTS seo_page_profiles (
     h1_count INTEGER,
     word_count INTEGER,
     has_schema INTEGER,
+    schema_types_json TEXT,        -- JSON array of detected schema types
     internal_links INTEGER,
+    inp_ms INTEGER,                -- Core Web Vitals 2.0 (PageSpeed Insights)
+    lcp_ms INTEGER,                -- Core Web Vitals 2.0
+    redirect_chain_len INTEGER,    -- # redirects before reaching the URL
     crawled_at TEXT NOT NULL,
     PRIMARY KEY (page_url, period_end)
 );

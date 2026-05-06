@@ -1974,6 +1974,10 @@ def _build_selene(paths) -> Selene:
         cache_dir=paths.devrel_dir / "seo" / "crawls",
     )
     gsc = GSCClient(creds_path=paths.devrel_dir / "credentials" / "gsc.json")
+    # PSI client wired for the Multi-Surface upgrade (Task 16). Free tier;
+    # cached 30d on disk so we don't re-call on every cycle.
+    from devrel_swarm.tools.psi_client import PsiClient
+    psi = PsiClient(cache_dir=paths.devrel_dir / "seo" / "psi-cache", cache_ttl_days=30)
     return Selene(
         crawler=crawler, gsc_client=gsc, llm_client=LLMClient.from_env(),
         db_path=paths.devrel_dir / "state.db",
@@ -1982,6 +1986,7 @@ def _build_selene(paths) -> Selene:
         gsc_property=seo_cfg.get("gsc_property", "") or cfg.get("product_url", ""),
         page_overrides=growth_cfg.get("seo_pages", []) or [],
         competitors=growth_cfg.get("seo_competitors", []) or [],
+        psi_client=psi,
     )
 
 
@@ -2383,6 +2388,7 @@ Add the helpers:
     def _build_selene(self):
         from devrel_swarm.core.selene import Selene
         from devrel_swarm.tools.gsc_client import GSCClient
+        from devrel_swarm.tools.psi_client import PsiClient
         from devrel_swarm.tools.seo_crawler import SEOCrawler
 
         seo_cfg = getattr(self.config, "seo", {}) or {}
@@ -2400,6 +2406,10 @@ Add the helpers:
         gsc = GSCClient(
             creds_path=self.project_paths.devrel_dir / "credentials" / "gsc.json",
         )
+        psi = PsiClient(
+            cache_dir=self.project_paths.devrel_dir / "seo" / "psi-cache",
+            cache_ttl_days=30,
+        )
         return Selene(
             crawler=crawler, gsc_client=gsc, llm_client=self.llm,
             db_path=self.project_paths.devrel_dir / "state.db",
@@ -2408,6 +2418,7 @@ Add the helpers:
             gsc_property=seo_cfg.get("gsc_property", "") or self.config.product_url,
             page_overrides=growth_cfg.get("seo_pages", []) or [],
             competitors=growth_cfg.get("seo_competitors", []) or [],
+            psi_client=psi,
         )
 
     def _extract_rex_competitive_html(self) -> dict:
@@ -2443,15 +2454,1309 @@ git commit -m "feat(atlas): Stage 5c (Selene) gated by seo_in_run config + expor
 
 ---
 
+## Multi-Surface upgrade (added 2026-05-06)
+
+Spec Section 3.1 was expanded after this plan was written: Selene becomes the
+**Multi-Surface Search auditor**, adds `llms.txt`/AI-bot directive checks +
+PageSpeed Insights API for INP/LCP + typed-schema inventory + cross-pillar
+reads of Vega's `geo_visibility`. Tasks 14-19 below add this without
+rewriting Tasks 1-13 in place. Run them AFTER their referenced base task is
+green; integration instructions on each task explain the touch-points.
+
+**Task ordering** when executing this plan:
+
+```
+Tasks 1-3 (oauth_constants + GSC client)        — unchanged
+Task 4 (sitemap walker + robots.txt)            — unchanged
+  ↓
+Task 14 (extend crawler: llms.txt + AI bots)    — NEW
+  ↓
+Task 5 (page parser)                            — apply Task 15 inline edits
+Task 15 (PageProfile extension fields)          — NEW; modifies Task 5 dataclass + parser
+  ↓
+Task 16 (PageSpeed Insights client)             — NEW; tools/psi_client.py
+  ↓
+Task 6 (heuristic checks)                       — apply Task 17 inline edits
+Task 17 (Multi-Surface heuristics)              — NEW; modifies Task 6's _heuristic_issues_for
+  ↓
+Task 7 (GSC trend)                              — unchanged
+  ↓
+Task 8 (LLM gap analysis)                       — apply Task 18 inline edits
+Task 18 (reframed gap-analysis prompt)          — NEW; replaces _GAP_PROMPT in Task 8
+  ↓
+Task 19 (Multi-Surface cross-pillar read)       — NEW; modifies Selene.execute()
+  ↓
+Tasks 9-13                                      — apply Task 20 inline edits
+Task 20 (persist + brief integration)           — NEW; touches _persist_page_profiles
+                                                  and _write_briefs
+```
+
+Total added budget: 2 days (matches the spec's 6 → 8 day Wave 3 update).
+
+---
+
+## Task 14: Extend crawler with `llms.txt` parsing + AI-bot directive checks
+
+**Files:**
+- Modify: `src/devrel_swarm/tools/seo_crawler.py`
+- Modify: `tests/test_seo_crawler.py`
+
+- [ ] **Step 1: Write the failing tests**
+
+Append to `tests/test_seo_crawler.py`:
+
+```python
+@respx.mock
+@pytest.mark.asyncio
+async def test_robots_recognizes_ai_bot_directives(crawler):
+    respx.get("https://openclaw.ai/robots.txt").mock(
+        return_value=Response(200, text=(
+            "User-agent: *\nAllow: /\n\n"
+            "User-agent: OAI-SearchBot\nDisallow: /\n\n"
+            "User-agent: PerplexityBot\nAllow: /docs\n"
+        ))
+    )
+    is_general = await crawler.is_allowed("https://openclaw.ai/", user_agent="*")
+    is_oai = await crawler.is_allowed("https://openclaw.ai/", user_agent="OAI-SearchBot")
+    is_pplx = await crawler.is_allowed("https://openclaw.ai/docs/x", user_agent="PerplexityBot")
+    assert is_general is True
+    assert is_oai is False  # explicitly disallowed
+    assert is_pplx is True
+
+
+@respx.mock
+@pytest.mark.asyncio
+async def test_fetch_llms_txt_returns_directives(crawler):
+    llms_text = (
+        "# AI agents may use this content for retrieval\n"
+        "User-agent: *\n"
+        "Allow: /\n"
+        "\n"
+        "# Recommended pages\n"
+        "Recommend: /docs/quickstart\n"
+        "Recommend: /docs/architecture\n"
+    )
+    respx.get("https://openclaw.ai/llms.txt").mock(
+        return_value=Response(200, text=llms_text, headers={"content-type": "text/plain"})
+    )
+    out = await crawler.fetch_llms_txt("https://openclaw.ai/llms.txt")
+    assert out is not None
+    assert out.is_present is True
+    assert "/docs/quickstart" in out.recommended_pages
+
+
+@respx.mock
+@pytest.mark.asyncio
+async def test_fetch_llms_txt_returns_none_when_404(crawler):
+    respx.get("https://openclaw.ai/llms.txt").mock(return_value=Response(404))
+    out = await crawler.fetch_llms_txt("https://openclaw.ai/llms.txt")
+    assert out is None or out.is_present is False
+```
+
+- [ ] **Step 2: Run to confirm fail**
+
+```bash
+pytest tests/test_seo_crawler.py -k "ai_bot_directives or llms_txt" -v --no-cov
+```
+
+Expected: AttributeError on `fetch_llms_txt`; the AI-bot directive test may
+already pass (RobotFileParser handles per-user-agent rules natively).
+
+- [ ] **Step 3: Add `LlmsTxt` dataclass + `fetch_llms_txt`**
+
+Append to `src/devrel_swarm/tools/seo_crawler.py`:
+
+```python
+@dataclass
+class LlmsTxt:
+    """Parsed `<host>/llms.txt` per llmstxt.org spec."""
+
+    is_present: bool
+    user_agent_rules: dict[str, list[str]]   # {'*': ['Allow: /'], ...}
+    recommended_pages: list[str]             # 'Recommend:' lines
+
+
+# Add this method to SEOCrawler:
+class SEOCrawler:
+    # ... existing methods ...
+
+    async def fetch_llms_txt(self, llms_url: str) -> Optional[LlmsTxt]:
+        """Fetch and parse `/llms.txt` if present.
+
+        Returns None on 404 or parse error; an `is_present=False` `LlmsTxt`
+        object would be ambiguous, so absence is `None`.
+        """
+        client = await self._ensure_client()
+        try:
+            resp = await client.get(llms_url)
+        except httpx.HTTPError:
+            return None
+        if resp.status_code != 200:
+            return None
+
+        ua_rules: dict[str, list[str]] = {}
+        recommended: list[str] = []
+        current_ua: str | None = None
+        for line in resp.text.splitlines():
+            stripped = line.strip()
+            if not stripped or stripped.startswith("#"):
+                continue
+            if stripped.lower().startswith("user-agent:"):
+                current_ua = stripped.split(":", 1)[1].strip()
+                ua_rules.setdefault(current_ua, [])
+            elif stripped.lower().startswith("recommend:"):
+                recommended.append(stripped.split(":", 1)[1].strip())
+            elif current_ua is not None:
+                ua_rules[current_ua].append(stripped)
+
+        return LlmsTxt(
+            is_present=True,
+            user_agent_rules=ua_rules,
+            recommended_pages=recommended,
+        )
+```
+
+The existing `RobotFileParser`-based `is_allowed` already handles per-user-agent rules
+correctly when the user-agent is passed in (Python's `urllib.robotparser` matches
+specific user-agent stanzas first). No code change needed for AI-bot directives —
+just expose them through callers.
+
+- [ ] **Step 4: Run tests**
+
+```bash
+pytest tests/test_seo_crawler.py -v --no-cov
+```
+
+Expected: PASS.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add src/devrel_swarm/tools/seo_crawler.py tests/test_seo_crawler.py
+git commit -m "feat(seo): llms.txt parser + AI-bot directive support"
+```
+
+---
+
+## Task 15: Extend `PageProfile` with schema types + Core Web Vitals + redirect chain
+
+**Files:**
+- Modify: `src/devrel_swarm/tools/seo_crawler.py`
+- Modify: `tests/test_seo_crawler.py`
+
+This task amends Task 5's `PageProfile` dataclass. New fields:
+- `schema_types: list[str]` — detected schema.org types (e.g. `["Organization", "SoftwareApplication"]`)
+- `inp_ms: int | None` — Interaction to Next Paint, set later by PSI (Task 16)
+- `lcp_ms: int | None` — Largest Contentful Paint
+- `redirect_chain_len: int` — number of redirects before reaching the URL
+
+- [ ] **Step 1: Add the failing tests**
+
+Append to `tests/test_seo_crawler.py`:
+
+```python
+class TestPageProfileExtended:
+    @pytest.mark.asyncio
+    async def test_parse_extracts_schema_types(self, crawler):
+        html = """
+        <html><head>
+            <script type="application/ld+json">
+              {"@type": "SoftwareApplication", "name": "OpenClaw"}
+            </script>
+            <script type="application/ld+json">
+              {"@type": "Organization", "name": "OpenClaw Inc",
+               "sameAs": ["https://github.com/openclaw"]}
+            </script>
+        </head><body><h1>OpenClaw</h1></body></html>
+        """
+        profile = await crawler.parse_page(html, page_url="https://openclaw.ai/")
+        assert "SoftwareApplication" in profile.schema_types
+        assert "Organization" in profile.schema_types
+        assert profile.has_schema is True
+
+    @pytest.mark.asyncio
+    async def test_parse_when_no_schema(self, crawler):
+        html = "<html><body><h1>Plain</h1></body></html>"
+        profile = await crawler.parse_page(html, page_url="https://e.com/")
+        assert profile.schema_types == []
+        assert profile.has_schema is False
+
+    @pytest.mark.asyncio
+    async def test_inp_lcp_default_to_none(self, crawler):
+        html = "<html><body><h1>X</h1></body></html>"
+        profile = await crawler.parse_page(html, page_url="https://e.com/")
+        # PSI fields populated later by psi_client; parse_page leaves them None
+        assert profile.inp_ms is None
+        assert profile.lcp_ms is None
+
+    @pytest.mark.asyncio
+    async def test_redirect_chain_len_recorded(self, crawler, respx_mock):
+        # Set up a redirect chain: /a -> /b -> /c (final)
+        respx_mock.get("https://e.com/a").mock(
+            return_value=Response(301, headers={"location": "https://e.com/b"})
+        )
+        respx_mock.get("https://e.com/b").mock(
+            return_value=Response(302, headers={"location": "https://e.com/c"})
+        )
+        respx_mock.get("https://e.com/c").mock(
+            return_value=Response(200, text="<html><body><h1>C</h1></body></html>")
+        )
+        profile = await crawler.fetch_and_parse("https://e.com/a")
+        assert profile is not None
+        assert profile.redirect_chain_len == 2
+```
+
+- [ ] **Step 2: Run to confirm fail**
+
+```bash
+pytest tests/test_seo_crawler.py::TestPageProfileExtended -v --no-cov
+```
+
+Expected: AttributeError on the new fields.
+
+- [ ] **Step 3: Extend `PageProfile` + parsing logic**
+
+In `src/devrel_swarm/tools/seo_crawler.py`, modify the `PageProfile` dataclass:
+
+```python
+@dataclass
+class PageProfile:
+    url: str
+    title: str
+    title_len: int
+    meta_description: Optional[str]
+    meta_len: int
+    h1_count: int
+    h_counts: dict[str, int]
+    has_schema: bool
+    schema_types: list[str] = field(default_factory=list)   # NEW
+    internal_links_count: int = 0
+    external_links_count: int = 0
+    word_count: int = 0
+    inp_ms: Optional[int] = None                            # NEW (PSI sets this)
+    lcp_ms: Optional[int] = None                            # NEW
+    redirect_chain_len: int = 0                             # NEW
+    crawled_at: str = ""
+```
+
+Update `_parse_page_impl` to extract `schema_types` from JSON-LD:
+
+```python
+    # Inside _parse_page_impl, replace the `has_schema` block with:
+    schema_types: list[str] = []
+    for tag in soup.find_all("script", attrs={"type": "application/ld+json"}):
+        try:
+            payload = json.loads(tag.string or "")
+        except (json.JSONDecodeError, TypeError):
+            continue
+        # JSON-LD can be a single object or list; handle both
+        items = payload if isinstance(payload, list) else [payload]
+        for item in items:
+            if isinstance(item, dict) and "@type" in item:
+                t = item["@type"]
+                if isinstance(t, list):
+                    schema_types.extend(str(x) for x in t)
+                else:
+                    schema_types.append(str(t))
+
+    # Also accept microdata itemtype attribute as a schema signal
+    for el in soup.find_all(attrs={"itemtype": True}):
+        itemtype = el["itemtype"]
+        # itemtype is usually a URL like "https://schema.org/Product" — extract the type name
+        if "/" in itemtype:
+            schema_types.append(itemtype.rsplit("/", 1)[-1])
+
+    has_schema = len(schema_types) > 0
+```
+
+(Add `import json` at the top of seo_crawler.py if not already present.)
+
+Update `fetch_and_parse` to record the redirect chain:
+
+```python
+    async def fetch_and_parse(self, page_url: str) -> Optional[PageProfile]:
+        client = await self._ensure_client()
+        if not await self.is_allowed(page_url):
+            logger.info(f"SEO crawler: robots.txt blocks {page_url}")
+            return None
+        try:
+            resp = await client.get(page_url)
+            resp.raise_for_status()
+        except httpx.HTTPError as e:
+            logger.warning(f"SEO crawler: fetch failed for {page_url}: {e}")
+            return None
+
+        # `resp.history` is the list of redirect responses
+        redirect_chain_len = len(resp.history)
+
+        if self.cache_dir is not None:
+            slug = (urlparse(page_url).path.replace("/", "_") or "_root")[:80]
+            cache_file = self.cache_dir / f"{slug}.html"
+            cache_file.parent.mkdir(parents=True, exist_ok=True)
+            cache_file.write_text(resp.text)
+
+        if self.crawl_delay_ms > 0:
+            await asyncio.sleep(self.crawl_delay_ms / 1000.0)
+
+        profile = await self.parse_page(resp.text, page_url=page_url)
+        # Update redirect_chain_len since parse_page can't see resp.history
+        profile.redirect_chain_len = redirect_chain_len
+        return profile
+```
+
+- [ ] **Step 4: Run tests**
+
+```bash
+pytest tests/test_seo_crawler.py -v --no-cov
+```
+
+Expected: all PASS (existing PageParse tests + new TestPageProfileExtended).
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add src/devrel_swarm/tools/seo_crawler.py tests/test_seo_crawler.py
+git commit -m "feat(seo): PageProfile +schema_types +inp_ms/lcp_ms +redirect_chain_len"
+```
+
+---
+
+## Task 16: PageSpeed Insights client
+
+**Files:**
+- Create: `src/devrel_swarm/tools/psi_client.py`
+- Test: `tests/test_psi_client.py`
+
+- [ ] **Step 1: Write the failing tests**
+
+Create `tests/test_psi_client.py`:
+
+```python
+"""PageSpeed Insights API client tests."""
+
+from datetime import datetime, timezone
+from pathlib import Path
+
+import pytest
+import respx
+from httpx import Response
+
+from devrel_swarm.tools.psi_client import PsiClient, PsiResult
+
+
+@pytest.fixture
+def cache_dir(tmp_path):
+    return tmp_path / "psi-cache"
+
+
+@respx.mock
+@pytest.mark.asyncio
+async def test_query_returns_inp_lcp_in_ms(cache_dir):
+    respx.get("https://www.googleapis.com/pagespeedonline/v5/runPagespeed").mock(
+        return_value=Response(200, json={
+            "loadingExperience": {
+                "metrics": {
+                    "INTERACTION_TO_NEXT_PAINT": {
+                        "percentile": 180,
+                        "category": "FAST",
+                    },
+                    "LARGEST_CONTENTFUL_PAINT_MS": {
+                        "percentile": 2100,
+                        "category": "FAST",
+                    },
+                },
+            },
+            "lighthouseResult": {"finalUrl": "https://openclaw.ai/"},
+        })
+    )
+    client = PsiClient(cache_dir=cache_dir)
+    result = await client.query("https://openclaw.ai/")
+    assert result.inp_ms == 180
+    assert result.lcp_ms == 2100
+
+
+@respx.mock
+@pytest.mark.asyncio
+async def test_cache_hit_skips_network(cache_dir):
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    # Pre-populate the cache
+    cache_path = cache_dir / "openclaw.ai_root.json"
+    cache_path.write_text(json.dumps({
+        "url": "https://openclaw.ai/",
+        "inp_ms": 150,
+        "lcp_ms": 1800,
+        "fetched_at": datetime.now(timezone.utc).isoformat(),
+    }))
+    client = PsiClient(cache_dir=cache_dir, cache_ttl_days=30)
+    # No respx mock; if the cache misses, the test fails with "no mock"
+    result = await client.query("https://openclaw.ai/")
+    assert result.inp_ms == 150
+    assert result.lcp_ms == 1800
+
+
+@respx.mock
+@pytest.mark.asyncio
+async def test_query_handles_missing_metrics_gracefully(cache_dir):
+    """Some pages don't have CrUX data; PSI returns lighthouseResult only."""
+    respx.get("https://www.googleapis.com/pagespeedonline/v5/runPagespeed").mock(
+        return_value=Response(200, json={
+            "lighthouseResult": {"finalUrl": "https://newpage.example/"},
+        })
+    )
+    client = PsiClient(cache_dir=cache_dir)
+    result = await client.query("https://newpage.example/")
+    assert result.inp_ms is None
+    assert result.lcp_ms is None
+```
+
+- [ ] **Step 2: Run to confirm fail**
+
+```bash
+pytest tests/test_psi_client.py -v --no-cov
+```
+
+Expected: ImportError.
+
+- [ ] **Step 3: Implement the client**
+
+Create `src/devrel_swarm/tools/psi_client.py`:
+
+```python
+"""PageSpeed Insights API client.
+
+Free tier, no auth required. Returns INP + LCP per URL. We cache results
+30 days at `.devrel/seo/psi-cache/{slug}.json` to avoid re-quering on
+every Selene cycle (CrUX data updates monthly anyway).
+"""
+
+from __future__ import annotations
+
+import json
+import logging
+import time
+from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
+from typing import Optional
+from urllib.parse import urlparse
+
+import httpx
+from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
+
+logger = logging.getLogger(__name__)
+
+PSI_BASE_URL = "https://www.googleapis.com/pagespeedonline/v5/runPagespeed"
+
+
+@dataclass
+class PsiResult:
+    url: str
+    inp_ms: Optional[int]
+    lcp_ms: Optional[int]
+    fetched_at: str  # ISO timestamp
+
+
+def _slug(url: str) -> str:
+    parsed = urlparse(url)
+    host = parsed.netloc.replace(":", "_")
+    path = parsed.path.replace("/", "_") or "_root"
+    return f"{host}{path}"[:100]
+
+
+class PsiClient:
+    """PageSpeed Insights API client with on-disk caching."""
+
+    def __init__(self, *, cache_dir: Path, cache_ttl_days: int = 30, timeout_s: float = 30.0):
+        self.cache_dir = cache_dir
+        self.cache_ttl_days = cache_ttl_days
+        self._client = httpx.AsyncClient(timeout=timeout_s)
+
+    async def aclose(self) -> None:
+        await self._client.aclose()
+
+    def _cache_path(self, url: str) -> Path:
+        return self.cache_dir / f"{_slug(url)}.json"
+
+    def _load_cache(self, url: str) -> Optional[PsiResult]:
+        p = self._cache_path(url)
+        if not p.is_file():
+            return None
+        try:
+            data = json.loads(p.read_text())
+        except (json.JSONDecodeError, OSError):
+            return None
+        fetched = datetime.fromisoformat(data["fetched_at"])
+        if datetime.now(timezone.utc) - fetched > timedelta(days=self.cache_ttl_days):
+            return None
+        return PsiResult(
+            url=data["url"],
+            inp_ms=data.get("inp_ms"),
+            lcp_ms=data.get("lcp_ms"),
+            fetched_at=data["fetched_at"],
+        )
+
+    def _save_cache(self, result: PsiResult) -> None:
+        self.cache_dir.mkdir(parents=True, exist_ok=True)
+        self._cache_path(result.url).write_text(json.dumps({
+            "url": result.url,
+            "inp_ms": result.inp_ms,
+            "lcp_ms": result.lcp_ms,
+            "fetched_at": result.fetched_at,
+        }))
+
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=2, max=15),
+        retry=retry_if_exception_type(httpx.HTTPStatusError),
+    )
+    async def _fetch(self, url: str) -> PsiResult:
+        resp = await self._client.get(
+            PSI_BASE_URL,
+            params={
+                "url": url,
+                "category": "performance",
+                "strategy": "mobile",
+            },
+        )
+        resp.raise_for_status()
+        data = resp.json()
+
+        inp_ms: Optional[int] = None
+        lcp_ms: Optional[int] = None
+        loading = data.get("loadingExperience", {}) or {}
+        metrics = loading.get("metrics", {}) or {}
+        if "INTERACTION_TO_NEXT_PAINT" in metrics:
+            inp_ms = int(metrics["INTERACTION_TO_NEXT_PAINT"].get("percentile") or 0) or None
+        if "LARGEST_CONTENTFUL_PAINT_MS" in metrics:
+            lcp_ms = int(metrics["LARGEST_CONTENTFUL_PAINT_MS"].get("percentile") or 0) or None
+
+        return PsiResult(
+            url=url,
+            inp_ms=inp_ms,
+            lcp_ms=lcp_ms,
+            fetched_at=datetime.now(timezone.utc).isoformat(),
+        )
+
+    async def query(self, url: str) -> PsiResult:
+        cached = self._load_cache(url)
+        if cached is not None:
+            return cached
+        try:
+            result = await self._fetch(url)
+        except httpx.HTTPError as e:
+            logger.warning(f"PSI fetch failed for {url}: {e}")
+            result = PsiResult(
+                url=url, inp_ms=None, lcp_ms=None,
+                fetched_at=datetime.now(timezone.utc).isoformat(),
+            )
+        self._save_cache(result)
+        return result
+```
+
+- [ ] **Step 4: Run tests**
+
+```bash
+pytest tests/test_psi_client.py -v --no-cov
+```
+
+Expected: all PASS.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add src/devrel_swarm/tools/psi_client.py tests/test_psi_client.py
+git commit -m "feat(seo): PageSpeed Insights client with 30d on-disk cache"
+```
+
+---
+
+## Task 17: Multi-Surface heuristic checks (extends Task 6)
+
+**Files:**
+- Modify: `src/devrel_swarm/core/selene.py`
+- Modify: `tests/test_selene.py`
+
+Modifies Task 6's `_heuristic_issues_for` static method. Adds new issue kinds:
+`no_typed_schema_org`, `no_typed_schema_product`, `no_llms_txt`, `inp_too_slow`,
+`lcp_too_slow`, `redirect_chain_too_long`.
+
+- [ ] **Step 1: Add the failing tests**
+
+Append to `tests/test_selene.py`:
+
+```python
+class TestMultiSurfaceHeuristics:
+    def test_no_typed_schema_org_flagged(self):
+        # has_schema=True but schema_types doesn't include Organization
+        p = _profile(has_schema=True, schema_types=["SoftwareApplication"])
+        issues = Selene._heuristic_issues_for(p)
+        assert any(i.kind == "no_typed_schema_org" for i in issues)
+
+    def test_organization_schema_satisfies_typed_check(self):
+        p = _profile(has_schema=True, schema_types=["Organization", "WebSite"])
+        issues = Selene._heuristic_issues_for(p)
+        assert not any(i.kind == "no_typed_schema_org" for i in issues)
+
+    def test_inp_too_slow_flagged(self):
+        p = _profile(inp_ms=350)
+        issues = Selene._heuristic_issues_for(p)
+        assert any(i.kind == "inp_too_slow" for i in issues)
+
+    def test_inp_within_threshold_clean(self):
+        p = _profile(inp_ms=180)
+        issues = Selene._heuristic_issues_for(p)
+        assert not any(i.kind == "inp_too_slow" for i in issues)
+
+    def test_lcp_too_slow_flagged(self):
+        p = _profile(lcp_ms=3500)
+        issues = Selene._heuristic_issues_for(p)
+        assert any(i.kind == "lcp_too_slow" for i in issues)
+
+    def test_redirect_chain_too_long_flagged(self):
+        p = _profile(redirect_chain_len=4)
+        issues = Selene._heuristic_issues_for(p)
+        assert any(i.kind == "redirect_chain_too_long" for i in issues)
+
+    def test_inp_lcp_none_does_not_flag(self):
+        # PSI hasn't run yet — None should not produce a false positive
+        p = _profile(inp_ms=None, lcp_ms=None)
+        issues = Selene._heuristic_issues_for(p)
+        assert not any(i.kind in ("inp_too_slow", "lcp_too_slow") for i in issues)
+```
+
+Update `_profile` helper at top of `tests/test_selene.py` to accept the new fields:
+
+```python
+def _profile(**kwargs) -> PageProfile:
+    defaults = dict(
+        url="https://openclaw.ai/", title="A tight 50-character title for OpenClaw",
+        title_len=42, meta_description="A reasonable meta description.",
+        meta_len=30, h1_count=1,
+        h_counts={"h1": 1, "h2": 2, "h3": 0, "h4": 0, "h5": 0, "h6": 0},
+        has_schema=True, schema_types=["Organization", "SoftwareApplication"],
+        internal_links_count=5, external_links_count=2,
+        word_count=400, inp_ms=180, lcp_ms=2000, redirect_chain_len=0,
+        crawled_at=datetime.now(timezone.utc).isoformat(),
+    )
+    defaults.update(kwargs)
+    return PageProfile(**defaults)
+```
+
+- [ ] **Step 2: Run to confirm fail**
+
+```bash
+pytest tests/test_selene.py::TestMultiSurfaceHeuristics -v --no-cov
+```
+
+Expected: AssertionError — checks not implemented.
+
+- [ ] **Step 3: Extend `_heuristic_issues_for`**
+
+In `src/devrel_swarm/core/selene.py`, modify the static method:
+
+```python
+    @staticmethod
+    def _heuristic_issues_for(p: PageProfile) -> list[HeuristicIssue]:
+        issues: list[HeuristicIssue] = []
+        # ... existing checks (missing_meta, title_too_long, missing_h1,
+        # duplicate_h1, no_schema, thin_content) — keep as-is ...
+
+        # NEW Multi-Surface checks
+        schema_types_lower = {s.lower() for s in (p.schema_types or [])}
+        if p.has_schema and "organization" not in schema_types_lower:
+            issues.append(HeuristicIssue(
+                kind="no_typed_schema_org", page_url=p.url,
+                detail="schema.org JSON-LD present but no `Organization` type with sameAs",
+                severity="medium",
+            ))
+        if p.inp_ms is not None and p.inp_ms > 200:
+            issues.append(HeuristicIssue(
+                kind="inp_too_slow", page_url=p.url,
+                detail=f"INP {p.inp_ms}ms (>200ms threshold)",
+                severity="high",
+            ))
+        if p.lcp_ms is not None and p.lcp_ms > 2500:
+            issues.append(HeuristicIssue(
+                kind="lcp_too_slow", page_url=p.url,
+                detail=f"LCP {p.lcp_ms}ms (>2500ms threshold)",
+                severity="high",
+            ))
+        if p.redirect_chain_len > 3:
+            issues.append(HeuristicIssue(
+                kind="redirect_chain_too_long", page_url=p.url,
+                detail=f"{p.redirect_chain_len} redirects before reaching this URL",
+                severity="medium",
+            ))
+
+        return issues
+```
+
+The `no_llms_txt` check is per-site (not per-page); it lives on `Selene.execute()`
+in Task 19 since it needs the host-level `LlmsTxt` result, not a `PageProfile`.
+
+- [ ] **Step 4: Run tests**
+
+```bash
+pytest tests/test_selene.py::TestMultiSurfaceHeuristics tests/test_selene.py::TestHeuristics -v --no-cov
+```
+
+Expected: all PASS (existing + new).
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add src/devrel_swarm/core/selene.py tests/test_selene.py
+git commit -m "feat(selene): Multi-Surface heuristics (typed schema, INP, LCP, redirect chain)"
+```
+
+---
+
+## Task 18: Reframed gap-analysis prompt (entity-mapping + atomic answer + information gain)
+
+**Files:**
+- Modify: `src/devrel_swarm/core/selene.py`
+- Modify: `tests/test_selene.py`
+
+Replaces the `_GAP_PROMPT` constant from Task 8 with a longer prompt grounded
+in the Multi-Surface framing. Output schema gains two fields:
+`atomic_answer` (40-60 word draft) and `information_gain` (one-sentence
+unique-insight assessment).
+
+- [ ] **Step 1: Update the failing test from Task 8**
+
+In `tests/test_selene.py::TestGapAnalysis::test_gap_analysis_calls_llm_with_competitor_pages`,
+change the LLM mock return value to include the new fields:
+
+```python
+        llm.generate = AsyncMock(return_value=(json.dumps({
+            "missing_topics": ["distributed tracing setup", "OpenTelemetry export"],
+            "missing_entities": ["OpenTelemetry", "Jaeger"],
+            "suggested_internal_links": ["/docs/tracing", "/docs/integrations"],
+            "atomic_answer": (
+                "OpenClaw is an open-source Kubernetes observability platform "
+                "that auto-instruments your apps and ships unified telemetry to "
+                "any OpenTelemetry-compatible backend. Install via `pipx install "
+                "openclaw` and run `openclaw init` to get started."
+            ),
+            "information_gain": "We uniquely cover the OpenTelemetry-export path; "
+                                "competitors lock you into proprietary backends.",
+        }), MagicMock()))
+        # ... rest of test ...
+        assert "OpenTelemetry" in finding.atomic_answer
+        assert finding.information_gain.startswith("We uniquely cover")
+```
+
+Add new assertion fields. Update `GapFinding` dataclass to carry them:
+
+- [ ] **Step 2: Run to confirm fail**
+
+```bash
+pytest tests/test_selene.py::TestGapAnalysis -v --no-cov
+```
+
+Expected: AttributeError on `atomic_answer` field.
+
+- [ ] **Step 3: Extend `GapFinding` + replace `_GAP_PROMPT`**
+
+In `src/devrel_swarm/core/selene.py`:
+
+```python
+@dataclass
+class GapFinding:
+    page_url: str
+    missing_topics: list[str]
+    missing_entities: list[str]
+    suggested_internal_links: list[str]
+    atomic_answer: str = ""           # NEW: 40-60 word top-of-page summary
+    information_gain: str = ""        # NEW: one-sentence unique-insight assessment
+```
+
+Replace `_GAP_PROMPT` with:
+
+```python
+_GAP_PROMPT = """You are a Multi-Surface Search analyst. The reader will reach this
+page through one of three surfaces: traditional Google, AI Overviews / SGE, or a
+standalone LLM (ChatGPT/Perplexity/Claude). Your job is to identify what our page is
+MISSING that lets competitors win the citation across all three surfaces.
+
+Our page (truncated to 4KB):
+URL: {our_url}
+Target keyword: {target_keyword}
+
+{our_html}
+
+Competitor pages (each 2KB):
+
+{competitor_blocks}
+
+Return JSON only:
+
+{{
+  "missing_topics": ["<topic 1>", "<topic 2>"],
+  "missing_entities": ["<entity>"],   // Knowledge Graph entities competitors name-drop
+                                       // and we don't (e.g. specific tools, standards,
+                                       // companies, technical concepts)
+  "suggested_internal_links": ["/path1"],   // semantically scoped to topical cluster,
+                                            // strengthens cluster authority
+  "atomic_answer": "<40-60 word direct answer suitable for top-of-page extraction.>",
+  "information_gain": "<one sentence: what unique insight our page offers vs.
+                       top-ranking competitors? if nothing — say so.>"
+}}
+
+Rules:
+- "missing_topics": specific subjects competitors cover that we don't. Don't
+  list anything we already cover.
+- "missing_entities": entity-first thinking — competitors name specific things
+  (products, standards, companies); list what we should add.
+- "atomic_answer": exactly 40-60 words. Self-contained. Extractable by an LLM
+  retrieving this page for a question. State the brand value clearly.
+- "information_gain": be honest. If our page is just regurgitating what
+  competitors already say, return "Our page provides no unique insight versus
+  competitors; consider rewriting around <specific angle>."
+
+Return ONLY JSON, no markdown fences."""
+```
+
+Update `_analyze_gap` to return the new fields:
+
+```python
+        return GapFinding(
+            page_url=our_page_url,
+            missing_topics=list(data.get("missing_topics", []))[:10],
+            missing_entities=list(data.get("missing_entities", []))[:10],
+            suggested_internal_links=list(data.get("suggested_internal_links", []))[:5],
+            atomic_answer=str(data.get("atomic_answer", ""))[:600],
+            information_gain=str(data.get("information_gain", ""))[:400],
+        )
+```
+
+- [ ] **Step 4: Run tests**
+
+```bash
+pytest tests/test_selene.py::TestGapAnalysis -v --no-cov
+```
+
+Expected: PASS.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add src/devrel_swarm/core/selene.py tests/test_selene.py
+git commit -m "feat(selene): reframed gap-analysis prompt with atomic answer + information gain"
+```
+
+---
+
+## Task 19: Multi-Surface cross-pillar read of Vega's `geo_visibility`
+
+**Files:**
+- Modify: `src/devrel_swarm/core/selene.py`
+- Modify: `tests/test_selene.py`
+
+Adds a `_multi_surface_aggregate` method that reads `geo_visibility` rows for
+URLs in our sitemap and produces per-URL aggregates (citation_share + quality_score
+across engines). Also wires `Selene.execute()` to populate `PageProfile.inp_ms`/
+`lcp_ms` from the PSI client and to attach a host-level `no_llms_txt` issue when
+`/llms.txt` is absent.
+
+- [ ] **Step 1: Add the failing tests**
+
+Append to `tests/test_selene.py`:
+
+```python
+class TestMultiSurfaceAggregate:
+    def test_aggregate_pulls_geo_visibility_per_url(self, init_db, tmp_path):
+        # Seed geo_visibility rows for two URLs across two engines
+        with sqlite3.connect(init_db) as conn:
+            conn.execute(
+                "INSERT INTO geo_visibility (prompt_id, engine, period_end, "
+                "is_mentioned, mention_type, position_score, citation_share, "
+                "quality_score, response_path) VALUES "
+                "('q1', 'perplexity', '2026-04-01', 1, 'recommended', 1, 0.6, 5, NULL),"
+                "('q1', 'openai',     '2026-04-01', 1, 'direct',      2, 0.4, 4, NULL),"
+                "('q2', 'perplexity', '2026-04-01', 0, NULL,           5, 0.0, 0, NULL),"
+                "('q2', 'openai',     '2026-04-01', 1, 'compared',    3, 0.5, 2, NULL)"
+            )
+            conn.commit()
+
+        selene = Selene(
+            crawler=MagicMock(), gsc_client=MagicMock(), llm_client=MagicMock(),
+            db_path=init_db,
+            product_url="https://openclaw.ai/", product_domain="openclaw.ai",
+        )
+        agg = selene._multi_surface_aggregate(
+            urls=["https://openclaw.ai/", "https://openclaw.ai/docs"],
+            period_end="2026-04-01",
+        )
+        # The aggregate is keyed by URL but for now Vega's data is keyed by
+        # prompt_id; the cross-pillar shape Selene cares about is per-URL avg
+        # of citation_share + quality_score across engines for prompts that
+        # mentioned this URL in their cited sources.
+        # For Wave 3 with no URL→prompt linkage in geo_visibility yet, we
+        # aggregate per-engine rates and surface global citation/quality
+        # rather than per-URL specifics. Polish loop in Wave 4 can refine.
+        assert "global" in agg
+        assert agg["global"]["mentioned_share"] == pytest.approx(0.75)  # 3 of 4
+        assert agg["global"]["avg_quality"] == pytest.approx((5 + 4 + 2) / 3, abs=0.01)
+
+
+class TestExecuteMultiSurface:
+    @pytest.mark.asyncio
+    async def test_execute_attaches_no_llms_txt_issue_when_absent(self, init_db, tmp_path):
+        # Crawler returns no llms.txt
+        crawler = MagicMock()
+        crawler.fetch_sitemap = AsyncMock(return_value=[])
+        crawler.fetch_llms_txt = AsyncMock(return_value=None)
+        crawler.fetch_and_parse = AsyncMock(return_value=None)
+        gsc = MagicMock()
+        gsc.search_analytics_query = AsyncMock(return_value=[])
+        psi = MagicMock()
+        psi.query = AsyncMock(return_value=None)
+
+        selene = Selene(
+            crawler=crawler, gsc_client=gsc, llm_client=MagicMock(),
+            db_path=init_db,
+            product_url="https://openclaw.ai/", product_domain="openclaw.ai",
+            psi_client=psi,
+        )
+        report = await selene.execute(
+            period_end="2026-04-01", report_id="test-report",
+        )
+        # When sitemap is empty AND llms.txt is absent, we still log the
+        # llms.txt issue against the host root.
+        assert any(i.kind == "no_llms_txt" for i in report.issues)
+```
+
+- [ ] **Step 2: Run to confirm fail**
+
+```bash
+pytest tests/test_selene.py::TestMultiSurfaceAggregate tests/test_selene.py::TestExecuteMultiSurface -v --no-cov
+```
+
+Expected: AttributeError on `_multi_surface_aggregate` and `psi_client` constructor arg.
+
+- [ ] **Step 3: Add the methods + extend `execute`**
+
+Modify `Selene.__init__` to accept an optional `psi_client`:
+
+```python
+    def __init__(
+        self,
+        *,
+        crawler: SEOCrawler,
+        gsc_client: Any,
+        llm_client: Any,
+        db_path: Path,
+        product_url: str,
+        product_domain: str,
+        gsc_property: Optional[str] = None,
+        sitemap_url: Optional[str] = None,
+        page_overrides: list[str] | None = None,
+        competitors: list[str] | None = None,
+        psi_client: Any | None = None,         # NEW
+    ):
+        # ... existing init ...
+        self.psi = psi_client
+```
+
+Add the cross-pillar aggregator:
+
+```python
+    def _multi_surface_aggregate(
+        self, *, urls: list[str], period_end: str,
+    ) -> dict:
+        """Read geo_visibility rows for the period and aggregate.
+
+        Wave 3 ships a global aggregate (mention rate + avg quality across
+        all engines/prompts in the period). Wave 4 polish can refine to a
+        per-URL aggregate once the geo_visibility schema gets a `cited_url`
+        column.
+        """
+        with sqlite3.connect(self.db_path) as conn:
+            cur = conn.execute(
+                """
+                SELECT
+                    SUM(is_mentioned) * 1.0 / NULLIF(COUNT(*), 0)         AS mentioned_share,
+                    AVG(citation_share) FILTER (WHERE is_mentioned = 1)   AS avg_citation,
+                    AVG(quality_score)  FILTER (WHERE is_mentioned = 1)   AS avg_quality
+                FROM geo_visibility
+                WHERE period_end = ?
+                """,
+                (period_end,),
+            )
+            row = cur.fetchone()
+        return {
+            "global": {
+                "mentioned_share": row[0] or 0.0,
+                "avg_citation_share": row[1] or 0.0,
+                "avg_quality": row[2] or 0.0,
+            },
+        }
+```
+
+Note: SQLite ≥ 3.30 supports `FILTER (WHERE ...)`. macOS bundled Python's
+`sqlite3` is 3.39+, so this works on dev. CI uses Linux Python 3.12/3.13
+which bundles 3.40+. Confirmed compatible.
+
+Modify `Selene.execute()` to:
+1. Call `psi_client.query` for each crawled URL (concurrently via `asyncio.gather`)
+   and update `PageProfile.inp_ms`/`lcp_ms` before heuristics run.
+2. Call `crawler.fetch_llms_txt()` once at host root and append a
+   `no_llms_txt` issue when absent.
+3. Call `_multi_surface_aggregate` and stash on the report.
+
+```python
+    # Add to SeoReport dataclass:
+    multi_surface: dict = field(default_factory=dict)   # NEW
+
+
+    async def execute(
+        self, *,
+        period_end: str, report_id: str,
+        rex_competitive_html: dict[str, dict[str, str]] | None = None,
+        deliverables_dir: Path | None = None,
+    ) -> SeoReport:
+        rex_competitive_html = rex_competitive_html or {}
+
+        # ... existing sitemap fetch + crawl ...
+
+        # NEW: llms.txt presence check
+        host_root = self.product_url.rstrip("/")
+        llms = await self.crawler.fetch_llms_txt(f"{host_root}/llms.txt")
+        if llms is None or not getattr(llms, "is_present", False):
+            issues.insert(0, HeuristicIssue(
+                kind="no_llms_txt", page_url=host_root,
+                detail="No `/llms.txt` published; AI crawlers have no curated map of recommended pages.",
+                severity="medium",
+            ))
+
+        # NEW: Populate INP/LCP via PSI for top pages (cap at 20 to respect free tier)
+        if self.psi is not None and profiles:
+            top_for_psi = profiles[:20]
+            psi_tasks = [self.psi.query(p.url) for p in top_for_psi]
+            psi_results = await asyncio.gather(*psi_tasks, return_exceptions=True)
+            for prof, psi_res in zip(top_for_psi, psi_results, strict=True):
+                if isinstance(psi_res, Exception) or psi_res is None:
+                    continue
+                prof.inp_ms = psi_res.inp_ms
+                prof.lcp_ms = psi_res.lcp_ms
+
+        # ... existing heuristic + GSC + gap analysis ...
+
+        # NEW: Multi-Surface aggregate (cross-pillar from Vega)
+        multi_surface = self._multi_surface_aggregate(
+            urls=[p.url for p in profiles], period_end=period_end,
+        )
+
+        report = SeoReport(
+            period_end=period_end, profiles=profiles, issues=issues,
+            keyword_opportunities=keyword_opportunities, gap_findings=gap_findings,
+            multi_surface=multi_surface,
+        )
+        # ... existing persist + brief ...
+        return report
+```
+
+- [ ] **Step 4: Run tests**
+
+```bash
+pytest tests/test_selene.py -v --no-cov
+```
+
+Expected: all PASS.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add src/devrel_swarm/core/selene.py tests/test_selene.py
+git commit -m "feat(selene): Multi-Surface aggregate (cross-pillar geo_visibility) + PSI in execute"
+```
+
+---
+
+## Task 20: Persist + brief integration for Multi-Surface fields
+
+**Files:**
+- Modify: `src/devrel_swarm/core/selene.py`
+- Modify: `tests/test_selene.py`
+
+Touches Task 9's `_persist_page_profiles` to write the new columns
+(`schema_types_json`, `inp_ms`, `lcp_ms`, `redirect_chain_len`) and Task 10's
+`_write_briefs` to surface Multi-Surface findings (atomic answer suggestion,
+information gain, citation status from `multi_surface` aggregate).
+
+- [ ] **Step 1: Update the persist test**
+
+In `tests/test_selene.py::TestPersist::test_persist_writes_page_profiles`,
+modify the assertion to check the new columns:
+
+```python
+    def test_persist_writes_page_profiles(self, init_db, tmp_path):
+        selene = Selene(
+            crawler=MagicMock(), gsc_client=MagicMock(), llm_client=MagicMock(),
+            db_path=init_db,
+            product_url="https://openclaw.ai/", product_domain="openclaw.ai",
+        )
+        profiles = [_profile(inp_ms=180, lcp_ms=2100, redirect_chain_len=1,
+                              schema_types=["Organization", "SoftwareApplication"])]
+        selene._persist_page_profiles(profiles, period_end="2026-04-01")
+        with sqlite3.connect(init_db) as conn:
+            cur = conn.execute(
+                "SELECT page_url, schema_types_json, inp_ms, lcp_ms, redirect_chain_len "
+                "FROM seo_page_profiles"
+            )
+            rows = cur.fetchall()
+        assert len(rows) == 1
+        assert rows[0][0] == "https://openclaw.ai/"
+        types = json.loads(rows[0][1])
+        assert "Organization" in types
+        assert rows[0][2] == 180
+        assert rows[0][3] == 2100
+        assert rows[0][4] == 1
+```
+
+- [ ] **Step 2: Run to confirm fail**
+
+```bash
+pytest tests/test_selene.py::TestPersist::test_persist_writes_page_profiles -v --no-cov
+```
+
+Expected: failure on schema_types_json column missing OR sqlite error on extra columns.
+
+- [ ] **Step 3: Update `_persist_page_profiles`**
+
+In `core/selene.py`:
+
+```python
+    def _persist_page_profiles(
+        self, profiles: list[PageProfile], *, period_end: str,
+    ) -> None:
+        with sqlite3.connect(self.db_path) as conn:
+            for p in profiles:
+                conn.execute(
+                    """
+                    INSERT OR REPLACE INTO seo_page_profiles
+                        (page_url, period_end, title_len, meta_len, h1_count,
+                         word_count, has_schema, schema_types_json,
+                         internal_links, inp_ms, lcp_ms, redirect_chain_len,
+                         crawled_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        p.url, period_end,
+                        p.title_len, p.meta_len, p.h1_count,
+                        p.word_count, 1 if p.has_schema else 0,
+                        json.dumps(p.schema_types or []),
+                        p.internal_links_count,
+                        p.inp_ms, p.lcp_ms, p.redirect_chain_len,
+                        p.crawled_at,
+                    ),
+                )
+            conn.commit()
+```
+
+Update `_write_briefs` to surface the Multi-Surface bits in the brief markdown.
+For each `rewrite × url` recommendation that has a corresponding `GapFinding`,
+include the atomic_answer + information_gain in the brief:
+
+```python
+    def _write_briefs(self, report: SeoReport, deliverables_dir: Path) -> None:
+        deliverables_dir.mkdir(parents=True, exist_ok=True)
+        gap_by_url = {g.page_url: g for g in report.gap_findings}
+
+        for rec in report.recommendations:
+            md_lines = [
+                f"# Selene brief: {rec.action} `{rec.target}`",
+                "",
+                f"**Period:** {report.period_end}",
+                f"**Pillar:** seo",
+                f"**Target kind:** {rec.target_kind.value}",
+                f"**Confidence:** {rec.confidence:.2f}",
+                "",
+            ]
+            if rec.source_ids:
+                md_lines.extend(["## Why", ""])
+                md_lines.extend(f"- {sid}" for sid in rec.source_ids)
+                md_lines.append("")
+
+            # NEW: Multi-Surface section for rewrite × url with gap data
+            gap = gap_by_url.get(rec.target)
+            if rec.action == "rewrite" and gap is not None:
+                if gap.atomic_answer:
+                    md_lines.extend([
+                        "## Suggested atomic answer (40-60 words)",
+                        "",
+                        f"> {gap.atomic_answer}",
+                        "",
+                    ])
+                if gap.information_gain:
+                    md_lines.extend([
+                        "## Information gain assessment",
+                        "",
+                        f"{gap.information_gain}",
+                        "",
+                    ])
+                if gap.missing_entities:
+                    md_lines.extend([
+                        "## Missing entities (Knowledge Graph)",
+                        "",
+                    ])
+                    md_lines.extend(f"- {e}" for e in gap.missing_entities)
+                    md_lines.append("")
+
+            # NEW: Multi-Surface global stats from geo_visibility
+            if report.multi_surface:
+                ms = report.multi_surface.get("global", {})
+                md_lines.extend([
+                    "## Multi-Surface visibility (this period)",
+                    "",
+                    f"- Mentioned in AI search: {ms.get('mentioned_share', 0):.1%}",
+                    f"- Avg citation share: {ms.get('avg_citation_share', 0):.1%}",
+                    f"- Avg answer quality: {ms.get('avg_quality', 0):.1f}/5",
+                    "",
+                ])
+
+            md_lines.extend(["## Suggested next steps", ""])
+            if rec.action == "rewrite":
+                md_lines.append(f"- Kai: rewrite `{rec.target}` to address the items above. Lead with the atomic answer block.")
+            elif rec.action == "amplify":
+                md_lines.append(f"- Mox: produce a piece of content targeting the keyword `{rec.target}`.")
+            elif rec.action == "investigate":
+                md_lines.append(f"- Manual: review `{rec.target}` and address the flagged technical issue.")
+
+            slug = rec.target.replace("https://", "").replace("/", "-").replace(" ", "-")[:60]
+            path = deliverables_dir / f"seo-brief-{report.period_end}-{rec.action}-{slug}.md"
+            path.write_text("\n".join(md_lines) + "\n")
+```
+
+- [ ] **Step 4: Run tests + full suite**
+
+```bash
+pytest tests/test_selene.py -v --no-cov
+pytest tests/ -q --no-header
+ruff check . && ruff format --check . | tail -1
+```
+
+Expected: all PASS; ruff clean.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add src/devrel_swarm/core/selene.py tests/test_selene.py
+git commit -m "feat(selene): persist Multi-Surface profile fields + brief integration"
+```
+
+---
+
 ## Wave 3 closeout checklist
 
-- [ ] `pytest tests/ -q --no-header` shows ~890 + ~30 new = ~920 passed / 21 xfailed
+- [ ] `pytest tests/ -q --no-header` shows ~890 + ~50 new = ~940 passed / 21 xfailed
 - [ ] `ruff check .` and `ruff format --check .` both clean
 - [ ] `devrel seo --help` lists `connect-gsc`, `crawl`, `report`, `history`, `diff`, `calibration`
 - [ ] After running `devrel seo connect-gsc` (manual), `~/.devrel/credentials/gsc.json` exists with mode 0600
-- [ ] `devrel seo crawl` walks the sitemap and prints page profiles (manual smoke against a real site)
-- [ ] `devrel seo report` runs end-to-end (manual smoke; budget ~$0.40)
-- [ ] At least one `seo-brief-*.md` lands in `.devrel/deliverables/`
+- [ ] `devrel seo crawl` walks the sitemap and prints page profiles with `schema_types`, INP, LCP, `redirect_chain_len` columns populated (manual smoke against a real site)
+- [ ] `devrel seo report` runs end-to-end including PSI calls + llms.txt check + Multi-Surface aggregate (manual smoke; budget ~$0.40 + free PSI)
+- [ ] At least one `seo-brief-*.md` lands in `.devrel/deliverables/` and contains the atomic-answer block + information-gain assessment + Multi-Surface visibility section
 - [ ] `devrel growth summary` shows non-zero "Open recs" for the seo pillar
 - [ ] Atlas weekly cycle with `seo_in_run = true` runs Selene without breaking other agents
 - [ ] (External) Google OAuth verification status checked — should be in review or approved by now

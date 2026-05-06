@@ -586,10 +586,16 @@ briefs.
 
 ### Added
 
-- **Selene** — SEO auditor. Sitemap-driven crawl + on-page heuristic checks
-  (missing meta, dup H1, thin content, no schema) + LLM gap analysis vs.
-  Rex's competitor pages + Google Search Console keyword performance via
-  read-only OAuth. CLI: `devrel seo {connect-gsc|crawl|report|history|diff|calibration}`.
+- **Selene** — Multi-Surface Search auditor. Sitemap-driven crawl + on-page
+  heuristic checks (missing meta, dup H1, thin content, typed-schema gaps,
+  redirect chains) + Core Web Vitals 2.0 from PageSpeed Insights API
+  (INP < 200ms, LCP < 2.5s thresholds) + `llms.txt` + AI-bot directive
+  validation (OAI-SearchBot, Anthropic-User, PerplexityBot, ClaudeBot) +
+  LLM gap analysis with entity-mapping + atomic-answer + information-gain
+  framing vs. Rex's competitor pages + Google Search Console keyword
+  performance via read-only OAuth + cross-pillar reads of Vega's
+  `geo_visibility` for Multi-Surface citation/quality aggregation. CLI:
+  `devrel seo {connect-gsc|crawl|report|history|diff|calibration}`.
 - **Vega** — GEO auditor. Measures brand visibility (mention rate,
   citation share, answer quality) across 4 AI search engines: Perplexity,
   ChatGPT (OpenAI Responses API + web search), Claude (Messages API + web
