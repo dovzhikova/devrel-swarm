@@ -18,6 +18,7 @@ from devrel_swarm.cli.deliverables import deliverables_app
 from devrel_swarm.cli.docs import docs_app
 from devrel_swarm.cli.doctor import doctor_command
 from devrel_swarm.cli.experiment import experiment_command
+from devrel_swarm.cli.growth import growth_app
 from devrel_swarm.cli.init import init_command
 from devrel_swarm.cli.intel import intel_command
 from devrel_swarm.cli.kb import kb_app
@@ -77,6 +78,7 @@ app.add_typer(config_app, name="config")
 app.add_typer(docs_app, name="docs")
 app.add_typer(video_app, name="video")
 app.add_typer(argus_app, name="argus")
+app.add_typer(growth_app, name="growth")
 app.add_typer(analytics_app, name="analytics")
 
 
