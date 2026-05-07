@@ -816,8 +816,8 @@ class Argus:
                 for r in report.recommendations:
                     prior = conn.execute(
                         "SELECT MIN(first_seen_period) AS first FROM analytics_recommendations "
-                        "WHERE action = ? AND target = ?",
-                        (r.action, r.target),
+                        "WHERE pillar = ? AND action = ? AND target = ?",
+                        (Pillar.ARGUS.value, r.action, r.target),
                     ).fetchone()
                     first_seen = prior["first"] if prior and prior["first"] else period_end_iso
                     # Stamp on the in-memory rec too so to_json/to_markdown see it
