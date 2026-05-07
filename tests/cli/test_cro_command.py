@@ -85,3 +85,14 @@ def test_cro_report_inserts_analytics_report_row(tmp_path, monkeypatch):
     with sqlite3.connect(db_path) as conn:
         count = conn.execute("SELECT COUNT(*) FROM analytics_reports").fetchone()[0]
     assert count == 1, f"Expected 1 analytics_reports row, got {count}"
+
+
+def test_cro_history_runs(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / ".devrel").mkdir()
+    (tmp_path / ".devrel" / "config.toml").write_text(
+        'product_name = "Test"\nproduct_url = "https://example.com"\n'
+    )
+    runner = CliRunner()
+    result = runner.invoke(app, ["cro", "history", "signup_started"])
+    assert result.exit_code == 0

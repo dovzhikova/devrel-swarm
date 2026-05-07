@@ -130,3 +130,40 @@ def report(
     _console.print(f"[green]Wrote {len(result.recommendations)} recommendation(s).[/green]")
     if push:
         _console.print("[yellow]--push not yet implemented for cro; printed-only.[/yellow]")
+
+
+@cro_app.command("history")
+def history(
+    funnel_step: str = typer.Argument(..., help="Funnel step name to track"),
+    limit: int = typer.Option(20, "--limit"),
+) -> None:
+    """Show conversion-rate trajectory for a funnel step across reports."""
+    paths = find_paths_or_exit(_console)
+    db_path = paths.devrel_dir / "state.db"
+    if not db_path.is_file():
+        _console.print("[yellow]No state.db yet, run `devrel cro report` first.[/yellow]")
+        raise typer.Exit(code=0)
+
+    table = Table(title=f"History: {funnel_step}")
+    table.add_column("Period", style="cyan")
+    table.add_column("Conv", justify="right")
+    table.add_column("Sample", justify="right")
+
+    with sqlite3.connect(db_path) as conn:
+        cur = conn.execute(
+            """
+            SELECT period_end, conversion_rate, sample_size
+            FROM cro_funnel_metrics
+            WHERE step_index = (
+                SELECT MIN(step_index) FROM cro_funnel_metrics
+                WHERE funnel_id IN (SELECT DISTINCT funnel_id FROM cro_funnel_metrics)
+            )
+            ORDER BY period_end DESC
+            LIMIT ?
+            """,
+            (limit,),
+        )
+        for period_end, conv, sample in cur:
+            table.add_row(period_end, f"{(conv or 0):.1%}", f"{(sample or 0):,}")
+
+    _console.print(table)
