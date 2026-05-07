@@ -361,3 +361,66 @@ class TestBriefGeneration:
         assert "signup_started" in content
         assert "Add social proof" in content
         assert "ICE" in content  # rendered in the table
+
+
+class TestExecuteEndToEnd:
+    @pytest.mark.asyncio
+    async def test_execute_full_cycle(self, init_db, tmp_path):
+        db, report_id = init_db
+        posthog = MagicMock(spec=PostHogClient)
+        posthog.event_volumes = AsyncMock(
+            return_value=[
+                ("$pageview", 12500),
+                ("signup_started", 3200),
+                ("signup_completed", 1850),
+            ]
+        )
+        posthog.funnel_query = AsyncMock(
+            side_effect=[
+                # current 7d
+                [
+                    {"name": "$pageview", "count": 1000, "average_conversion_time": 0},
+                    {"name": "signup_started", "count": 300, "average_conversion_time": 120},
+                    {"name": "signup_completed", "count": 120, "average_conversion_time": 600},
+                ],
+                # prior 14d
+                [
+                    {"name": "$pageview", "count": 1000, "average_conversion_time": 0},
+                    {"name": "signup_started", "count": 350, "average_conversion_time": 110},
+                    {"name": "signup_completed", "count": 150, "average_conversion_time": 580},
+                ],
+            ]
+        )
+
+        llm = MagicMock(spec=LLMClient)
+        llm.generate = AsyncMock(
+            return_value=json.dumps(
+                {
+                    "hypotheses": [
+                        {
+                            "title": "Add social proof",
+                            "rationale": "Low trust",
+                            "impact": 8,
+                            "confidence": 6,
+                            "effort": 1,
+                        },
+                    ]
+                }
+            )
+        )
+
+        cyra = Cyra(posthog_client=posthog, llm_client=llm, db_path=db, hypothesis_count=1)
+        report = await cyra.execute(
+            period_end="2026-04-01",
+            report_id=report_id,
+            page_html_by_url={},  # no page HTML in this unit test
+            iris_themes=[],
+            sage_friction=[],
+            deliverables_dir=tmp_path / "deliverables",
+        )
+        assert report.sources_ok is True
+        assert len(report.dropoffs) == 2
+        assert len(report.recommendations) >= 1
+        # At least one brief was written
+        briefs = list((tmp_path / "deliverables").glob("cro-brief-*.md"))
+        assert len(briefs) >= 1

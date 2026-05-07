@@ -412,3 +412,92 @@ class Cyra:
             path = deliverables_dir / f"cro-brief-{report.period_end}-{rec.action}-{slug}.md"
             path.write_text("\n".join(md_lines))
             logger.info(f"Cyra wrote brief: {path}")
+
+    async def execute(
+        self,
+        *,
+        period_end: str,
+        report_id: int,
+        page_html_by_url: dict[str, str] | None = None,
+        iris_themes: list[str] | None = None,
+        sage_friction: list[str] | None = None,
+        deliverables_dir: Path | None = None,
+    ) -> CroReport:
+        """Run a full Cyra cycle.
+
+        Stages: detect funnel, compute dropoffs, hypothesize worst step,
+        persist, write briefs. `page_html_by_url` keys by step name (e.g.,
+        'signup_started'); when a step matches, we feed the corresponding
+        HTML into the hypothesis prompt.
+        """
+        page_html_by_url = page_html_by_url or {}
+        iris_themes = iris_themes or []
+        sage_friction = sage_friction or []
+
+        funnel = await self._autodetect_funnel(days=7)
+        if not funnel:
+            return CroReport(
+                period_end=period_end,
+                funnel_id=self.funnel_id,
+                funnel=[],
+                dropoffs=[],
+                sources_ok=False,
+            )
+
+        dropoffs = await self._compute_dropoffs(funnel=funnel, days=7)
+        if not dropoffs:
+            return CroReport(
+                period_end=period_end,
+                funnel_id=self.funnel_id,
+                funnel=[],
+                dropoffs=[],
+                sources_ok=True,
+            )
+
+        # Build FunnelStep view for the report
+        first_count = dropoffs[0].from_count if dropoffs else 0
+        funnel_steps: list[FunnelStep] = []
+        for i, ev in enumerate(funnel):
+            if i == 0:
+                funnel_steps.append(
+                    FunnelStep(name=ev, index=0, count=first_count, conversion_rate=1.0)
+                )
+            else:
+                d = dropoffs[i - 1]
+                funnel_steps.append(
+                    FunnelStep(
+                        name=ev,
+                        index=i,
+                        count=d.to_count,
+                        conversion_rate=(d.to_count / first_count) if first_count else 0.0,
+                    )
+                )
+
+        # Hypothesize the worst-deterioration step (or worst absolute drop if no deterioration)
+        worst = next((d for d in dropoffs if d.is_significant_deterioration), dropoffs[0])
+        hypotheses_by_step: dict[str, list[Hypothesis]] = {}
+        try:
+            page_html = page_html_by_url.get(worst.to_step, "")
+            hyps = await self._generate_hypotheses(
+                dropoff=worst,
+                page_html=page_html,
+                iris_themes=iris_themes,
+                sage_friction=sage_friction,
+            )
+            hypotheses_by_step[worst.to_step] = hyps
+        except Exception as e:
+            logger.warning(f"Cyra: hypothesis generation failed: {e}")
+
+        report = CroReport(
+            period_end=period_end,
+            funnel_id=self.funnel_id,
+            funnel=funnel_steps,
+            dropoffs=dropoffs,
+            hypotheses_by_step=hypotheses_by_step,
+        )
+
+        self._persist(report, report_id=report_id)
+        if deliverables_dir is not None:
+            self._write_briefs(report, deliverables_dir)
+
+        return report
