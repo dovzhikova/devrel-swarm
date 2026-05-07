@@ -157,3 +157,46 @@ class Cyra:
             return []
 
         return ["$pageview"] + [name for name, _ in custom[:4]]
+
+    async def _compute_dropoffs(
+        self,
+        *,
+        funnel: list[str],
+        days: int = 7,
+    ) -> list[DropOff]:
+        """Compute step-by-step drop-offs comparing current vs prior period.
+
+        Returns dropoffs sorted by `absolute_drop` desc (largest drop first).
+        WoW deterioration flagged when current pp - prior pp <= -0.05.
+        """
+        if len(funnel) < 2:
+            return []
+
+        current = await self.posthog.funnel_query(events=funnel, days=days)
+        prior = await self.posthog.funnel_query(events=funnel, days=days * 2)
+
+        dropoffs: list[DropOff] = []
+        for i in range(len(current) - 1):
+            from_step = current[i]
+            to_step = current[i + 1]
+            conv = (to_step["count"] / from_step["count"]) if from_step["count"] else 0.0
+
+            # Prior-period conversion rate for the same step
+            if len(prior) > i + 1 and prior[i]["count"]:
+                prior_conv = prior[i + 1]["count"] / prior[i]["count"]
+            else:
+                prior_conv = conv  # no baseline -> pp_delta = 0
+
+            dropoffs.append(
+                DropOff(
+                    from_step=from_step["name"],
+                    to_step=to_step["name"],
+                    from_count=from_step["count"],
+                    to_count=to_step["count"],
+                    conversion_rate=conv,
+                    pp_delta_vs_prior=round(conv - prior_conv, 10),
+                    sample_size=from_step["count"],
+                )
+            )
+
+        return sorted(dropoffs, key=lambda d: d.absolute_drop, reverse=True)

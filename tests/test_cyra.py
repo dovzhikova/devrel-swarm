@@ -82,3 +82,36 @@ class TestFunnelAutodetect:
         assert funnel == ["$pageview", "signup_started", "signup_completed"]
         # event_volumes never called when override is set
         posthog.event_volumes.assert_not_called()
+
+
+class TestDropoffRanking:
+    @pytest.mark.asyncio
+    async def test_compute_dropoffs_marks_deterioration(self):
+        posthog = MagicMock(spec=PostHogClient)
+        # 7d: 1000 -> 300 (30% conv) -> 120 (40% conv from prior step)
+        # 14d: 1000 -> 350 (35% conv) -> 150 (43% conv)
+        posthog.funnel_query = AsyncMock(
+            side_effect=[
+                [
+                    {"name": "$pageview", "count": 1000, "average_conversion_time": 0},
+                    {"name": "signup_started", "count": 300, "average_conversion_time": 120},
+                    {"name": "signup_completed", "count": 120, "average_conversion_time": 600},
+                ],
+                [  # 14-day window (prior period)
+                    {"name": "$pageview", "count": 1000, "average_conversion_time": 0},
+                    {"name": "signup_started", "count": 350, "average_conversion_time": 110},
+                    {"name": "signup_completed", "count": 150, "average_conversion_time": 580},
+                ],
+            ]
+        )
+        cyra = Cyra(posthog_client=posthog, llm_client=MagicMock(), db_path=Path("/tmp/x.db"))
+        dropoffs = await cyra._compute_dropoffs(
+            funnel=["$pageview", "signup_started", "signup_completed"],
+            days=7,
+        )
+        # Step 0->1: 30% (current) vs 35% (prior) = -5pp deterioration -> significant
+        # Step 1->2: 40% (current) vs ~43% (prior) = -3pp -> not significant
+        assert dropoffs[0].is_significant_deterioration is True
+        assert dropoffs[1].is_significant_deterioration is False
+        # Sorted by absolute_drop (largest first); both have absolute_drop=700 vs 180
+        assert dropoffs[0].absolute_drop > dropoffs[1].absolute_drop
