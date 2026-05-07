@@ -12,6 +12,13 @@ from devrel_swarm.core.argus import (
     Recommendation,
 )
 from devrel_swarm.core.atlas import Atlas
+from devrel_swarm.core.cyra import (
+    CroReport,
+    Cyra,
+    DropOff,
+    FunnelStep,
+    Hypothesis,
+)
 from devrel_swarm.core.dex import Dex
 from devrel_swarm.core.echo import Echo
 from devrel_swarm.core.iris import Iris
@@ -28,6 +35,7 @@ from devrel_swarm.core.watchdog import Watchdog
 __all__ = [
     "Argus",
     "Atlas",
+    "Cyra",
     "Dex",
     "Echo",
     "Kai",
@@ -40,6 +48,10 @@ __all__ = [
     "Sentinel",
     "Vox",
     "Watchdog",
+    "CroReport",
+    "DropOff",
+    "FunnelStep",
+    "Hypothesis",
     "PerformanceMetric",
     "PerformanceReport",
     "Recommendation",
