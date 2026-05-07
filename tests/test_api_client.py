@@ -1,5 +1,7 @@
 """Tests for PostHog API client module."""
 
+import json
+
 import httpx
 import pytest
 import respx
@@ -91,7 +93,7 @@ def posthog_client():
 
 @respx.mock
 async def test_event_volumes_returns_top_events(posthog_client):
-    respx.post("https://app.posthog.com/api/projects/1/query/").mock(
+    route = respx.post("https://app.posthog.com/api/projects/1/query/").mock(
         return_value=httpx.Response(
             200,
             json={
@@ -107,10 +109,18 @@ async def test_event_volumes_returns_top_events(posthog_client):
     assert out[0] == ("$pageview", 12500)
     assert len(out) == 3
 
+    sent_body = json.loads(route.calls[0].request.content)
+    query = sent_body["query"]
+    assert query["kind"] == "EventsQuery"
+    assert query["select"] == ["event", "count()"]
+    assert query["after"] == "-7d"
+    assert query["orderBy"] == ["-count()"]
+    assert query["limit"] == 10
+
 
 @respx.mock
 async def test_funnel_query_returns_step_conversion_rates(posthog_client):
-    respx.post("https://app.posthog.com/api/projects/1/query/").mock(
+    route = respx.post("https://app.posthog.com/api/projects/1/query/").mock(
         return_value=httpx.Response(
             200,
             json={
@@ -142,3 +152,13 @@ async def test_funnel_query_returns_step_conversion_rates(posthog_client):
     assert steps[0]["name"] == "$pageview"
     assert steps[0]["count"] == 1000
     assert steps[2]["count"] == 120
+
+    sent_body = json.loads(route.calls[0].request.content)
+    query = sent_body["query"]
+    assert query["kind"] == "FunnelsQuery"
+    assert query["series"] == [
+        {"event": "$pageview", "kind": "EventsNode"},
+        {"event": "signup_started", "kind": "EventsNode"},
+        {"event": "signup_completed", "kind": "EventsNode"},
+    ]
+    assert query["dateRange"] == {"date_from": "-7d"}
