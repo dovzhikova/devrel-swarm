@@ -14,6 +14,7 @@ from devrel_swarm.cli.argus import argus_app
 from devrel_swarm.cli.config import config_app
 from devrel_swarm.cli.content import content_app
 from devrel_swarm.cli.cost import cost_command
+from devrel_swarm.cli.cro import cro_app
 from devrel_swarm.cli.deliverables import deliverables_app
 from devrel_swarm.cli.docs import docs_app
 from devrel_swarm.cli.doctor import doctor_command
@@ -62,6 +63,7 @@ def main(
 app.command(name="init")(init_command)
 app.command(name="doctor")(doctor_command)
 app.add_typer(content_app, name="content")
+app.add_typer(cro_app, name="cro")
 app.command(name="run")(run_command)
 app.command(name="triage")(triage_command)
 app.command(name="listen")(listen_command)
