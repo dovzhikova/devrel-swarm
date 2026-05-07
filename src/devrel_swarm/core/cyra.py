@@ -9,7 +9,7 @@ analytics_recommendations table for Mox to materialize as test variants.
 from __future__ import annotations
 
 import asyncio  # noqa: F401 -- used by Cyra.execute() in Tasks 3-9
-import json  # noqa: F401 -- used by LLM response parsing in Task 5
+import json
 import logging
 from dataclasses import asdict, dataclass, field
 from datetime import date, datetime  # noqa: F401 -- used in Tasks 3-9 for period calculations
@@ -104,6 +104,41 @@ _SYSTEM_EVENTS = frozenset(
         "$exception",
     }
 )
+
+
+_HYPOTHESIS_PROMPT = """You are a CRO analyst. Drop-off detected on a conversion funnel:
+
+  Step: {from_step} -> {to_step}
+  Sample size: {sample_size:,}
+  Current conversion: {current_rate:.1%}
+  Week-over-week change: {pp_delta:+.1%}
+
+Page HTML (truncated to 4KB):
+
+{page_html}
+
+User-reported friction (from Sage):
+{sage_friction}
+
+Recurring themes (from Iris):
+{iris_themes}
+
+Generate exactly {n} A/B test hypotheses. Return JSON only:
+
+{{
+  "hypotheses": [
+    {{
+      "title": "<short imperative, <=80 chars>",
+      "rationale": "<2 sentences: why this drop is happening + why this test should help>",
+      "impact": <1-10, expected lift if winner>,
+      "confidence": <1-10, certainty in the hypothesis>,
+      "effort": <1-10, dev work required (lower = less)>
+    }}
+  ]
+}}
+
+Score impact/confidence/effort honestly. False confidence skews ICE rankings.
+Return ONLY the JSON, no markdown fences, no explanation."""
 
 
 class Cyra:
@@ -201,3 +236,46 @@ class Cyra:
             )
 
         return sorted(dropoffs, key=lambda d: d.absolute_drop, reverse=True)
+
+    async def _generate_hypotheses(
+        self,
+        *,
+        dropoff: DropOff,
+        page_html: str,
+        iris_themes: list[str] | None = None,
+        sage_friction: list[str] | None = None,
+    ) -> list[Hypothesis]:
+        """Ask Sonnet for `hypothesis_count` ICE-scored A/B hypotheses."""
+        prompt = _HYPOTHESIS_PROMPT.format(
+            from_step=dropoff.from_step,
+            to_step=dropoff.to_step,
+            sample_size=dropoff.sample_size,
+            current_rate=dropoff.conversion_rate,
+            pp_delta=dropoff.pp_delta_vs_prior,
+            page_html=page_html[:4000],
+            iris_themes="\n".join(f"- {t}" for t in (iris_themes or [])) or "(none)",
+            sage_friction="\n".join(f"- {f}" for f in (sage_friction or [])) or "(none)",
+            n=self.hypothesis_count,
+        )
+
+        text = await self.llm.generate(
+            system_prompt="You are a CRO analyst.",
+            user_prompt=prompt,
+            temperature=0.4,
+            max_tokens=1500,
+        )
+        # Strip any stray fences (defensive: the model is told not to use them)
+        text = text.strip().removeprefix("```json").removeprefix("```").removesuffix("```").strip()
+        data = json.loads(text)
+
+        hyps = [
+            Hypothesis(
+                title=h["title"],
+                rationale=h["rationale"],
+                impact=int(h["impact"]),
+                confidence=int(h["confidence"]),
+                effort=int(h["effort"]),
+            )
+            for h in data["hypotheses"]
+        ]
+        return sorted(hyps, key=lambda h: h.ice_score, reverse=True)

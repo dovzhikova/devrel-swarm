@@ -1,6 +1,6 @@
 """Unit tests for the Cyra (CRO) agent."""
 
-import json  # noqa: F401 -- used by later test classes in Tasks 3-9
+import json
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
 
@@ -13,7 +13,7 @@ from devrel_swarm.core.cyra import (
     FunnelStep,
     Hypothesis,
 )
-from devrel_swarm.core.llm import LLMClient  # noqa: F401 -- used as spec in later test classes
+from devrel_swarm.core.llm import LLMClient
 from devrel_swarm.tools.api_client import PostHogClient
 
 
@@ -115,3 +115,65 @@ class TestDropoffRanking:
         assert dropoffs[1].is_significant_deterioration is False
         # Sorted by absolute_drop (largest first); both have absolute_drop=700 vs 180
         assert dropoffs[0].absolute_drop > dropoffs[1].absolute_drop
+
+
+class TestHypothesisGeneration:
+    @pytest.mark.asyncio
+    async def test_generate_hypotheses_calls_llm_with_priors(self):
+        llm = MagicMock(spec=LLMClient)
+        llm.generate = AsyncMock(
+            return_value=json.dumps(
+                {
+                    "hypotheses": [
+                        {
+                            "title": "Add social proof",
+                            "rationale": "Trust signals low",
+                            "impact": 8,
+                            "confidence": 6,
+                            "effort": 1,
+                        },
+                        {
+                            "title": "Reduce form fields",
+                            "rationale": "10-field form is friction",
+                            "impact": 7,
+                            "confidence": 8,
+                            "effort": 4,
+                        },
+                        {
+                            "title": "A/B test CTA copy",
+                            "rationale": "Generic 'Submit' button",
+                            "impact": 5,
+                            "confidence": 7,
+                            "effort": 5,
+                        },
+                    ]
+                }
+            )
+        )
+
+        cyra = Cyra(posthog_client=MagicMock(), llm_client=llm, db_path=Path("/tmp/x.db"))
+        dropoff = DropOff(
+            from_step="signup_started",
+            to_step="signup_completed",
+            from_count=300,
+            to_count=120,
+            conversion_rate=0.4,
+            pp_delta_vs_prior=-0.08,
+            sample_size=300,
+        )
+        hyps = await cyra._generate_hypotheses(
+            dropoff=dropoff,
+            page_html="<form><input/><input/></form>",
+            iris_themes=["form too long"],
+            sage_friction=["users complain about social login"],
+        )
+        assert len(hyps) == 3
+        assert hyps[0].title == "Add social proof"
+        # Sorted by ICE score descending
+        assert hyps[0].ice_score >= hyps[-1].ice_score
+        # LLM was called with priors in the prompt
+        prompt_arg = (
+            llm.generate.call_args.kwargs.get("user_prompt") or llm.generate.call_args[0][1]
+        )
+        assert "form too long" in prompt_arg
+        assert "social login" in prompt_arg
