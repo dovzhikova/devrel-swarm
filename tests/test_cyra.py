@@ -1,6 +1,7 @@
 """Unit tests for the Cyra (CRO) agent."""
 
 import json
+import sqlite3
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
 
@@ -14,6 +15,7 @@ from devrel_swarm.core.cyra import (
     Hypothesis,
 )
 from devrel_swarm.core.llm import LLMClient
+from devrel_swarm.project import state
 from devrel_swarm.tools.api_client import PostHogClient
 
 
@@ -235,3 +237,73 @@ class TestCohortSplit:
             days=7,
         )
         assert breakdown == {}  # below threshold, suppressed
+
+
+@pytest.fixture
+def init_db(tmp_path):
+    db = tmp_path / "state.db"
+    state.init_db(db)
+    # Seed a minimal report row so persist_recommendation has a valid report_id (FK)
+    with sqlite3.connect(db) as conn:
+        cur = conn.execute(
+            "INSERT INTO analytics_reports (period_start, period_end, report_json) "
+            "VALUES (?, ?, ?)",
+            ("2026-03-25", "2026-04-01", "{}"),
+        )
+        report_id = cur.lastrowid
+        conn.commit()
+    return db, report_id
+
+
+class TestPersistRecommendations:
+    @pytest.mark.asyncio
+    async def test_persist_writes_one_row_per_dropoff(self, init_db):
+        db, report_id = init_db
+        cyra = Cyra(posthog_client=MagicMock(), llm_client=MagicMock(), db_path=db)
+        report = CroReport(
+            period_end="2026-04-01",
+            funnel_id="default",
+            funnel=[
+                FunnelStep(name="$pageview", index=0, count=1000, conversion_rate=1.0),
+                FunnelStep(name="signup_started", index=1, count=300, conversion_rate=0.30),
+            ],
+            dropoffs=[
+                DropOff(
+                    from_step="$pageview",
+                    to_step="signup_started",
+                    from_count=1000,
+                    to_count=300,
+                    conversion_rate=0.30,
+                    pp_delta_vs_prior=-0.08,
+                    sample_size=1000,
+                ),
+            ],
+            hypotheses_by_step={
+                "signup_started": [
+                    Hypothesis(
+                        title="Add social proof",
+                        rationale="Low trust",
+                        impact=8,
+                        confidence=6,
+                        effort=3,
+                    ),
+                ],
+            },
+        )
+        cyra._persist(report, report_id=report_id)
+
+        with sqlite3.connect(db) as conn:
+            cur = conn.execute(
+                "SELECT pillar, action, target, target_kind, source_ids_json "
+                "FROM analytics_recommendations WHERE pillar = 'cro'"
+            )
+            rows = cur.fetchall()
+        assert len(rows) == 1
+        assert rows[0][0] == "cro"
+        assert rows[0][1] == "retest"  # significant deterioration -> retest
+        assert rows[0][2] == "signup_started"
+        assert rows[0][3] == "funnel_step"
+        # source_ids contains the hypothesis dicts as JSON-serialized strings
+        sids = json.loads(rows[0][4])
+        assert len(sids) == 1
+        assert "Add social proof" in sids[0]

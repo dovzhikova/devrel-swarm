@@ -18,10 +18,10 @@ from typing import Optional  # noqa: F401 -- used by Cyra attrs in Tasks 3-9
 
 from devrel_swarm.core.base import strip_markdown_fences
 from devrel_swarm.core.growth import (
-    Pillar,  # noqa: F401 -- used in Task 7 recommendation generation
+    Pillar,
     Recommendation,
-    TargetKind,  # noqa: F401 -- used in Task 7 recommendation generation
-    persist_recommendation,  # noqa: F401 -- used in Task 7
+    TargetKind,
+    persist_recommendation,
 )
 from devrel_swarm.core.llm import LLMClient
 from devrel_swarm.tools.api_client import PostHogClient
@@ -312,3 +312,40 @@ class Cyra:
                 "final_count": steps[-1]["count"],
             }
         return breakdown
+
+    def _action_for_dropoff(self, dropoff: DropOff) -> str:
+        """Map a drop-off pattern to an action verb.
+
+        - significant deterioration (>=5pp WoW worse): 'retest'
+        - significant improvement (>=5pp better): 'double_down'
+        - low sample without trend or everything else: 'investigate'
+        """
+        if dropoff.is_significant_deterioration:
+            return "retest"
+        if dropoff.pp_delta_vs_prior >= 0.05:
+            return "double_down"
+        return "investigate"
+
+    def _persist(self, report: CroReport, *, report_id: int) -> None:
+        """Convert dropoffs + hypotheses into Recommendation rows and append to report."""
+        for d in report.dropoffs:
+            action = self._action_for_dropoff(d)
+            hypotheses = report.hypotheses_by_step.get(d.to_step, [])
+            # Encode hypotheses into source_ids (denormalized; cheap)
+            source_ids = [json.dumps(h.to_dict()) for h in hypotheses]
+            confidence = (
+                sum(h.confidence for h in hypotheses) / (10 * len(hypotheses))
+                if hypotheses
+                else 0.5
+            )
+            rec = Recommendation(
+                pillar=Pillar.CRO,
+                action=action,
+                target=d.to_step,
+                target_kind=TargetKind.FUNNEL_STEP,
+                confidence=confidence,
+                source_ids=source_ids,
+                first_seen_period=report.period_end,
+            )
+            persist_recommendation(self.db_path, report_id, rec)
+            report.recommendations.append(rec)
