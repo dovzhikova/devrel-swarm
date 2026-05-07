@@ -472,9 +472,7 @@ class TestExecuteEndToEnd:
                 }
             )
         )
-        cyra = Cyra(
-            posthog_client=posthog, llm_client=llm, db_path=db, hypothesis_count=1
-        )
+        cyra = Cyra(posthog_client=posthog, llm_client=llm, db_path=db, hypothesis_count=1)
         report = await cyra.execute(
             period_end="2026-04-01",
             report_id=report_id,
