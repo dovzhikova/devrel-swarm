@@ -349,3 +349,66 @@ class Cyra:
             )
             persist_recommendation(self.db_path, report_id, rec)
             report.recommendations.append(rec)
+
+    def _write_briefs(self, report: CroReport, deliverables_dir: Path) -> None:
+        """Write one .md brief per recommendation for Mox to pick up."""
+        deliverables_dir.mkdir(parents=True, exist_ok=True)
+        for rec in report.recommendations:
+            hypotheses = report.hypotheses_by_step.get(rec.target, [])
+            dropoff = next(
+                (d for d in report.dropoffs if d.to_step == rec.target),
+                None,
+            )
+
+            md_lines = [
+                f"# Cyra brief: {rec.action} `{rec.target}`",
+                "",
+                f"**Period:** {report.period_end}",
+                "**Pillar:** cro",
+                f"**Funnel:** {report.funnel_id}",
+                f"**Confidence:** {rec.confidence:.2f}",
+                "",
+                "## Drop-off context",
+                "",
+            ]
+            if dropoff:
+                md_lines.extend(
+                    [
+                        f"- From step: `{dropoff.from_step}` ({dropoff.from_count:,} users)",
+                        f"- To step: `{dropoff.to_step}` ({dropoff.to_count:,} users)",
+                        f"- Conversion rate: {dropoff.conversion_rate:.1%}",
+                        f"- WoW delta: {dropoff.pp_delta_vs_prior:+.1%}",
+                        "",
+                    ]
+                )
+
+            if hypotheses:
+                md_lines.extend(
+                    [
+                        "## A/B hypotheses (ICE-ranked)",
+                        "",
+                        "| Title | Impact | Confidence | Effort | ICE | Rationale |",
+                        "|-------|-------:|-----------:|-------:|----:|-----------|",
+                    ]
+                )
+                for h in hypotheses:
+                    md_lines.append(
+                        f"| {h.title} | {h.impact} | {h.confidence} | {h.effort} | "
+                        f"{h.ice_score:.1f} | {h.rationale} |"
+                    )
+                md_lines.append("")
+
+            md_lines.extend(
+                [
+                    "## Next steps",
+                    "",
+                    "- Mox: pick the highest-ICE hypothesis above and draft the test variant.",
+                    "- Nova: validate sample-size + duration for the planned uplift target.",
+                    "",
+                ]
+            )
+
+            slug = rec.target.replace("/", "-").replace(" ", "-")
+            path = deliverables_dir / f"cro-brief-{report.period_end}-{rec.action}-{slug}.md"
+            path.write_text("\n".join(md_lines))
+            logger.info(f"Cyra wrote brief: {path}")

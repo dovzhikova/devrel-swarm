@@ -14,6 +14,7 @@ from devrel_swarm.core.cyra import (
     FunnelStep,
     Hypothesis,
 )
+from devrel_swarm.core.growth import Pillar, Recommendation, TargetKind
 from devrel_swarm.core.llm import LLMClient
 from devrel_swarm.project import state
 from devrel_swarm.tools.api_client import PostHogClient
@@ -307,3 +308,56 @@ class TestPersistRecommendations:
         sids = json.loads(rows[0][4])
         assert len(sids) == 1
         assert "Add social proof" in sids[0]
+
+
+class TestBriefGeneration:
+    def test_write_briefs_creates_one_file_per_recommendation(self, tmp_path):
+        cyra = Cyra(posthog_client=MagicMock(), llm_client=MagicMock(), db_path=tmp_path / "x.db")
+        report = CroReport(
+            period_end="2026-04-01",
+            funnel_id="default",
+            funnel=[],
+            dropoffs=[
+                DropOff(
+                    from_step="$pageview",
+                    to_step="signup_started",
+                    from_count=1000,
+                    to_count=300,
+                    conversion_rate=0.30,
+                    pp_delta_vs_prior=-0.08,
+                    sample_size=1000,
+                ),
+            ],
+            hypotheses_by_step={
+                "signup_started": [
+                    Hypothesis(
+                        title="Add social proof",
+                        rationale="Low trust",
+                        impact=8,
+                        confidence=6,
+                        effort=3,
+                    ),
+                ],
+            },
+        )
+        # Pre-populate recommendations as if _persist already ran
+        report.recommendations = [
+            Recommendation(
+                pillar=Pillar.CRO,
+                action="retest",
+                target="signup_started",
+                target_kind=TargetKind.FUNNEL_STEP,
+                confidence=0.6,
+                source_ids=[],
+                first_seen_period="2026-04-01",
+            ),
+        ]
+        deliverables_dir = tmp_path / "deliverables"
+        cyra._write_briefs(report, deliverables_dir)
+
+        files = list(deliverables_dir.glob("cro-brief-*.md"))
+        assert len(files) == 1
+        content = files[0].read_text()
+        assert "signup_started" in content
+        assert "Add social proof" in content
+        assert "ICE" in content  # rendered in the table
