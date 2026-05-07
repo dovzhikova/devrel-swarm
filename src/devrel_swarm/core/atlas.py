@@ -132,6 +132,9 @@ class SharedContext:
     # insufficient_data (bool), llm_error (str | None), all_primary
     # (dict[content_id, primary_metric]). On Argus failure: {"error": "<reason>"}.
     argus_report: dict[str, Any] = field(default_factory=dict)
+    # Cyra CRO report (Stage 5c output). Keys: period_end, funnel_id, sources_ok,
+    # dropoffs (list), recommendations (list). On Cyra failure: {"error": "<reason>"}.
+    cro_report: dict[str, Any] = field(default_factory=dict)
     previous_weeks: list[WeeklyMemory] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
@@ -152,6 +155,7 @@ class SharedContext:
             "instantly_analytics": self.instantly_analytics,
             "instantly_replies": self.instantly_replies,
             "argus_report": self.argus_report,
+            "cro_report": self.cro_report,
         }
         # previous_weeks included as serialized dicts for downstream agents
         # (not persisted into context archive — save() uses this dict minus previous_weeks)
@@ -685,6 +689,52 @@ class Atlas:
                 self.context.argus_report = {"error": str(exc)}
             self._checkpoint(5, completed_agents=completed_agents)
 
+        # Stage 5c: Growth pillars (Cyra in Wave 1; Vega + Selene added in Waves 2/3)
+        if resume_stage <= 5 and self.config.cro_in_run and "cyra" not in completed_agents:
+            try:
+                cyra = self._build_cyra()
+                period_end = datetime.now(timezone.utc).date().isoformat()
+                db_path = (
+                    self.project_paths.state_db
+                    if self.project_paths and self.project_paths.state_db.is_file()
+                    else None
+                )
+                report_id = self._insert_cro_report_row(db_path, period_end)
+                deliverables_dir = (
+                    self.project_paths.deliverables_dir if self.project_paths else None
+                )
+                cro_report = await cyra.execute(
+                    period_end=period_end,
+                    report_id=report_id,
+                    page_html_by_url={},
+                    iris_themes=self._extract_iris_themes(),
+                    sage_friction=self._extract_sage_friction(),
+                    deliverables_dir=deliverables_dir,
+                )
+                self.context.cro_report = {
+                    "period_end": cro_report.period_end,
+                    "funnel_id": cro_report.funnel_id,
+                    "sources_ok": cro_report.sources_ok,
+                    "dropoffs": [
+                        {
+                            "from_step": d.from_step,
+                            "to_step": d.to_step,
+                            "conversion_rate": d.conversion_rate,
+                            "pp_delta_vs_prior": d.pp_delta_vs_prior,
+                        }
+                        for d in cro_report.dropoffs
+                    ],
+                    "recommendations": [
+                        {"action": r.action, "target": r.target, "confidence": r.confidence}
+                        for r in cro_report.recommendations
+                    ],
+                }
+                completed_agents.add("cyra")
+            except Exception as exc:  # noqa: BLE001
+                logger.warning("Atlas Stage 5c (Cyra) failed (continuing): %s", exc)
+                self.context.cro_report = {"error": str(exc)}
+            self._checkpoint(5, completed_agents=completed_agents)
+
         # Stage 6: Instantly sync (analytics + reply triage)
         if resume_stage <= 6 and self.instantly_client and "instantly_sync" not in completed_agents:
             await self._run_instantly_sync()
@@ -879,6 +929,65 @@ class Atlas:
                 raise RuntimeError("instantly client not configured")
 
         return _Dummy()
+
+    def _build_cyra(self):
+        """Construct a Cyra instance for the optional Stage 5c call.
+
+        Requires a real project_paths with an existing state DB (for FK integrity).
+        If no project_paths or DB, falls back to a temp path and callers should
+        expect _insert_cro_report_row to return 0.
+        """
+        from devrel_swarm.core.cyra import Cyra
+
+        db_path = (
+            self.project_paths.state_db
+            if (self.project_paths and self.project_paths.state_db.is_file())
+            else Path("/dev/null")
+        )
+        return Cyra(
+            posthog_client=self.api_client,
+            llm_client=self.llm_client,
+            db_path=db_path,
+        )
+
+    @staticmethod
+    def _insert_cro_report_row(db_path: Path | None, period_end: str) -> int:
+        """Insert an analytics_reports row and return its rowid for Cyra FK.
+
+        Returns 0 when no real DB is available (dev/null or None), which means
+        Cyra's persist step will silently skip FK-linked inserts on missing DB.
+        """
+        if db_path is None or not db_path.is_file():
+            return 0
+        import sqlite3
+
+        period_start = period_end  # single-day placeholder; CLI uses a proper range
+        with sqlite3.connect(db_path) as conn:
+            cur = conn.execute(
+                "INSERT INTO analytics_reports (period_start, period_end, report_json) "
+                "VALUES (?, ?, ?)",
+                (period_start, period_end, "{}"),
+            )
+            conn.commit()
+            return cur.lastrowid or 0
+
+    def _extract_iris_themes(self) -> list[str]:
+        """Extract top-5 theme titles from Iris output for Cyra hypothesis context."""
+        themes_data = self.context.iris_themes or {}
+        if isinstance(themes_data, dict):
+            return [t.get("title", "") for t in themes_data.get("themes", [])][:5]
+        return []
+
+    def _extract_sage_friction(self) -> list[str]:
+        """Extract high/critical friction signals from Sage triage for Cyra hypothesis context."""
+        triage_data = self.context.sage_triage or {}
+        if isinstance(triage_data, dict):
+            return [
+                f"{i.get('title', '')}: {i.get('summary', '')}"
+                for i in triage_data.get("issues", [])
+                if i.get("priority") in {"high", "critical"}
+            ][:5]
+        return []
 
     def _compile_okrs(self) -> dict[str, Any]:
         """Compile weekly OKR progress from all agent outputs."""

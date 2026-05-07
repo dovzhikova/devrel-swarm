@@ -418,3 +418,96 @@ class TestAtlasArgusStage:
         ctx = await atlas.run_weekly_cycle()
         assert ctx is not None
         assert atlas.context.argus_report.get("error") == "argus down"
+
+
+class TestAtlasCyraStage:
+    """Test Cyra is wired into the weekly cycle as Stage 5c behind the cro_in_run gate."""
+
+    @pytest.mark.asyncio
+    async def test_cyra_called_when_cro_in_run_true(
+        self, posthog_client, knowledge_base_path, tmp_path
+    ):
+        from devrel_swarm.core.cyra import CroReport
+
+        atlas = Atlas(
+            api_client=posthog_client,
+            knowledge_base_path=knowledge_base_path,
+            archive_dir=tmp_path / "archive",
+        )
+        atlas.config.cro_in_run = True
+
+        fake_report = CroReport(
+            period_end="2026-05-07",
+            funnel_id="default",
+            funnel=[],
+            dropoffs=[],
+            sources_ok=True,
+        )
+        fake_cyra = MagicMock()
+        fake_cyra.execute = AsyncMock(return_value=fake_report)
+        atlas._build_cyra = MagicMock(return_value=fake_cyra)
+        atlas._insert_cro_report_row = MagicMock(return_value=1)
+
+        await atlas.run_weekly_cycle()
+        fake_cyra.execute.assert_called_once()
+        assert atlas.context.cro_report["period_end"] == "2026-05-07"
+        assert atlas.context.cro_report["sources_ok"] is True
+
+    @pytest.mark.asyncio
+    async def test_cyra_skipped_when_cro_in_run_false(
+        self, posthog_client, knowledge_base_path, tmp_path
+    ):
+        atlas = Atlas(
+            api_client=posthog_client,
+            knowledge_base_path=knowledge_base_path,
+            archive_dir=tmp_path / "archive",
+        )
+        atlas.config.cro_in_run = False
+
+        fake_cyra = MagicMock()
+        fake_cyra.execute = AsyncMock()
+        atlas._build_cyra = MagicMock(return_value=fake_cyra)
+
+        await atlas.run_weekly_cycle()
+        fake_cyra.execute.assert_not_called()
+        assert atlas.context.cro_report == {}
+
+    @pytest.mark.asyncio
+    async def test_cyra_failure_does_not_abort_cycle(
+        self, posthog_client, knowledge_base_path, tmp_path
+    ):
+        atlas = Atlas(
+            api_client=posthog_client,
+            knowledge_base_path=knowledge_base_path,
+            archive_dir=tmp_path / "archive",
+        )
+        atlas.config.cro_in_run = True
+
+        fake_cyra = MagicMock()
+        fake_cyra.execute = AsyncMock(side_effect=RuntimeError("posthog down"))
+        atlas._build_cyra = MagicMock(return_value=fake_cyra)
+        atlas._insert_cro_report_row = MagicMock(return_value=0)
+
+        ctx = await atlas.run_weekly_cycle()
+        assert ctx is not None
+        assert atlas.context.cro_report.get("error") == "posthog down"
+
+
+class TestSharedContextCroField:
+    """Test SharedContext includes the cro_report field."""
+
+    def test_cro_report_field_exists(self):
+        ctx = SharedContext()
+        assert hasattr(ctx, "cro_report")
+        assert ctx.cro_report == {}
+
+    def test_to_dict_includes_cro_report(self):
+        ctx = SharedContext()
+        d = ctx.to_dict()
+        assert "cro_report" in d
+
+    def test_cro_report_round_trips(self):
+        ctx = SharedContext()
+        ctx.cro_report = {"period_end": "2026-05-07", "sources_ok": True}
+        d = ctx.to_dict()
+        assert d["cro_report"]["period_end"] == "2026-05-07"
