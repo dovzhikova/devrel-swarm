@@ -1,17 +1,20 @@
 """Unit tests for the Cyra (CRO) agent."""
 
 import json  # noqa: F401 -- used by later test classes in Tasks 3-9
-from pathlib import Path  # noqa: F401 -- used by later test classes in Tasks 3-9
+from pathlib import Path
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
 from devrel_swarm.core.cyra import (
     CroReport,  # noqa: F401 -- used by later test classes in Tasks 3-9
-    Cyra,  # noqa: F401 -- used by later test classes in Tasks 3-9
+    Cyra,
     DropOff,
     FunnelStep,
     Hypothesis,
 )
+from devrel_swarm.core.llm import LLMClient  # noqa: F401 -- used as spec in later test classes
+from devrel_swarm.tools.api_client import PostHogClient
 
 
 class TestDataclasses:
@@ -43,3 +46,39 @@ class TestDataclasses:
         )
         # ICE = (impact * confidence) / effort
         assert h.ice_score == pytest.approx(16.0)
+
+
+class TestFunnelAutodetect:
+    @pytest.mark.asyncio
+    async def test_picks_top_pageview_to_custom_event_chain(self):
+        posthog = MagicMock(spec=PostHogClient)
+        posthog.event_volumes = AsyncMock(
+            return_value=[
+                ("$pageview", 12500),
+                ("signup_started", 3200),
+                ("signup_completed", 1850),
+                ("first_value", 600),
+                ("$identify", 11000),  # PostHog system event - filter out
+            ]
+        )
+        cyra = Cyra(posthog_client=posthog, llm_client=MagicMock(), db_path=Path("/tmp/x.db"))
+        funnel = await cyra._autodetect_funnel(days=7)
+        assert funnel[0] == "$pageview"
+        assert "$identify" not in funnel  # system events filtered
+        assert "signup_started" in funnel
+        assert len(funnel) >= 3
+
+    @pytest.mark.asyncio
+    async def test_returns_override_when_config_specifies(self):
+        posthog = MagicMock(spec=PostHogClient)
+        posthog.event_volumes = AsyncMock(return_value=[])  # would auto-detect to nothing
+        cyra = Cyra(
+            posthog_client=posthog,
+            llm_client=MagicMock(),
+            db_path=Path("/tmp/x.db"),
+            funnel_override=["$pageview", "signup_started", "signup_completed"],
+        )
+        funnel = await cyra._autodetect_funnel(days=7)
+        assert funnel == ["$pageview", "signup_started", "signup_completed"]
+        # event_volumes never called when override is set
+        posthog.event_volumes.assert_not_called()

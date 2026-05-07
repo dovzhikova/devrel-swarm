@@ -13,7 +13,7 @@ import json  # noqa: F401 -- used by LLM response parsing in Task 5
 import logging
 from dataclasses import asdict, dataclass, field
 from datetime import date, datetime  # noqa: F401 -- used in Tasks 3-9 for period calculations
-from pathlib import Path  # noqa: F401 -- used for report output paths in Task 10+
+from pathlib import Path
 from typing import Optional  # noqa: F401 -- used by Cyra attrs in Tasks 3-9
 
 from devrel_swarm.core.growth import (
@@ -22,8 +22,8 @@ from devrel_swarm.core.growth import (
     TargetKind,  # noqa: F401 -- used in Task 7 recommendation generation
     persist_recommendation,  # noqa: F401 -- used in Task 7
 )
-from devrel_swarm.core.llm import LLMClient  # noqa: F401 -- used by Cyra in Task 5
-from devrel_swarm.tools.api_client import PostHogClient  # noqa: F401 -- used by Cyra in Task 3
+from devrel_swarm.core.llm import LLMClient
+from devrel_swarm.tools.api_client import PostHogClient
 
 logger = logging.getLogger(__name__)
 
@@ -89,5 +89,69 @@ class CroReport:
     sources_ok: bool = True
 
 
+# PostHog system events to exclude from auto-detected funnels
+_SYSTEM_EVENTS = frozenset(
+    {
+        "$identify",
+        "$pageleave",
+        "$autocapture",
+        "$rageclick",
+        "$set",
+        "$create_alias",
+        "$opt_in",
+        "$exception",
+    }
+)
+
+
 class Cyra:
-    """CRO auditor agent. Defined fully in Tasks 3-9 of the Wave 1 plan."""
+    """CRO auditor agent.
+
+    Inputs: PostHog (funnel time-series), optional Iris/Sage priors for
+    hypothesis ranking, optional `[growth].cro_funnel` override.
+
+    Outputs: Recommendation rows in `analytics_recommendations` (pillar=cro),
+    Mox-ready briefs at `.devrel/deliverables/cro-brief-*.md`.
+    """
+
+    def __init__(
+        self,
+        *,
+        posthog_client: PostHogClient,
+        llm_client: LLMClient,
+        db_path: Path,
+        funnel_override: list[str] | None = None,
+        funnel_id: str = "default",
+        min_sample_size: int = 500,
+        hypothesis_count: int = 3,
+    ):
+        self.posthog = posthog_client
+        self.llm = llm_client
+        self.db_path = db_path
+        self.funnel_override = funnel_override or []
+        self.funnel_id = funnel_id
+        self.min_sample_size = min_sample_size
+        self.hypothesis_count = hypothesis_count
+
+    async def _autodetect_funnel(self, days: int = 7) -> list[str]:
+        """Pick the highest-volume `$pageview` to custom_event chain.
+
+        Heuristic: first event is always `$pageview` (top of funnel for any
+        web product); subsequent events are the top non-system events by
+        volume in descending order. We cap the chain at 5 steps:
+        deeper funnels rarely have enough sample size at the tail.
+        """
+        if self.funnel_override:
+            return self.funnel_override
+
+        volumes = await self.posthog.event_volumes(days=days, limit=50)
+        custom = [
+            (name, count)
+            for name, count in volumes
+            if name not in _SYSTEM_EVENTS and not name.startswith("$")
+        ]
+        if not custom:
+            logger.warning("Cyra: no custom events found in PostHog; funnel auto-detect failed")
+            return []
+
+        return ["$pageview"] + [name for name, _ in custom[:4]]
