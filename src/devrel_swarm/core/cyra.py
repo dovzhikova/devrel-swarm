@@ -454,8 +454,10 @@ class Cyra:
                 sources_ok=True,
             )
 
-        # Build FunnelStep view for the report
-        first_count = dropoffs[0].from_count if dropoffs else 0
+        # Build FunnelStep view for the report.
+        # Look up dropoffs by from_step (dropoffs are sorted by absolute_drop, not funnel order).
+        dropoff_by_from = {d.from_step: d for d in dropoffs}
+        first_count = dropoff_by_from[funnel[0]].from_count if funnel[0] in dropoff_by_from else 0
         funnel_steps: list[FunnelStep] = []
         for i, ev in enumerate(funnel):
             if i == 0:
@@ -463,14 +465,17 @@ class Cyra:
                     FunnelStep(name=ev, index=0, count=first_count, conversion_rate=1.0)
                 )
             else:
-                d = dropoffs[i - 1]
+                prev_event = funnel[i - 1]
+                d = dropoff_by_from.get(prev_event)
+                if d is None:
+                    # No dropoff found for this transition (unexpected; fall back to 0)
+                    count = 0
+                    conversion_rate = 0.0
+                else:
+                    count = d.to_count
+                    conversion_rate = (count / first_count) if first_count else 0.0
                 funnel_steps.append(
-                    FunnelStep(
-                        name=ev,
-                        index=i,
-                        count=d.to_count,
-                        conversion_rate=(d.to_count / first_count) if first_count else 0.0,
-                    )
+                    FunnelStep(name=ev, index=i, count=count, conversion_rate=conversion_rate)
                 )
 
         # Hypothesize the worst-deterioration step (or worst absolute drop if no deterioration)

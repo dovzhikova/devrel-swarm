@@ -424,3 +424,71 @@ class TestExecuteEndToEnd:
         # At least one brief was written
         briefs = list((tmp_path / "deliverables").glob("cro-brief-*.md"))
         assert len(briefs) >= 1
+
+    @pytest.mark.asyncio
+    async def test_execute_funnel_steps_correct_when_largest_drop_midfunnel(
+        self, init_db, tmp_path
+    ):
+        """Regression: funnel_steps must use from_step name, not sort-order index."""
+        db, report_id = init_db
+        posthog = MagicMock(spec=PostHogClient)
+        posthog.event_volumes = AsyncMock(
+            return_value=[
+                ("$pageview", 12500),
+                ("signup_started", 3200),
+                ("signup_completed", 1850),
+            ]
+        )
+        # Construct so the LARGER absolute drop is mid-funnel:
+        # $pageview -> signup_started: 1000 -> 900 (drop=100)
+        # signup_started -> signup_completed: 900 -> 100 (drop=800, the worst)
+        posthog.funnel_query = AsyncMock(
+            side_effect=[
+                [
+                    {"name": "$pageview", "count": 1000, "average_conversion_time": 0},
+                    {"name": "signup_started", "count": 900, "average_conversion_time": 120},
+                    {"name": "signup_completed", "count": 100, "average_conversion_time": 600},
+                ],
+                [
+                    {"name": "$pageview", "count": 1000, "average_conversion_time": 0},
+                    {"name": "signup_started", "count": 950, "average_conversion_time": 110},
+                    {"name": "signup_completed", "count": 200, "average_conversion_time": 580},
+                ],
+            ]
+        )
+        llm = MagicMock(spec=LLMClient)
+        llm.generate = AsyncMock(
+            return_value=json.dumps(
+                {
+                    "hypotheses": [
+                        {
+                            "title": "Test hypothesis",
+                            "rationale": "Test",
+                            "impact": 5,
+                            "confidence": 5,
+                            "effort": 5,
+                        }
+                    ]
+                }
+            )
+        )
+        cyra = Cyra(
+            posthog_client=posthog, llm_client=llm, db_path=db, hypothesis_count=1
+        )
+        report = await cyra.execute(
+            period_end="2026-04-01",
+            report_id=report_id,
+            page_html_by_url={},
+            iris_themes=[],
+            sage_friction=[],
+            deliverables_dir=tmp_path / "deliverables",
+        )
+        # funnel_steps should follow funnel order, NOT sort order
+        # Expected counts: $pageview=1000, signup_started=900, signup_completed=100
+        assert len(report.funnel) == 3
+        assert report.funnel[0].name == "$pageview"
+        assert report.funnel[0].count == 1000
+        assert report.funnel[1].name == "signup_started"
+        assert report.funnel[1].count == 900  # not 100 (which would be the case if buggy)
+        assert report.funnel[2].name == "signup_completed"
+        assert report.funnel[2].count == 100
