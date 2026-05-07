@@ -194,6 +194,7 @@ class Cyra:
                     from_count=from_step["count"],
                     to_count=to_step["count"],
                     conversion_rate=conv,
+                    # round to 10dp to avoid IEEE 754 drift at the -0.05 significance boundary
                     pp_delta_vs_prior=round(conv - prior_conv, 10),
                     sample_size=from_step["count"],
                 )
