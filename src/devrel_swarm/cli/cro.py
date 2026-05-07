@@ -5,7 +5,8 @@ from __future__ import annotations
 import asyncio
 import json
 import os
-from datetime import date
+import sqlite3
+from datetime import date, timedelta
 from pathlib import Path
 
 import typer
@@ -49,12 +50,24 @@ def report(
 ) -> None:
     """Run a Cyra cycle and persist Recommendation rows + Mox briefs."""
     paths = find_paths_or_exit(_console)
-    _days = int(since.rstrip("d"))  # noqa: F841 -- consumed by Tasks 11-13
+    _days = int(since.rstrip("d"))
     period_end = date.today().isoformat()
-    # Use a stable integer report_id derived from the date (YYYYMMDD without hyphens)
-    report_id = int(period_end.replace("-", ""))
 
-    cyra = _build_cyra(paths.state_db)
+    # Insert an analytics_reports row to anchor the FK from analytics_recommendations.
+    # The CLI is the report producer here; Cyra emits recommendation rows attached
+    # to this report_id.
+    db_path = paths.state_db
+    period_start = (date.today() - timedelta(days=_days)).isoformat()
+    with sqlite3.connect(db_path) as conn:
+        cur = conn.execute(
+            "INSERT INTO analytics_reports (period_start, period_end, report_json) "
+            "VALUES (?, ?, ?)",
+            (period_start, period_end, "{}"),
+        )
+        report_id = cur.lastrowid
+        conn.commit()
+
+    cyra = _build_cyra(db_path)
 
     async def _run():
         return await cyra.execute(
