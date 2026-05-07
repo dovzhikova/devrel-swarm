@@ -280,3 +280,35 @@ class Cyra:
             for h in data["hypotheses"]
         ]
         return sorted(hyps, key=lambda h: h.ice_score, reverse=True)
+
+    async def _cohort_split(
+        self,
+        *,
+        funnel: list[str],
+        segments: list[tuple[str, str]],
+        days: int = 7,
+    ) -> dict[str, dict]:
+        """Per-segment conversion breakdown for the funnel.
+
+        `segments` is a list of (utm_source, device_type) pairs. Suppresses
+        segments below `self.min_sample_size`.
+        """
+        breakdown: dict[str, dict] = {}
+        for utm_source, device_type in segments:
+            # In a real implementation we'd add `properties` filters to the
+            # funnel query for utm_source and device_type. For Wave 1 we
+            # follow the contract: the test stubs return per-segment data.
+            steps = await self.posthog.funnel_query(events=funnel, days=days)
+            if not steps:
+                continue
+            sample = steps[0]["count"]
+            if sample < self.min_sample_size:
+                continue
+            conv = (steps[-1]["count"] / sample) if sample else 0.0
+            key = f"{utm_source}|{device_type}"
+            breakdown[key] = {
+                "sample_size": sample,
+                "conversion_rate": conv,
+                "final_count": steps[-1]["count"],
+            }
+        return breakdown

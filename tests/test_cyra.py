@@ -177,3 +177,61 @@ class TestHypothesisGeneration:
         )
         assert "form too long" in prompt_arg
         assert "social login" in prompt_arg
+
+
+class TestCohortSplit:
+    @pytest.mark.asyncio
+    async def test_cohort_split_returns_segment_breakdown(self):
+        posthog = MagicMock(spec=PostHogClient)
+        # Funnel query returns full + per-segment breakdowns
+        posthog.funnel_query = AsyncMock(
+            side_effect=[
+                # twitter / mobile
+                [
+                    {"name": "$pageview", "count": 400, "average_conversion_time": 0},
+                    {"name": "signup_started", "count": 80, "average_conversion_time": 120},
+                ],
+                # google / desktop
+                [
+                    {"name": "$pageview", "count": 600, "average_conversion_time": 0},
+                    {"name": "signup_started", "count": 220, "average_conversion_time": 100},
+                ],
+            ]
+        )
+        cyra = Cyra(
+            posthog_client=posthog,
+            llm_client=MagicMock(),
+            db_path=Path("/tmp/x.db"),
+            min_sample_size=300,
+        )
+        breakdown = await cyra._cohort_split(
+            funnel=["$pageview", "signup_started"],
+            segments=[("twitter", "mobile"), ("google", "desktop")],
+            days=7,
+        )
+        assert "twitter|mobile" in breakdown
+        assert breakdown["twitter|mobile"]["conversion_rate"] == pytest.approx(0.20)
+        assert breakdown["google|desktop"]["conversion_rate"] == pytest.approx(0.367, abs=0.01)
+
+    @pytest.mark.asyncio
+    async def test_cohort_split_skips_below_min_sample(self):
+        posthog = MagicMock(spec=PostHogClient)
+        # Sample of 100, below default min of 500
+        posthog.funnel_query = AsyncMock(
+            return_value=[
+                {"name": "$pageview", "count": 100, "average_conversion_time": 0},
+                {"name": "signup_started", "count": 25, "average_conversion_time": 120},
+            ]
+        )
+        cyra = Cyra(
+            posthog_client=posthog,
+            llm_client=MagicMock(),
+            db_path=Path("/tmp/x.db"),
+            min_sample_size=500,
+        )
+        breakdown = await cyra._cohort_split(
+            funnel=["$pageview", "signup_started"],
+            segments=[("twitter", "mobile")],
+            days=7,
+        )
+        assert breakdown == {}  # below threshold, suppressed
