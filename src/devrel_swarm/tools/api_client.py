@@ -342,6 +342,42 @@ class PostHogClient:
         """List defined actions."""
         return await self._request("GET", "/actions/", params={"limit": limit})
 
+    # -- HogQL / Query API -----------------------------------------------
+
+    async def event_volumes(self, days: int = 7, limit: int = 50) -> list[tuple[str, int]]:
+        """Return [(event_name, count), ...] for the top events in the period.
+
+        Used by Cyra to auto-detect a funnel candidate (highest-volume
+        $pageview to custom_event chain).
+        """
+        query = {
+            "kind": "EventsQuery",
+            "select": ["event", "count()"],
+            "after": f"-{days}d",
+            "orderBy": ["-count()"],
+            "limit": limit,
+        }
+        data = await self._request("POST", "/query/", json={"query": query})
+        results = data.get("results", [])
+        return [(row[0], int(row[1])) for row in results]
+
+    async def funnel_query(
+        self,
+        events: list[str],
+        days: int = 7,
+    ) -> list[dict]:
+        """Run a funnel query for the given event sequence.
+
+        Returns one dict per step with keys: name, count, average_conversion_time.
+        """
+        query = {
+            "kind": "FunnelsQuery",
+            "series": [{"event": e, "kind": "EventsNode"} for e in events],
+            "dateRange": {"date_from": f"-{days}d"},
+        }
+        data = await self._request("POST", "/query/", json={"query": query})
+        return data.get("results", [])
+
     # -- Session Recordings -----------------------------------------------
 
     async def list_session_recordings(
