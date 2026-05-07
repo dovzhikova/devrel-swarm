@@ -16,6 +16,7 @@ from datetime import date, datetime  # noqa: F401 -- used in Tasks 3-9 for perio
 from pathlib import Path
 from typing import Optional  # noqa: F401 -- used by Cyra attrs in Tasks 3-9
 
+from devrel_swarm.core.base import strip_markdown_fences
 from devrel_swarm.core.growth import (
     Pillar,  # noqa: F401 -- used in Task 7 recommendation generation
     Recommendation,
@@ -265,7 +266,7 @@ class Cyra:
             max_tokens=1500,
         )
         # Strip any stray fences (defensive: the model is told not to use them)
-        text = text.strip().removeprefix("```json").removeprefix("```").removesuffix("```").strip()
+        text = strip_markdown_fences(text)
         data = json.loads(text)
 
         hyps = [
