@@ -211,3 +211,88 @@ def diff(
             )
 
     _console.print(table)
+
+
+@cro_app.command("calibration")
+def calibration() -> None:
+    """Score historical CRO recommendations against subsequent funnel data."""
+    paths = find_paths_or_exit(_console)
+    db_path = paths.devrel_dir / "state.db"
+    if not db_path.is_file():
+        _console.print("[yellow]No state.db yet.[/yellow]")
+        raise typer.Exit(code=0)
+
+    from devrel_swarm.core.growth.recommendations import calibrate
+    from devrel_swarm.core.growth.target_kinds import Pillar
+
+    def _score_outcome(rec) -> str:
+        """Did conversion improve at this funnel step after the rec was applied?"""
+        if rec.applied_at is None:
+            return "unchanged"
+        with sqlite3.connect(db_path) as conn:
+            cur = conn.execute(
+                """
+                SELECT conversion_rate FROM cro_funnel_metrics
+                WHERE funnel_id IN (SELECT DISTINCT funnel_id FROM cro_funnel_metrics)
+                  AND period_end >= ?
+                ORDER BY period_end ASC LIMIT 2
+                """,
+                (rec.applied_at[:10],),
+            )
+            rates = [row[0] for row in cur.fetchall()]
+        if len(rates) < 2:
+            return "unchanged"
+        return (
+            "improved"
+            if rates[1] > rates[0]
+            else ("regressed" if rates[1] < rates[0] else "unchanged")
+        )
+
+    result = calibrate(db_path, Pillar.CRO, outcome_scorer=_score_outcome)
+
+    if not result:
+        _console.print("[yellow]No applied CRO recommendations yet.[/yellow]")
+        return
+
+    table = Table(title="CRO calibration")
+    table.add_column("Action", style="cyan")
+    table.add_column("Applied", justify="right")
+    table.add_column("Hit rate", justify="right")
+    table.add_column("Lift vs coinflip", justify="right")
+    for action, stats in result.items():
+        table.add_row(
+            action,
+            str(stats["applied_count"]),
+            f"{stats['hit_rate']:.1%}",
+            f"{stats['lift_vs_coinflip']:+.1%}",
+        )
+    _console.print(table)
+
+
+@cro_app.command("funnel")
+def funnel(
+    show_detected: bool = typer.Option(
+        False, "--show-detected", help="Show what auto-detect picked"
+    ),
+    days: int = typer.Option(7, "--days"),
+) -> None:
+    """Inspect the current (auto-detected or configured) CRO funnel."""
+    paths = find_paths_or_exit(_console)
+    cyra = _build_cyra(paths.devrel_dir / "state.db")
+
+    async def _run():
+        return await cyra._autodetect_funnel(days=days)
+
+    funnel_events = asyncio.run(_run())
+
+    table = Table(title=f"Cyra funnel (auto-detected, {days}d)")
+    table.add_column("#", justify="right")
+    table.add_column("Event", style="cyan")
+    for i, ev in enumerate(funnel_events):
+        table.add_row(str(i), ev)
+
+    _console.print(table)
+    if show_detected:
+        _console.print(
+            "[dim]Override via `[growth].cro_funnel = [...]` in .devrel/config.toml[/dim]"
+        )

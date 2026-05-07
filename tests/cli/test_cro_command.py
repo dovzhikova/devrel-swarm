@@ -11,8 +11,8 @@ def test_cro_help_lists_subcommands():
     runner = CliRunner()
     result = runner.invoke(app, ["cro", "--help"])
     assert result.exit_code == 0
-    # Only `report` lands in this task; other verbs come in Tasks 11-13.
-    assert "report" in result.output.lower()
+    for verb in ("report", "history", "diff", "calibration", "funnel"):
+        assert verb in result.output.lower()
 
 
 def test_cro_report_help_runs():
@@ -106,4 +106,43 @@ def test_cro_diff_runs(tmp_path, monkeypatch):
     )
     runner = CliRunner()
     result = runner.invoke(app, ["cro", "diff", "2026-04-01", "2026-04-08"])
+    assert result.exit_code == 0
+
+
+def test_cro_calibration_runs(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / ".devrel").mkdir()
+    (tmp_path / ".devrel" / "config.toml").write_text(
+        'product_name = "Test"\nproduct_url = "https://example.com"\n'
+    )
+    runner = CliRunner()
+    result = runner.invoke(app, ["cro", "calibration"])
+    assert result.exit_code == 0
+
+
+def test_cro_funnel_inspector_runs(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / ".devrel").mkdir()
+    (tmp_path / ".devrel" / "config.toml").write_text(
+        'product_name = "Test"\nproduct_url = "https://example.com"\n'
+    )
+    # The funnel verb requires PostHog + LLM env vars. Stub them with no-op classes.
+    import devrel_swarm.cli.cro as cro_module
+
+    monkeypatch.setattr(cro_module, "PostHogClient", lambda **kw: object())
+
+    class _StubLLM:
+        def set_agent(self, _):
+            pass
+
+    monkeypatch.setattr(cro_module, "LLMClient", lambda **kw: _StubLLM())
+
+    # Stub Cyra._autodetect_funnel to return a placeholder list without calling PostHog.
+    async def _fake_autodetect(self, days=7):
+        return ["$pageview", "signup_started"]
+
+    monkeypatch.setattr(cro_module.Cyra, "_autodetect_funnel", _fake_autodetect)
+
+    runner = CliRunner()
+    result = runner.invoke(app, ["cro", "funnel", "--show-detected"])
     assert result.exit_code == 0
