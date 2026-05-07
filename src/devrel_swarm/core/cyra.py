@@ -89,7 +89,9 @@ class CroReport:
     sources_ok: bool = True
 
 
-# PostHog system events to exclude from auto-detected funnels
+# PostHog system events to exclude from auto-detected funnels.
+# Defense-in-depth: the $-prefix filter below already excludes these, but
+# this set is kept in case PostHog introduces non-$-prefixed system events.
 _SYSTEM_EVENTS = frozenset(
     {
         "$identify",
