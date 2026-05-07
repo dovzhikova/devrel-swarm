@@ -167,3 +167,47 @@ def history(
             table.add_row(period_end, f"{(conv or 0):.1%}", f"{(sample or 0):,}")
 
     _console.print(table)
+
+
+@cro_app.command("diff")
+def diff(
+    period_a: str = typer.Argument(..., help="Earlier ISO period"),
+    period_b: str = typer.Argument(..., help="Later ISO period"),
+) -> None:
+    """Per-step conversion delta between two CRO reports."""
+    paths = find_paths_or_exit(_console)
+    db_path = paths.devrel_dir / "state.db"
+    if not db_path.is_file():
+        _console.print("[yellow]No state.db yet.[/yellow]")
+        raise typer.Exit(code=0)
+
+    table = Table(title=f"CRO diff: {period_a} -> {period_b}")
+    table.add_column("Funnel", style="cyan")
+    table.add_column("Step", justify="right")
+    table.add_column(f"{period_a}", justify="right")
+    table.add_column(f"{period_b}", justify="right")
+    table.add_column("Delta pp", justify="right")
+
+    with sqlite3.connect(db_path) as conn:
+        cur = conn.execute(
+            """
+            SELECT a.funnel_id, a.step_index, a.conversion_rate, b.conversion_rate
+            FROM cro_funnel_metrics a
+            JOIN cro_funnel_metrics b
+              ON a.funnel_id = b.funnel_id AND a.step_index = b.step_index
+            WHERE a.period_end = ? AND b.period_end = ?
+            ORDER BY a.funnel_id, a.step_index
+            """,
+            (period_a, period_b),
+        )
+        for funnel_id, step_index, conv_a, conv_b in cur:
+            delta = (conv_b or 0) - (conv_a or 0)
+            table.add_row(
+                funnel_id,
+                str(step_index),
+                f"{(conv_a or 0):.1%}",
+                f"{(conv_b or 0):.1%}",
+                f"{delta:+.1%}",
+            )
+
+    _console.print(table)

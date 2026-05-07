@@ -96,3 +96,14 @@ def test_cro_history_runs(tmp_path, monkeypatch):
     runner = CliRunner()
     result = runner.invoke(app, ["cro", "history", "signup_started"])
     assert result.exit_code == 0
+
+
+def test_cro_diff_runs(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / ".devrel").mkdir()
+    (tmp_path / ".devrel" / "config.toml").write_text(
+        'product_name = "Test"\nproduct_url = "https://example.com"\n'
+    )
+    runner = CliRunner()
+    result = runner.invoke(app, ["cro", "diff", "2026-04-01", "2026-04-08"])
+    assert result.exit_code == 0
