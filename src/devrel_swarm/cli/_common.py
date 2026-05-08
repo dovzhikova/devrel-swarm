@@ -4,14 +4,21 @@ from __future__ import annotations
 
 import json
 import os
+import tomllib
+from typing import Any
 
 import typer
 from rich.console import Console
 
+from devrel_swarm.core.agent_config import AgentConfig
 from devrel_swarm.core.atlas import Atlas, DelegationResult
 from devrel_swarm.core.llm import LLMClient
 from devrel_swarm.project.paths import ProjectNotFoundError, ProjectPaths, find_devrel_root
 from devrel_swarm.tools.api_client import PostHogClient
+from devrel_swarm.tools.apollo_client import ApolloClient
+from devrel_swarm.tools.github_tools import GitHubTools
+from devrel_swarm.tools.instantly_client import InstantlyClient
+from devrel_swarm.tools.search_tools import SearchTools
 
 
 def find_paths_or_exit(console: Console) -> ProjectPaths:
@@ -20,6 +27,60 @@ def find_paths_or_exit(console: Console) -> ProjectPaths:
     except ProjectNotFoundError as e:
         console.print(f"[red]{e}[/red]")
         raise typer.Exit(code=1) from None
+
+
+def _read_project_toml(paths: ProjectPaths) -> dict[str, Any]:
+    """Parse .devrel/config.toml or return {} on missing/malformed."""
+    if not paths.config_file.is_file():
+        return {}
+    try:
+        with paths.config_file.open("rb") as f:
+            return tomllib.load(f)
+    except (OSError, tomllib.TOMLDecodeError):
+        return {}
+
+
+def _load_agent_config(paths: ProjectPaths) -> AgentConfig:
+    """Bridge .devrel/config.toml into Atlas's AgentConfig.
+
+    Reads [project] for product_name/product_url and [orchestration] for
+    agent_timeouts/cro_in_run/analytics_in_run. Other AgentConfig fields stay
+    at defaults (the legacy YAML loader at config/agent_config.yaml is not
+    wired into the per-project CLI; this is the bridge that makes
+    .devrel/config.toml settings actually take effect on `devrel run`).
+    """
+    raw = _read_project_toml(paths)
+    proj = raw.get("project") or {}
+    orch = raw.get("orchestration") or {}
+
+    kwargs: dict[str, Any] = {}
+    if proj.get("name"):
+        kwargs["product_name"] = str(proj["name"])
+    if proj.get("url"):
+        kwargs["product_url"] = str(proj["url"])
+    if "analytics_in_run" in orch:
+        kwargs["analytics_in_run"] = bool(orch["analytics_in_run"])
+    if "cro_in_run" in orch:
+        kwargs["cro_in_run"] = bool(orch["cro_in_run"])
+    timeouts = orch.get("agent_timeouts") or {}
+    if timeouts:
+        kwargs["agent_timeouts"] = {k: float(v) for k, v in timeouts.items()}
+    return AgentConfig(**kwargs)
+
+
+def _resolve_github_repo(paths: ProjectPaths) -> str:
+    """Pick the GitHub repo Sage/etc should target.
+
+    Order: GITHUB_REPO env > [project].github_repo in .devrel/config.toml >
+    empty string (GitHubTools falls back to its DEFAULT_REPO).
+    """
+    env = os.environ.get("GITHUB_REPO", "").strip()
+    if env:
+        return env
+    raw = _read_project_toml(paths)
+    proj = raw.get("project") or {}
+    repo = proj.get("github_repo")
+    return str(repo).strip() if repo else ""
 
 
 def build_atlas_or_exit(paths: ProjectPaths, console: Console) -> Atlas:
@@ -32,10 +93,48 @@ def build_atlas_or_exit(paths: ProjectPaths, console: Console) -> Atlas:
         api_key=os.environ.get("POSTHOG_API_KEY", ""),
         project_id=os.environ.get("POSTHOG_PROJECT_ID", ""),
     )
+
+    # Optional integrations: only construct when the relevant key is present so
+    # specialists fall back to their degraded-mode paths instead of crashing on
+    # init. Wiring is the regression that left agents (Sage / Echo / Rex / Vox /
+    # Pax / Mox) in their no-tool branches even when keys were configured.
+    github_token = os.environ.get("GITHUB_TOKEN", "").strip()
+    if github_token:
+        github_repo = _resolve_github_repo(paths)
+        github_tools = (
+            GitHubTools(token=github_token, repo=github_repo)
+            if github_repo
+            else GitHubTools(token=github_token)
+        )
+    else:
+        github_tools = None
+
+    if os.environ.get("FIRECRAWL_API_KEY", "").strip() or os.environ.get(
+        "BRAVE_API_KEY", ""
+    ).strip():
+        search_tools = SearchTools(
+            firecrawl_api_key=os.environ.get("FIRECRAWL_API_KEY", ""),
+            brave_api_key=os.environ.get("BRAVE_API_KEY", ""),
+        )
+    else:
+        search_tools = None
+
+    instantly_key = os.environ.get("INSTANTLY_API_KEY", "").strip()
+    instantly_client = InstantlyClient(api_key=instantly_key) if instantly_key else None
+
+    apollo_key = os.environ.get("APOLLO_API_KEY", "").strip()
+    apollo_client = ApolloClient(api_key=apollo_key) if apollo_key else None
+
     return Atlas(
         api_client=posthog,
         knowledge_base_path=paths.kb_dir,
+        archive_dir=paths.context_dir,
         llm_client=llm,
+        github_tools=github_tools,
+        search_tools=search_tools,
+        config=_load_agent_config(paths),
+        instantly_client=instantly_client,
+        apollo_client=apollo_client,
         project_paths=paths,
     )
 

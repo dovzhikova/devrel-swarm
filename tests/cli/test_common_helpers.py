@@ -1,0 +1,244 @@
+"""Tests for cli/_common.py wiring helpers.
+
+Covers the bridge from .devrel/config.toml into Atlas's runtime AgentConfig
+plus the env/config resolution for GitHub repo. These helpers exist because
+build_atlas_or_exit was previously passing only 4 of Atlas's 9 init args,
+silently dropping the user's [orchestration].agent_timeouts and forcing
+GitHub-using specialists into the default OpenClaw repo.
+"""
+
+from __future__ import annotations
+
+import os
+from pathlib import Path
+from unittest.mock import patch
+
+import pytest
+
+from devrel_swarm.cli._common import (
+    _load_agent_config,
+    _resolve_github_repo,
+    build_atlas_or_exit,
+)
+from devrel_swarm.project.paths import ProjectPaths
+
+
+def _make_paths(root: Path) -> ProjectPaths:
+    devrel = root / ".devrel"
+    devrel.mkdir(parents=True, exist_ok=True)
+    return ProjectPaths.from_root(root)
+
+
+class TestLoadAgentConfig:
+    def test_returns_defaults_when_no_config_file(self, tmp_path):
+        paths = _make_paths(tmp_path)
+        # Note: no config.toml written
+        config = _load_agent_config(paths)
+        assert config.product_name  # whatever the AgentConfig default resolves to
+        assert config.agent_timeouts == {}
+        assert config.cro_in_run is False
+        assert config.analytics_in_run is True
+
+    def test_reads_project_identity(self, tmp_path):
+        paths = _make_paths(tmp_path)
+        paths.config_file.write_text(
+            '[project]\nname = "Example"\nurl = "https://example.com"\n'
+        )
+        config = _load_agent_config(paths)
+        assert config.product_name == "Example"
+        assert config.product_url == "https://example.com"
+
+    def test_reads_orchestration_agent_timeouts(self, tmp_path):
+        paths = _make_paths(tmp_path)
+        paths.config_file.write_text(
+            '[project]\nname = "X"\n\n'
+            "[orchestration.agent_timeouts]\n"
+            "kai = 1200.0\n"
+            "sage = 60.0\n"
+        )
+        config = _load_agent_config(paths)
+        assert config.agent_timeouts == {"kai": 1200.0, "sage": 60.0}
+
+    def test_reads_orchestration_in_run_flags(self, tmp_path):
+        paths = _make_paths(tmp_path)
+        paths.config_file.write_text(
+            '[project]\nname = "X"\n\n'
+            "[orchestration]\n"
+            "cro_in_run = true\n"
+            "analytics_in_run = false\n"
+        )
+        config = _load_agent_config(paths)
+        assert config.cro_in_run is True
+        assert config.analytics_in_run is False
+
+    def test_malformed_toml_falls_back_to_defaults(self, tmp_path):
+        paths = _make_paths(tmp_path)
+        paths.config_file.write_text("this is not valid toml [[[\n")
+        # Should not raise; returns defaults.
+        config = _load_agent_config(paths)
+        assert config.agent_timeouts == {}
+
+
+class TestResolveGithubRepo:
+    def test_env_wins_over_toml(self, tmp_path):
+        paths = _make_paths(tmp_path)
+        paths.config_file.write_text('[project]\nname = "X"\ngithub_repo = "from/toml"\n')
+        with patch.dict(os.environ, {"GITHUB_REPO": "from/env"}):
+            assert _resolve_github_repo(paths) == "from/env"
+
+    def test_toml_used_when_no_env(self, tmp_path):
+        paths = _make_paths(tmp_path)
+        paths.config_file.write_text('[project]\nname = "X"\ngithub_repo = "PostHog/posthog"\n')
+        # Drop GITHUB_REPO so env path doesn't win
+        with patch.dict(os.environ, {}, clear=False):
+            os.environ.pop("GITHUB_REPO", None)
+            assert _resolve_github_repo(paths) == "PostHog/posthog"
+
+    def test_empty_when_neither_set(self, tmp_path):
+        paths = _make_paths(tmp_path)
+        paths.config_file.write_text('[project]\nname = "X"\n')
+        with patch.dict(os.environ, {}, clear=False):
+            os.environ.pop("GITHUB_REPO", None)
+            assert _resolve_github_repo(paths) == ""
+
+    def test_no_config_file_returns_empty(self, tmp_path):
+        paths = _make_paths(tmp_path)
+        with patch.dict(os.environ, {}, clear=False):
+            os.environ.pop("GITHUB_REPO", None)
+            assert _resolve_github_repo(paths) == ""
+
+
+class TestBuildAtlasWiring:
+    """Atlas should receive archive_dir, config, and tool clients matching env+toml."""
+
+    def test_atlas_gets_context_dir_as_archive_dir(self, tmp_path, capsys):
+        paths = _make_paths(tmp_path)
+        paths.config_file.write_text('[project]\nname = "X"\n')
+        from rich.console import Console
+
+        console = Console()
+        with patch.dict(
+            os.environ,
+            {
+                "ANTHROPIC_API_KEY": "test",
+                "POSTHOG_API_KEY": "",
+                "POSTHOG_PROJECT_ID": "",
+            },
+            clear=False,
+        ):
+            for k in (
+                "GITHUB_TOKEN",
+                "FIRECRAWL_API_KEY",
+                "BRAVE_API_KEY",
+                "INSTANTLY_API_KEY",
+                "APOLLO_API_KEY",
+            ):
+                os.environ.pop(k, None)
+            with patch("devrel_swarm.cli._common.Atlas") as MockAtlas:
+                build_atlas_or_exit(paths, console)
+                kwargs = MockAtlas.call_args.kwargs
+                assert kwargs["archive_dir"] == paths.context_dir
+                assert kwargs["github_tools"] is None
+                assert kwargs["search_tools"] is None
+                assert kwargs["instantly_client"] is None
+                assert kwargs["apollo_client"] is None
+                # Config bridged from .toml; defaults but real AgentConfig instance
+                assert kwargs["config"].product_name == "X"
+
+    def test_atlas_gets_config_with_agent_timeouts_from_toml(self, tmp_path):
+        paths = _make_paths(tmp_path)
+        paths.config_file.write_text(
+            '[project]\nname = "X"\n\n'
+            "[orchestration.agent_timeouts]\nkai = 900.0\n"
+        )
+        from rich.console import Console
+
+        console = Console()
+        with patch.dict(
+            os.environ,
+            {"ANTHROPIC_API_KEY": "test", "POSTHOG_API_KEY": "", "POSTHOG_PROJECT_ID": ""},
+            clear=False,
+        ):
+            for k in (
+                "GITHUB_TOKEN",
+                "FIRECRAWL_API_KEY",
+                "BRAVE_API_KEY",
+                "INSTANTLY_API_KEY",
+                "APOLLO_API_KEY",
+            ):
+                os.environ.pop(k, None)
+            with patch("devrel_swarm.cli._common.Atlas") as MockAtlas:
+                build_atlas_or_exit(paths, console)
+                config = MockAtlas.call_args.kwargs["config"]
+                assert config.agent_timeouts == {"kai": 900.0}
+
+    def test_atlas_gets_github_tools_when_token_set(self, tmp_path):
+        paths = _make_paths(tmp_path)
+        paths.config_file.write_text('[project]\nname = "X"\ngithub_repo = "PostHog/posthog"\n')
+        from rich.console import Console
+
+        console = Console()
+        with patch.dict(
+            os.environ,
+            {
+                "ANTHROPIC_API_KEY": "test",
+                "POSTHOG_API_KEY": "",
+                "POSTHOG_PROJECT_ID": "",
+                "GITHUB_TOKEN": "ghp_test",
+            },
+            clear=False,
+        ):
+            for k in (
+                "FIRECRAWL_API_KEY",
+                "BRAVE_API_KEY",
+                "INSTANTLY_API_KEY",
+                "APOLLO_API_KEY",
+                "GITHUB_REPO",
+            ):
+                os.environ.pop(k, None)
+            with patch("devrel_swarm.cli._common.Atlas") as MockAtlas:
+                build_atlas_or_exit(paths, console)
+                gh = MockAtlas.call_args.kwargs["github_tools"]
+                assert gh is not None
+                assert gh.repo == "PostHog/posthog"
+
+    def test_atlas_gets_search_tools_when_firecrawl_set(self, tmp_path):
+        paths = _make_paths(tmp_path)
+        paths.config_file.write_text('[project]\nname = "X"\n')
+        from rich.console import Console
+
+        console = Console()
+        with patch.dict(
+            os.environ,
+            {
+                "ANTHROPIC_API_KEY": "test",
+                "POSTHOG_API_KEY": "",
+                "POSTHOG_PROJECT_ID": "",
+                "FIRECRAWL_API_KEY": "fc_test",
+            },
+            clear=False,
+        ):
+            for k in (
+                "GITHUB_TOKEN",
+                "BRAVE_API_KEY",
+                "INSTANTLY_API_KEY",
+                "APOLLO_API_KEY",
+            ):
+                os.environ.pop(k, None)
+            with patch("devrel_swarm.cli._common.Atlas") as MockAtlas:
+                build_atlas_or_exit(paths, console)
+                st = MockAtlas.call_args.kwargs["search_tools"]
+                assert st is not None
+
+    def test_atlas_exits_without_anthropic_key(self, tmp_path):
+        import click
+
+        paths = _make_paths(tmp_path)
+        paths.config_file.write_text('[project]\nname = "X"\n')
+        from rich.console import Console
+
+        console = Console()
+        with patch.dict(os.environ, {}, clear=False):
+            os.environ.pop("ANTHROPIC_API_KEY", None)
+            with pytest.raises(click.exceptions.Exit):
+                build_atlas_or_exit(paths, console)
