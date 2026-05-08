@@ -1,5 +1,6 @@
 """Shared Anthropic LLM client wrapper for all agents."""
 
+import asyncio
 import json
 import logging
 from collections.abc import Awaitable
@@ -333,17 +334,28 @@ class LLMClient:
     ) -> None:
         if self._cost_sink is None:
             return
+        # Shield the sink call so an outer cancellation (e.g. Atlas's per-agent
+        # timeout firing between the API response and this write) doesn't drop
+        # the cost row. The Anthropic call already returned and we've been billed;
+        # the sink coroutine has no inner awaits, so once the event loop schedules
+        # it, the SQLite commit completes synchronously even if the calling task
+        # is being torn down. CancelledError is BaseException in 3.8+ so it
+        # bypasses `except Exception`; re-raise it to preserve cancellation
+        # semantics for the caller.
+        coro = self._cost_sink(
+            _current_agent_var.get() or self._current_agent or "unknown",
+            model,
+            {
+                "input_tokens": input_tokens,
+                "output_tokens": output_tokens,
+                "cache_creation_input_tokens": cache_creation_input_tokens,
+                "cache_read_input_tokens": cache_read_input_tokens,
+            },
+        )
         try:
-            await self._cost_sink(
-                _current_agent_var.get() or self._current_agent or "unknown",
-                model,
-                {
-                    "input_tokens": input_tokens,
-                    "output_tokens": output_tokens,
-                    "cache_creation_input_tokens": cache_creation_input_tokens,
-                    "cache_read_input_tokens": cache_read_input_tokens,
-                },
-            )
+            await asyncio.shield(coro)
+        except asyncio.CancelledError:
+            raise
         except Exception as e:
             logger.warning("cost sink raised; ignoring: %s", e)
 
