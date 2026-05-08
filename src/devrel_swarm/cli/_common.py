@@ -52,7 +52,7 @@ def render_result(result: DelegationResult, console: Console, *, json_output: bo
                 "agent": getattr(result, "agent", "?"),
                 "task": getattr(result, "task", "?"),
                 "success": getattr(result, "success", False),
-                "result": getattr(result, "result", None),
+                "output": getattr(result, "output", None),
                 "error": getattr(result, "error", None),
             }
         typer.echo(json.dumps(payload, default=str, indent=2))
@@ -61,8 +61,8 @@ def render_result(result: DelegationResult, console: Console, *, json_output: bo
         console.print(f"[red]✗[/red] {result.agent} failed: {result.error}")
         raise typer.Exit(code=1)
     console.print(f"[green]✓[/green] {result.agent} completed")
-    if isinstance(result.result, dict):
-        for k, v in list(result.result.items())[:8]:
+    if isinstance(result.output, dict):
+        for k, v in list(result.output.items())[:8]:
             console.print(f"  [dim]{k}:[/dim] {str(v)[:120]}")
-    elif result.result:
-        console.print(f"  {str(result.result)[:300]}")
+    elif result.output:
+        console.print(f"  {str(result.output)[:300]}")
