@@ -25,6 +25,7 @@ from devrel_swarm.cli.intel import intel_command
 from devrel_swarm.cli.kb import kb_app
 from devrel_swarm.cli.listen import listen_command
 from devrel_swarm.cli.marketing import marketing_app
+from devrel_swarm.cli.migrate import migrate_command
 from devrel_swarm.cli.run import run_command
 from devrel_swarm.cli.sales import sales_app
 from devrel_swarm.cli.schedule import schedule_app
@@ -62,6 +63,7 @@ def main(
 
 app.command(name="init")(init_command)
 app.command(name="doctor")(doctor_command)
+app.command(name="migrate")(migrate_command)
 app.add_typer(content_app, name="content")
 app.add_typer(cro_app, name="cro")
 app.command(name="run")(run_command)
