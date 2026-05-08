@@ -320,3 +320,60 @@ class TestLLMClientWiring:
             os.environ.pop("OPENROUTER_API_KEY", None)
             with pytest.raises(click.exceptions.Exit):
                 _build_llm_client(paths, console)
+
+
+class TestEnvAutoLoad:
+    """Keys in .devrel/.env or project-root .env should populate os.environ
+    before _build_llm_client reads them, without overriding shell exports."""
+
+    def test_loads_devrel_env_when_present(self, tmp_path):
+        from devrel_swarm.cli._common import _build_llm_client
+
+        paths = _make_paths(tmp_path)
+        paths.config_file.write_text('[project]\nname = "X"\n')
+        paths.env_file.write_text("ANTHROPIC_API_KEY=sk-ant-from-file\n")
+        from rich.console import Console
+
+        console = Console()
+        with patch.dict(os.environ, {}, clear=False):
+            os.environ.pop("ANTHROPIC_API_KEY", None)
+            os.environ.pop("OPENROUTER_API_KEY", None)
+            client = _build_llm_client(paths, console)
+        assert client.backend.name == "anthropic"
+
+    def test_loads_root_env_as_fallback(self, tmp_path):
+        from devrel_swarm.cli._common import _build_llm_client
+
+        paths = _make_paths(tmp_path)
+        paths.config_file.write_text('[project]\nname = "X"\n')
+        # Note: writing to project root, not .devrel/.env
+        (tmp_path / ".env").write_text("OPENROUTER_API_KEY=sk-or-from-root\n")
+        from rich.console import Console
+
+        console = Console()
+        with patch.dict(os.environ, {}, clear=False):
+            os.environ.pop("ANTHROPIC_API_KEY", None)
+            os.environ.pop("OPENROUTER_API_KEY", None)
+            client = _build_llm_client(paths, console)
+        assert client.backend.name == "openrouter"
+
+    def test_shell_export_wins_over_dotenv(self, tmp_path):
+        """python-dotenv override=False: a key already in the shell env wins
+        over the file. Lets users debug-override with a one-shot
+        `ANTHROPIC_API_KEY=other-key devrel run` without editing the file."""
+        from devrel_swarm.cli._common import _build_llm_client
+
+        paths = _make_paths(tmp_path)
+        paths.config_file.write_text('[project]\nname = "X"\n')
+        paths.env_file.write_text("ANTHROPIC_API_KEY=from-file\n")
+        from rich.console import Console
+
+        console = Console()
+        with patch.dict(os.environ, {"ANTHROPIC_API_KEY": "from-shell"}, clear=False):
+            os.environ.pop("OPENROUTER_API_KEY", None)
+            client = _build_llm_client(paths, console)
+            assert client.backend.name == "anthropic"
+            # The shell-exported value must survive _load_project_env;
+            # python-dotenv with override=False is the load path that
+            # guarantees this.
+            assert os.environ["ANTHROPIC_API_KEY"] == "from-shell"

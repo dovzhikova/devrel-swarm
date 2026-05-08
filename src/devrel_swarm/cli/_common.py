@@ -8,6 +8,7 @@ import tomllib
 from typing import Any
 
 import typer
+from dotenv import load_dotenv
 from rich.console import Console
 
 from devrel_swarm.core.agent_config import AgentConfig
@@ -27,6 +28,23 @@ def find_paths_or_exit(console: Console) -> ProjectPaths:
     except ProjectNotFoundError as e:
         console.print(f"[red]{e}[/red]")
         raise typer.Exit(code=1) from None
+
+
+def _load_project_env(paths: ProjectPaths) -> None:
+    """Pull keys from .devrel/.env (preferred) and project-root .env (fallback)
+    into the process env, without overriding values the user has already
+    exported in their shell. Called at the top of build paths so `devrel run`
+    works even when the user hasn't `export`ed anything.
+
+    `override=False` is intentional: shell-exported values take precedence so
+    one-off overrides during debugging don't get clobbered by a stale file.
+    Both paths are best-effort; missing files are silent.
+    """
+    if paths.env_file.is_file():
+        load_dotenv(paths.env_file, override=False)
+    root_env = paths.root / ".env"
+    if root_env.is_file() and root_env != paths.env_file:
+        load_dotenv(root_env, override=False)
 
 
 def _read_project_toml(paths: ProjectPaths) -> dict[str, Any]:
@@ -83,6 +101,17 @@ def _resolve_github_repo(paths: ProjectPaths) -> str:
     return str(repo).strip() if repo else ""
 
 
+_MISSING_KEY_HELP = (
+    "[red]No LLM API key found.[/red]\n"
+    "Fix:\n"
+    "  - Run [bold]devrel auth[/bold] to configure interactively (writes "
+    ".devrel/.env with chmod 600).\n"
+    "  - Or set [bold]ANTHROPIC_API_KEY[/bold] in your shell.\n"
+    "  - Or set [bold]OPENROUTER_API_KEY[/bold] for multi-provider routing "
+    "(free credits at https://openrouter.ai/)."
+)
+
+
 def _build_llm_client(paths: ProjectPaths, console: Console) -> LLMClient:
     """Construct an LLMClient honoring provider + per-agent overrides from
     .devrel/config.toml's [llm] section, with env-var fallback.
@@ -93,8 +122,11 @@ def _build_llm_client(paths: ProjectPaths, console: Console) -> LLMClient:
       3. Default -> anthropic
 
     Either ANTHROPIC_API_KEY or OPENROUTER_API_KEY (matching the chosen
-    provider) must be present; otherwise we exit with a clear message.
+    provider) must be present; otherwise we exit with a clear message
+    pointing at `devrel auth`. Pulls keys from .devrel/.env or root .env
+    before reading the env so users don't have to `export` anything.
     """
+    _load_project_env(paths)
     raw = _read_project_toml(paths)
     llm_cfg = raw.get("llm") or {}
     provider = (llm_cfg.get("provider") or "").strip().lower() or None
@@ -111,6 +143,7 @@ def _build_llm_client(paths: ProjectPaths, console: Console) -> LLMClient:
             console.print(
                 '[red]OPENROUTER_API_KEY is required when [llm].provider = "openrouter".[/red]'
             )
+            console.print(_MISSING_KEY_HELP)
             raise typer.Exit(code=1)
         return LLMClient(
             provider="openrouter",
@@ -119,10 +152,7 @@ def _build_llm_client(paths: ProjectPaths, console: Console) -> LLMClient:
         )
 
     if not anthropic_key:
-        console.print(
-            "[red]ANTHROPIC_API_KEY is required (or set OPENROUTER_API_KEY + "
-            '[llm].provider = "openrouter").[/red]'
-        )
+        console.print(_MISSING_KEY_HELP)
         raise typer.Exit(code=1)
     return LLMClient(
         provider="anthropic",
