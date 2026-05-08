@@ -68,7 +68,7 @@ def draft_command(
     client = _build_llm_client()
 
     async def _do() -> None:
-        draft, _ = await client.generate(
+        draft = await client.generate(
             system_prompt=(
                 "You are a writer producing a first draft. Stay specific and concrete. "
                 "Avoid marketing fluff."
