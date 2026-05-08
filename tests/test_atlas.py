@@ -1,10 +1,12 @@
 """Tests for Atlas orchestrator module."""
 
+import asyncio
 import json
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+from devrel_swarm.core.agent_config import AgentConfig
 from devrel_swarm.core.atlas import Atlas, DelegationResult, SharedContext
 from devrel_swarm.core.mox import Mox
 from devrel_swarm.core.pax import Pax
@@ -123,6 +125,69 @@ class TestAtlasRetryLogic:
         result = await atlas.delegate("sage", "triage issues")
         assert result.success is False
         assert "Persistent error" in result.error
+
+    @pytest.mark.asyncio
+    async def test_delegate_skips_retry_on_timeout(self, posthog_client, knowledge_base_path):
+        """TimeoutError must not retry: retries re-burn the same expensive tokens
+        (each editorial-pipeline attempt costs ~$0.30+) without changing the outcome.
+        """
+        atlas = Atlas(
+            api_client=posthog_client,
+            knowledge_base_path=knowledge_base_path,
+        )
+
+        call_count = 0
+
+        async def timeout_execute(task, context=None):
+            nonlocal call_count
+            call_count += 1
+            raise asyncio.TimeoutError()
+
+        atlas.sage.execute = timeout_execute
+        atlas.BASE_DELAY = 0.01
+
+        result = await atlas.delegate("sage", "triage issues")
+        assert result.success is False
+        assert "timed out" in result.error
+        assert result.attempts == 1
+        assert call_count == 1  # no retry burn
+
+    def test_resolve_timeout_editorial_agents_default_to_600s(
+        self, posthog_client, knowledge_base_path
+    ):
+        """Kai, Mox, Pax run 8-stage editorial pipelines that routinely exceed 300s."""
+        atlas = Atlas(
+            api_client=posthog_client,
+            knowledge_base_path=knowledge_base_path,
+        )
+        assert atlas._resolve_timeout("kai") == 600.0
+        assert atlas._resolve_timeout("mox") == 600.0
+        assert atlas._resolve_timeout("pax") == 600.0
+
+    def test_resolve_timeout_other_agents_use_global_default(
+        self, posthog_client, knowledge_base_path
+    ):
+        """Non-editorial agents fall through to the global AGENT_TIMEOUT default."""
+        atlas = Atlas(
+            api_client=posthog_client,
+            knowledge_base_path=knowledge_base_path,
+        )
+        assert atlas._resolve_timeout("sage") == 300.0
+        assert atlas._resolve_timeout("argus") == 300.0
+        assert atlas._resolve_timeout("dex") == 300.0
+
+    def test_resolve_timeout_config_overrides_defaults(self, posthog_client, knowledge_base_path):
+        """[orchestration].agent_timeouts in config overrides class defaults."""
+        config = AgentConfig(agent_timeouts={"kai": 1200.0, "sage": 60.0})
+        atlas = Atlas(
+            api_client=posthog_client,
+            knowledge_base_path=knowledge_base_path,
+            config=config,
+        )
+        assert atlas._resolve_timeout("kai") == 1200.0  # overridden
+        assert atlas._resolve_timeout("sage") == 60.0  # overridden
+        assert atlas._resolve_timeout("mox") == 600.0  # class default still applies
+        assert atlas._resolve_timeout("argus") == 300.0  # global default still applies
 
 
 class TestAtlasOrchestration:

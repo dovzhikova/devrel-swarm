@@ -38,6 +38,9 @@ class AgentConfig:
     logging_config: dict[str, Any] = field(default_factory=dict)
     analytics_in_run: bool = True
     cro_in_run: bool = False  # Stage 5c: Cyra CRO audit (opt-in; Vega+Selene added in Waves 2/3)
+    agent_timeouts: dict[str, float] = field(
+        default_factory=dict
+    )  # per-agent timeout override (seconds)
 
     def get_agent_config(self, agent_name: str) -> dict[str, Any]:
         """Get config for a specific agent, merging with defaults."""
@@ -66,4 +69,7 @@ def load_config(path: Path) -> AgentConfig:
         logging_config=raw.get("logging", {}),
         analytics_in_run=raw.get("orchestration", {}).get("analytics_in_run", True),
         cro_in_run=raw.get("orchestration", {}).get("cro_in_run", False),
+        agent_timeouts={
+            k: float(v) for k, v in raw.get("orchestration", {}).get("agent_timeouts", {}).items()
+        },
     )

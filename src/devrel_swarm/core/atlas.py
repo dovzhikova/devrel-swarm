@@ -251,7 +251,16 @@ class Atlas:
 
     MAX_RETRIES = 2
     BASE_DELAY = 2.0  # seconds
-    AGENT_TIMEOUT = 300.0  # 5 minutes per agent execution
+    AGENT_TIMEOUT = 300.0  # default per-agent timeout (seconds); see DEFAULT_AGENT_TIMEOUTS
+
+    # Editorial-pipeline agents (Kai/Mox/Pax) run an 8-stage pipeline with revision
+    # loops and routinely exceed the 300s default. 600s reflects observed wall time
+    # across dogfood runs in 2026-05-08 sessions. Override via config.agent_timeouts.
+    DEFAULT_AGENT_TIMEOUTS: dict[str, float] = {
+        "kai": 600.0,
+        "mox": 600.0,
+        "pax": 600.0,
+    }
 
     def __init__(
         self,
@@ -290,6 +299,12 @@ class Atlas:
         # Apply config retry settings
         self.MAX_RETRIES = self.config.retry_settings.get("max_retries", 2)
         self.BASE_DELAY = self.config.retry_settings.get("initial_delay_seconds", 2.0)
+
+        # Per-agent timeouts: class defaults overlaid by config overrides
+        self.agent_timeouts: dict[str, float] = {
+            **self.DEFAULT_AGENT_TIMEOUTS,
+            **(self.config.agent_timeouts or {}),
+        }
 
         # Initialize specialist agents with shared deps
         self.kai = Kai(
@@ -379,6 +394,15 @@ class Atlas:
             "sentinel": self.sentinel,
         }
 
+    def _resolve_timeout(self, agent_name: str) -> float:
+        """Per-agent execution timeout.
+
+        Resolution order: config override → class default (DEFAULT_AGENT_TIMEOUTS) →
+        global AGENT_TIMEOUT (300s). Editorial-pipeline agents (Kai/Mox/Pax) default
+        to 600s because their 8-stage revision-looped pipeline routinely exceeds 300s.
+        """
+        return self.agent_timeouts.get(agent_name, self.AGENT_TIMEOUT)
+
     async def delegate(
         self,
         agent_name: str,
@@ -401,6 +425,7 @@ class Atlas:
 
         merged_context = {**self.context.to_dict(), **(context or {})}
         last_error = None
+        timeout = self._resolve_timeout(agent_name)
 
         # Tag LLM calls with the agent name for cost tracking
         if self.llm_client:
@@ -415,7 +440,7 @@ class Atlas:
                 with ctx_mgr:
                     result = await asyncio.wait_for(
                         agent.execute(task=task, context=merged_context),
-                        timeout=self.AGENT_TIMEOUT,
+                        timeout=timeout,
                     )
                 logger.info(
                     "delegation_success",
@@ -429,8 +454,18 @@ class Atlas:
                     attempts=attempt,
                 )
             except asyncio.TimeoutError:
-                last_error = f"Agent {agent_name} timed out after {self.AGENT_TIMEOUT}s"
+                # Don't retry on timeout: a retry would re-burn the same expensive
+                # tokens (often $0.30+ per failed editorial-pipeline attempt) without
+                # changing the outcome. Surface the failure immediately.
+                last_error = f"Agent {agent_name} timed out after {timeout}s"
                 logger.warning(last_error)
+                return DelegationResult(
+                    agent=agent_name,
+                    task=task,
+                    success=False,
+                    error=last_error,
+                    attempts=attempt,
+                )
             except Exception as e:
                 last_error = str(e)
                 logger.warning(
