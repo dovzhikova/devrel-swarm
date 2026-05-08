@@ -154,17 +154,18 @@ class TestAtlasRetryLogic:
         assert result.attempts == 1
         assert call_count == 1  # no retry burn
 
-    def test_resolve_timeout_editorial_agents_default_to_600s(
+    def test_resolve_timeout_editorial_agents_default_to_1800s(
         self, posthog_client, knowledge_base_path
     ):
-        """Kai, Mox, Pax run 8-stage editorial pipelines that routinely exceed 300s."""
+        """Kai, Mox, Pax run 8-stage editorial pipelines with revision loops that
+        routinely exceed 900s on repo-scale prompts (2026-05-08 dogfood)."""
         atlas = Atlas(
             api_client=posthog_client,
             knowledge_base_path=knowledge_base_path,
         )
-        assert atlas._resolve_timeout("kai") == 600.0
-        assert atlas._resolve_timeout("mox") == 600.0
-        assert atlas._resolve_timeout("pax") == 600.0
+        assert atlas._resolve_timeout("kai") == 1800.0
+        assert atlas._resolve_timeout("mox") == 1800.0
+        assert atlas._resolve_timeout("pax") == 1800.0
 
     def test_resolve_timeout_other_agents_use_global_default(
         self, posthog_client, knowledge_base_path
@@ -188,7 +189,7 @@ class TestAtlasRetryLogic:
         )
         assert atlas._resolve_timeout("kai") == 1200.0  # overridden
         assert atlas._resolve_timeout("sage") == 60.0  # overridden
-        assert atlas._resolve_timeout("mox") == 600.0  # class default still applies
+        assert atlas._resolve_timeout("mox") == 1800.0  # class default still applies
         assert atlas._resolve_timeout("argus") == 300.0  # global default still applies
 
 

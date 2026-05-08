@@ -254,12 +254,14 @@ class Atlas:
     AGENT_TIMEOUT = 300.0  # default per-agent timeout (seconds); see DEFAULT_AGENT_TIMEOUTS
 
     # Editorial-pipeline agents (Kai/Mox/Pax) run an 8-stage pipeline with revision
-    # loops and routinely exceed the 300s default. 600s reflects observed wall time
-    # across dogfood runs in 2026-05-08 sessions. Override via config.agent_timeouts.
+    # loops on top of repo-scale prompts. Empirically, on a PostHog-scale codebase
+    # Kai exceeds 900s end-to-end (2026-05-08 user run). 1800s gives ~2x headroom
+    # for revision rounds; the cost-budget cap in config.toml is a better safeguard
+    # than a tight timeout. Override per-agent via config.agent_timeouts.
     DEFAULT_AGENT_TIMEOUTS: dict[str, float] = {
-        "kai": 600.0,
-        "mox": 600.0,
-        "pax": 600.0,
+        "kai": 1800.0,
+        "mox": 1800.0,
+        "pax": 1800.0,
     }
 
     def __init__(
