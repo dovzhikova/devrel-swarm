@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+import sqlite3
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -11,6 +12,7 @@ from devrel_swarm.core.atlas import Atlas, DelegationResult, SharedContext
 from devrel_swarm.core.mox import Mox
 from devrel_swarm.core.pax import Pax
 from devrel_swarm.core.rex import Rex
+from devrel_swarm.project import state as project_state
 
 
 class TestSharedContext:
@@ -576,3 +578,80 @@ class TestSharedContextCroField:
         ctx.cro_report = {"period_end": "2026-05-07", "sources_ok": True}
         d = ctx.to_dict()
         assert d["cro_report"]["period_end"] == "2026-05-07"
+
+
+class TestInsertCroReportRow:
+    """Test the get-or-insert logic on the analytics_reports anchor row.
+
+    Stage 5c (Cyra) used to insert a fresh row even when Stage 5b (Argus) had
+    already written one for the same period_end, leaving two rows where one
+    should be. The fix lets _insert_cro_report_row reuse Argus's row id.
+    """
+
+    def test_returns_zero_when_db_path_missing(self, tmp_path):
+        assert Atlas._insert_cro_report_row(None, "2026-05-08") == 0
+        assert Atlas._insert_cro_report_row(tmp_path / "absent.db", "2026-05-08") == 0
+
+    def test_inserts_new_row_when_period_unseen(self, tmp_path):
+        db = tmp_path / "state.db"
+        project_state.init_db(db)
+        rid = Atlas._insert_cro_report_row(db, "2026-05-08")
+        assert rid > 0
+        with sqlite3.connect(db) as conn:
+            cnt = conn.execute(
+                "SELECT COUNT(*) FROM analytics_reports WHERE period_end = ?",
+                ("2026-05-08",),
+            ).fetchone()[0]
+        assert cnt == 1
+
+    def test_reuses_existing_row_for_same_period(self, tmp_path):
+        """Argus's row must not get a Cyra duplicate alongside it."""
+        db = tmp_path / "state.db"
+        project_state.init_db(db)
+        # Simulate Argus's Stage 5b having written its row first.
+        with sqlite3.connect(db) as conn:
+            cur = conn.execute(
+                "INSERT INTO analytics_reports (period_start, period_end, report_json) "
+                "VALUES (?, ?, ?)",
+                ("2026-05-08", "2026-05-08", '{"argus": "data"}'),
+            )
+            argus_rid = cur.lastrowid
+            conn.commit()
+
+        cyra_rid = Atlas._insert_cro_report_row(db, "2026-05-08")
+        assert cyra_rid == argus_rid
+
+        with sqlite3.connect(db) as conn:
+            cnt = conn.execute(
+                "SELECT COUNT(*) FROM analytics_reports WHERE period_end = ?",
+                ("2026-05-08",),
+            ).fetchone()[0]
+        assert cnt == 1  # Only one row, not two.
+
+    def test_separate_periods_get_separate_rows(self, tmp_path):
+        db = tmp_path / "state.db"
+        project_state.init_db(db)
+        rid_a = Atlas._insert_cro_report_row(db, "2026-05-08")
+        rid_b = Atlas._insert_cro_report_row(db, "2026-05-15")
+        assert rid_a != rid_b
+
+    def test_argus_report_json_preserved_when_cyra_reuses_row(self, tmp_path):
+        """Reusing Argus's row must NOT clobber its report_json blob."""
+        db = tmp_path / "state.db"
+        project_state.init_db(db)
+        with sqlite3.connect(db) as conn:
+            conn.execute(
+                "INSERT INTO analytics_reports (period_start, period_end, report_json) "
+                "VALUES (?, ?, ?)",
+                ("2026-05-08", "2026-05-08", '{"argus_findings": "important"}'),
+            )
+            conn.commit()
+
+        Atlas._insert_cro_report_row(db, "2026-05-08")
+
+        with sqlite3.connect(db) as conn:
+            blob = conn.execute(
+                "SELECT report_json FROM analytics_reports WHERE period_end = ?",
+                ("2026-05-08",),
+            ).fetchone()[0]
+        assert blob == '{"argus_findings": "important"}'

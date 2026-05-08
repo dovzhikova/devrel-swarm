@@ -987,17 +987,28 @@ class Atlas:
 
     @staticmethod
     def _insert_cro_report_row(db_path: Path | None, period_end: str) -> int:
-        """Insert an analytics_reports row and return its rowid for Cyra FK.
+        """Get-or-insert an analytics_reports row and return its rowid for Cyra FK.
 
-        Returns 0 when no real DB is available (dev/null or None), which means
-        Cyra's persist step will silently skip FK-linked inserts on missing DB.
+        Reuses an existing row for the same period_end when one is already there
+        (typically Argus's Stage 5b row from earlier in the same weekly cycle).
+        This keeps the per-period row count at one regardless of how many
+        pillars (Argus, Cyra, future Vega/Selene) ran. Returns 0 when no real
+        DB is available (dev/null or None), which means Cyra's persist step
+        will silently skip FK-linked inserts on missing DB.
         """
         if db_path is None or not db_path.is_file():
             return 0
         import sqlite3
 
-        period_start = period_end  # single-day placeholder; CLI uses a proper range
         with sqlite3.connect(db_path) as conn:
+            existing = conn.execute(
+                "SELECT id FROM analytics_reports WHERE period_end = ? "
+                "ORDER BY id DESC LIMIT 1",
+                (period_end,),
+            ).fetchone()
+            if existing:
+                return existing[0]
+            period_start = period_end  # single-day placeholder; CLI uses a proper range
             cur = conn.execute(
                 "INSERT INTO analytics_reports (period_start, period_end, report_json) "
                 "VALUES (?, ?, ?)",
