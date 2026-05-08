@@ -1,5 +1,80 @@
 # Changelog
 
+## 0.2.8: OpenRouter + remaining backlog (2026-05-08)
+
+Bundles the OpenRouter multi-provider backend with the rest of the v0.2.7
+follow-on backlog. The LLM API is back-compat additive: existing
+`LLMClient(api_key=...)` callers keep using Anthropic with no changes; new
+deployments can opt into OpenRouter with one env var or one toml line.
+
+### Added
+
+- **OpenRouter multi-provider backend**. New `core/llm_backends.py` with an
+  `LLMBackend` abstraction and two implementations (`AnthropicBackend`,
+  `OpenRouterBackend`). `OpenRouterBackend` posts to OpenRouter's
+  OpenAI-compatible `/chat/completions` over the existing httpx core dep, so
+  no new SDK dependencies. Switch backends via `[llm].provider = "openrouter"`
+  in `.devrel/config.toml` plus `OPENROUTER_API_KEY` env, or auto-detect:
+  if `OPENROUTER_API_KEY` is set and `ANTHROPIC_API_KEY` is not, the CLI
+  picks OpenRouter.
+- **Per-agent model overrides** via `[llm].agent_models` toml map, e.g.
+  `{ argus = "openai/gpt-4o-mini", kai = "anthropic/claude-opus-4-0-20250514" }`.
+  Resolution priority: budget downgrade > explicit `model=` arg > per-agent
+  override > instance default. Concurrent agents under `asyncio.gather` each
+  get their own model via the `agent_context()` ContextVar.
+- **`devrel docs build` auto-persists Dex outputs to disk**: writes
+  `dex-architecture.md`, `dex-api-reference.md`, `dex-summary.md`, and
+  `dex-modules.json` to `.devrel/deliverables/` on success. Empty / missing
+  fields are skipped; failed runs leave deliverables untouched. Closes the
+  workaround where users had to invoke with `--json` and split the truncated
+  blob manually.
+
+### Changed
+
+- **Cost model handles OpenRouter-style ids**. `MODEL_COSTS` keeps Anthropic
+  bare ids and adds `gpt-4o` / `gpt-4o-mini` / `gpt-4-turbo` rates for
+  OpenAI-via-OpenRouter; lookups strip the `provider/` prefix so the same
+  table serves both backends.
+- **Budget downgrade uses the backend's `cheap_model`** instead of
+  hardcoding Haiku, so OpenRouter routes downgrades to
+  `anthropic/claude-haiku-4-5-...` automatically.
+- **`devrel doctor` LLM key check is now one-of**. Previously
+  `ANTHROPIC_API_KEY` was the sole required env; now either
+  `ANTHROPIC_API_KEY` or `OPENROUTER_API_KEY` satisfies the check (renamed
+  from `ANTHROPIC_API_KEY` to `llm_api_key` in the doctor output).
+
+### Fixed
+
+- **Slop blocklist Haiku hallucinations**. The lint stage occasionally
+  flagged phrases that didn't appear in the draft (e.g. "replace this
+  blockquote" against a draft containing neither phrase), which then poisoned
+  the force-rewrite list and tripped the post-rewrite abort-loud check even
+  when the actual slop had been cleared. New `_verify_lint_hits` filters
+  Haiku's output to phrases that appear in the source (case-insensitive
+  substring match) and logs the hallucinated set at INFO so we can monitor
+  the rate. The lint prompt also instructs Haiku to return only verbatim
+  phrases.
+
+### Internal
+
+- **All 21 baseline-xfailed tests now pass** (suite is 971 passed / 0
+  xfailed). Each was test-vs-prod drift accumulated across the v0.2.0 to
+  v0.2.4 restructure: Sage area detection rewritten for the OpenClaw pivot
+  vocabulary, search_devrel_docs renamed to search_devrel_ai_agents_docs and
+  example.com URLs repointed at openclaw.ai, Kai code-validation tests now
+  patch the editorial pipeline at the right level, Instantly bulk-add tests
+  use the per-lead endpoint that replaced `/bulk-add`,
+  CritiqueResult.revision_needed default flip is now asserted, TokenUsage
+  to_dict assertions accept the new per_agent + total_cost_usd keys, Echo
+  topic detection updated for the new keyword set. The
+  `_BASELINE_XFAIL_NODEIDS` set is retired; the
+  `pytest_collection_modifyitems` hook is gone.
+- 25 new tests across `test_llm_backends.py`, `test_common_helpers.py`,
+  `test_doctor_command.py`, plus 7 in `test_cyra.py`, 5 in `test_atlas.py`,
+  4 in `test_llm_cost_sink.py`, 4 in `test_migrate_command.py`, 3 in
+  `test_niche_verbs.py` (Dex persistence), 3 in `test_slop.py`
+  (hallucination filter).
+
 ## 0.2.7: dogfood follow-on fixes (2026-05-08)
 
 Closes the gap surfaced by a 2026-05-08 user run on PyPI 0.2.6 against a
