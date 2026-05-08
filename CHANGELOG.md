@@ -1,5 +1,37 @@
 # Changelog
 
+## 0.2.6: Wave 4 timeout polish (2026-05-08)
+
+Addresses two production issues surfaced in 2026-05-08 dogfood runs against
+a real Anthropic key. Anyone running editorial-pipeline agents (Kai, Mox,
+Pax) on `0.2.5` likely saw both: every full-pipeline invocation wall-clocked
+out at 5 minutes, and Atlas re-spent the same expensive tokens on each retry.
+
+### Changed
+
+- **Per-agent execution timeouts**: `Atlas.AGENT_TIMEOUT` (300s) is now a
+  global default, and `Atlas.DEFAULT_AGENT_TIMEOUTS` overrides it to 600s for
+  Kai, Mox, and Pax. Their 8-stage editorial pipeline (draft, developmental,
+  line, copy, anti-slop, persona, readability, final) routinely exceeds 300s
+  with revision loops. Override per-agent via the new
+  `[orchestration].agent_timeouts` map in `config.toml`, e.g.
+  `agent_timeouts = { kai = 1200.0, sage = 60.0 }`.
+
+### Fixed
+
+- **Atlas no longer retries on `TimeoutError`**: every retry restarted the
+  agent from scratch, re-spending ~$0.30+ in editorial-pipeline tokens with
+  no chance of a different outcome. With `MAX_RETRIES = 2`, a single timeout
+  burned 3 attempts (~$0.90+) and 15+ minutes of wall time before surfacing
+  the failure. Now a `TimeoutError` returns immediately. Network and
+  transient errors continue to retry as before.
+
+### Internal
+
+- Suite now 886 passed / 21 xfailed (4 new tests in `tests/test_atlas.py`:
+  skip-retry-on-timeout, default 600s for editorial agents, default 300s for
+  others, config override resolution). Ruff + format clean.
+
 ## 0.2.5 — dogfood production fixes (2026-05-08)
 
 Four production-path bugs surfaced during a dogfood session running the
