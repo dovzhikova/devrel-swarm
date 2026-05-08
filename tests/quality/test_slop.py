@@ -69,7 +69,8 @@ def test_find_slop_empty_when_no_matches():
 async def test_llm_lint_calls_haiku_and_parses_phrases():
     client = MagicMock()
     client.generate = AsyncMock(return_value="phrase one\nphrase two\n")
-    out = await llm_lint("some draft text", "voice prose", client)
+    # Phrases must appear in the source text (post-fix verification step).
+    out = await llm_lint("draft uses phrase one and also phrase two", "voice prose", client)
     assert out == ["phrase one", "phrase two"]
     # Verify it called with model="haiku" for cost.
     call_kwargs = client.generate.await_args.kwargs
@@ -87,8 +88,51 @@ async def test_llm_lint_returns_empty_on_empty_response():
 async def test_llm_lint_filters_blank_lines_and_bullets():
     client = MagicMock()
     client.generate = AsyncMock(return_value="- phrase one\n  \n* phrase two\n#commented\n")
-    out = await llm_lint("draft", "voice", client)
+    out = await llm_lint("the draft has phrase one and phrase two in it", "voice", client)
     assert out == ["phrase one", "phrase two"]
+
+
+@pytest.mark.asyncio
+async def test_llm_lint_drops_hallucinated_phrases():
+    """Haiku regression seen in 2026-05-08 dogfood: returned 'replace this
+    blockquote' / 'replace with' against a draft that contained neither.
+    Hallucinated phrases must be filtered before they reach force_rewrite."""
+    client = MagicMock()
+    client.generate = AsyncMock(
+        return_value=(
+            "in essence\n"
+            "replace this blockquote\n"  # hallucination
+            "moving forward\n"
+            "replace with\n"  # hallucination
+        )
+    )
+    text = "In essence, this is fine. Moving forward, we ship."
+    out = await llm_lint(text, "voice", client)
+    assert "in essence" in out
+    assert "moving forward" in out
+    assert "replace this blockquote" not in out
+    assert "replace with" not in out
+
+
+@pytest.mark.asyncio
+async def test_llm_lint_case_insensitive_match():
+    """Phrases match case-insensitively against the source text."""
+    client = MagicMock()
+    client.generate = AsyncMock(return_value="In Essence\nMOVING FORWARD\n")
+    text = "in essence we ship; moving forward we iterate."
+    out = await llm_lint(text, "voice", client)
+    # Phrases are normalized to lowercase by _normalize_lint_lines.
+    assert "in essence" in out
+    assert "moving forward" in out
+
+
+@pytest.mark.asyncio
+async def test_llm_lint_returns_empty_when_all_hallucinated():
+    """If Haiku returns only hallucinations, output is empty (not the lint set)."""
+    client = MagicMock()
+    client.generate = AsyncMock(return_value="ghost phrase one\nghost phrase two\n")
+    out = await llm_lint("a clean draft with no flagged content", "voice", client)
+    assert out == []
 
 
 @pytest.mark.asyncio
