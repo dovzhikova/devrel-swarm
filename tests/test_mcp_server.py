@@ -175,13 +175,13 @@ class TestHandleRequest:
         server = MCPServer()
         # Replace the search_posthog_docs tool's handler with a mock
         mock_handler = AsyncMock(return_value=[{"title": "doc", "url": "https://x.com"}])
-        server._tools["search_devrel_docs"].handler = mock_handler
+        server._tools["search_devrel_ai_agents_docs"].handler = mock_handler
 
         response = await server._handle_request(
             {
                 "method": "tools/call",
                 "id": 5,
-                "params": {"name": "search_devrel_docs", "arguments": {"query": "feature flags"}},
+                "params": {"name": "search_devrel_ai_agents_docs", "arguments": {"query": "feature flags"}},
             }
         )
 
@@ -196,13 +196,13 @@ class TestHandleRequest:
     ):
         server = MCPServer()
         broken_handler = AsyncMock(side_effect=RuntimeError("something broke"))
-        server._tools["search_devrel_docs"].handler = broken_handler
+        server._tools["search_devrel_ai_agents_docs"].handler = broken_handler
 
         response = await server._handle_request(
             {
                 "method": "tools/call",
                 "id": 6,
-                "params": {"name": "search_devrel_docs", "arguments": {"query": "test"}},
+                "params": {"name": "search_devrel_ai_agents_docs", "arguments": {"query": "test"}},
             }
         )
 
@@ -327,11 +327,11 @@ class TestToolHandlerDelegation:
 
         server = MCPServer()
         fake_results = [FakeResult("Doc", "https://posthog.com/docs", "snippet", "posthog_docs")]
-        server._search.search_devrel_docs = AsyncMock(return_value=fake_results)
+        server._search.search_devrel_ai_agents_docs = AsyncMock(return_value=fake_results)
 
         result = await server._handle_search_docs(query="feature flags", limit=5)
 
-        server._search.search_devrel_docs.assert_awaited_once_with(query="feature flags", limit=5)
+        server._search.search_devrel_ai_agents_docs.assert_awaited_once_with(query="feature flags", limit=5)
         # Result is a list of dicts (asdict conversion)
         assert isinstance(result, list)
         assert result[0]["title"] == "Doc"

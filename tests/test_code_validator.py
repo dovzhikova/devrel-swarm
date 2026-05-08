@@ -377,29 +377,41 @@ const x = 1;
 
 
 class TestKaiCodeValidation:
-    """Test that Kai includes code_validation in results when LLM generates content."""
+    """Test that Kai includes code_validation in results when LLM generates content.
+
+    Kai now goes through quality.generate_with_pipeline (8-stage editorial)
+    rather than llm_client.generate directly, so the test patches that
+    pipeline-level entry point to return the desired draft + critique payload.
+    Returning real strings here lets the code_validator stage actually run on
+    the fenced Python / JavaScript blocks.
+    """
 
     @pytest.fixture
-    def wired_kai(self, posthog_client, knowledge_base_path, mock_llm_client):
+    def wired_kai(self, posthog_client, knowledge_base_path, mock_llm_client, monkeypatch):
         from unittest.mock import AsyncMock
 
-        mock_llm_client.generate = AsyncMock(
-            return_value=(
-                "# Feature Flags Tutorial\n\n"
-                "## Step 1: Install\n\n"
-                "```bash\npip install posthog\n```\n\n"
-                "## Step 2: Initialize\n\n"
-                "```python\n"
-                "import posthog\n"
-                "posthog.project_api_key = 'phc_xxx'\n"
-                "```\n\n"
-                "## Step 3: Check flag\n\n"
-                "```javascript\n"
-                "if (posthog.isFeatureEnabled('new-ui')) {\n"
-                "  showNewUI();\n"
-                "}\n"
-                "```\n"
-            )
+        good_content = (
+            "# Feature Flags Tutorial\n\n"
+            "## Step 1: Install\n\n"
+            "```bash\npip install posthog\n```\n\n"
+            "## Step 2: Initialize\n\n"
+            "```python\n"
+            "import posthog\n"
+            "posthog.project_api_key = 'phc_xxx'\n"
+            "```\n\n"
+            "## Step 3: Check flag\n\n"
+            "```javascript\n"
+            "if (posthog.isFeatureEnabled('new-ui')) {\n"
+            "  showNewUI();\n"
+            "}\n"
+            "```\n"
+        )
+        # Patch the quality pipeline at Kai's import site, not its source, so
+        # the test substitutes a deterministic 3-tuple without exercising the
+        # real 8-stage editorial chain (which needs many more LLM mocks).
+        monkeypatch.setattr(
+            "devrel_swarm.core.kai.generate_with_pipeline",
+            AsyncMock(return_value=(good_content, ["clear examples"], [])),
         )
         from devrel_swarm.core.kai import Kai
 
@@ -410,11 +422,13 @@ class TestKaiCodeValidation:
         )
 
     @pytest.fixture
-    def broken_kai(self, posthog_client, knowledge_base_path, mock_llm_client):
+    def broken_kai(self, posthog_client, knowledge_base_path, mock_llm_client, monkeypatch):
         from unittest.mock import AsyncMock
 
-        mock_llm_client.generate = AsyncMock(
-            return_value=("# Tutorial\n\n```python\ndef broken(\n  x = \n```\n")
+        broken_content = "# Tutorial\n\n```python\ndef broken(\n  x = \n```\n"
+        monkeypatch.setattr(
+            "devrel_swarm.core.kai.generate_with_pipeline",
+            AsyncMock(return_value=(broken_content, [], [])),
         )
         from devrel_swarm.core.kai import Kai
 

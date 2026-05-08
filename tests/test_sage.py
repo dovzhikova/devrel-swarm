@@ -55,27 +55,33 @@ class TestSageIssueCategorization:
 
 
 class TestSageProductAreaDetection:
-    """Test _detect_product_area() mapping."""
+    """Test _detect_product_area() mapping for OpenClaw product areas.
 
-    def test_detect_channels_area(self, sage):
-        area = sage._detect_product_area("WhatsApp integration", "Telegram channel not working")
-        assert area == "channels"
+    Realigned 2026-05-08 from the legacy VAPI areas (voice/channels/skills/
+    gateway) to the post-pivot OpenClaw areas (orchestration/agent_sdk/
+    mcp_tools/knowledge_base/scoring_eval/prompt_optimization/onboarding_docs/
+    security). Default fallback is 'orchestration', not 'agents'.
+    """
 
-    def test_detect_gateway_area(self, sage):
-        area = sage._detect_product_area("Local gateway", "Proxy routing broken")
-        assert area == "gateway"
+    def test_detect_orchestration_area(self, sage):
+        area = sage._detect_product_area("Atlas weekly cycle", "Pipeline delegation broken")
+        assert area == "orchestration"
 
-    def test_detect_skills_area(self, sage):
-        area = sage._detect_product_area("Custom skill issue", "Plugin extension broken")
-        assert area == "skills"
+    def test_detect_agent_sdk_area(self, sage):
+        area = sage._detect_product_area("Claude SDK init", "Agent framework execute fails")
+        assert area == "agent_sdk"
 
-    def test_detect_voice_area(self, sage):
-        area = sage._detect_product_area("Voice input", "Speech recognition not working")
-        assert area == "voice"
+    def test_detect_mcp_tools_area(self, sage):
+        area = sage._detect_product_area("MCP server", "JSON-RPC tool definition issue")
+        assert area == "mcp_tools"
+
+    def test_detect_security_area(self, sage):
+        area = sage._detect_product_area("Auth token", "Permission vulnerability")
+        assert area == "security"
 
     def test_default_area(self, sage):
         area = sage._detect_product_area("Random issue", "Something unrelated")
-        assert area == "agents"  # default fallback
+        assert area == "orchestration"  # default fallback
 
 
 class TestSagePriorityScoring:

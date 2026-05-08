@@ -401,30 +401,33 @@ class TestExtractTopics:
     """Test _extract_topics()."""
 
     def test_extracts_matching_topics(self, echo):
+        # _extract_topics keywords were realigned with the OpenClaw pivot from
+        # the legacy VAPI vocabulary (voice/whatsapp). Use current keywords:
+        # devrel, multi-agent, sdk, etc.
         mentions = [
             SocialMention(
                 platform="reddit",
-                title="OpenClaw voice assistant review",
+                title="DevRel automation with multi-agent system",
                 url="u",
                 author="a",
-                content="Voice and privacy features are great",
+                content="DevRel teams are adopting multi-agent SDK workflows",
                 sentiment="positive",
                 engagement=10,
                 posted_at="d",
             ),
             SocialMention(
                 platform="reddit",
-                title="OpenClaw voice setup on WhatsApp",
+                title="DevRel and developer advocacy in 2026",
                 url="u2",
                 author="b",
-                content="How to set up voice on WhatsApp with OpenClaw",
+                content="The SDK story for DevRel teams keeps improving",
                 sentiment="neutral",
                 engagement=5,
                 posted_at="d",
             ),
         ]
         topics = echo._extract_topics(mentions)
-        assert "voice" in topics
+        assert "devrel" in topics
         assert len(topics) <= 5
 
 

@@ -33,23 +33,27 @@ class TestTokenUsage:
         assert usage.total_calls == 3
 
     def test_to_dict(self):
+        # to_dict() now emits per_agent + total_cost_usd alongside the
+        # original token / call counts. Cost lookup uses MODEL_COSTS so an
+        # unrecorded model defaults to 0.0; assert the keys + token totals
+        # rather than the exact cost (which is brittle to pricing updates).
         usage = TokenUsage()
         usage.record(input_tokens=100, output_tokens=50)
         d = usage.to_dict()
-        assert d == {
-            "total_input_tokens": 100,
-            "total_output_tokens": 50,
-            "total_calls": 1,
-        }
+        assert d["total_input_tokens"] == 100
+        assert d["total_output_tokens"] == 50
+        assert d["total_calls"] == 1
+        assert "per_agent" in d
+        assert "total_cost_usd" in d
 
     def test_to_dict_empty(self):
         usage = TokenUsage()
         d = usage.to_dict()
-        assert d == {
-            "total_input_tokens": 0,
-            "total_output_tokens": 0,
-            "total_calls": 0,
-        }
+        assert d["total_input_tokens"] == 0
+        assert d["total_output_tokens"] == 0
+        assert d["total_calls"] == 0
+        assert d["per_agent"] == {}
+        assert d["total_cost_usd"] == 0.0
 
 
 class TestLLMClientUsageTracking:

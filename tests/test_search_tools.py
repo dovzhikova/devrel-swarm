@@ -75,20 +75,20 @@ class TestSearchDevrelDocs:
             ]
         }
         with respx.mock:
-            respx.get("https://example.com/api/search").mock(
+            respx.get("https://openclaw.ai/api/search").mock(
                 return_value=httpx.Response(200, json=payload)
             )
             search = SearchTools(firecrawl_api_key="test-key")
             try:
-                results = await search.search_devrel_docs("feature flags")
+                results = await search.search_devrel_ai_agents_docs("feature flags")
             finally:
                 await search.close()
 
         assert len(results) == 2
         assert results[0].title == "Feature Flags Guide"
-        assert results[0].url == "https://example.com/docs/feature-flags"
+        assert results[0].url == "https://openclaw.ai/docs/feature-flags"
         assert results[0].snippet == "Learn about feature flags"
-        assert results[0].source == "devrel_docs"
+        assert results[0].source == "product_docs"
         assert results[0].relevance_score == 0.9
 
     async def test_docs_search_fallback_to_web(self):
@@ -98,19 +98,19 @@ class TestSearchDevrelDocs:
             "data": [
                 {
                     "title": "Feature flags on example.com",
-                    "url": "https://example.com/docs/ff",
+                    "url": "https://openclaw.ai/docs/ff",
                     "description": "OpenClaw feature flags",
                 },
             ],
         }
         with respx.mock:
-            respx.get("https://example.com/api/search").mock(return_value=httpx.Response(500))
+            respx.get("https://openclaw.ai/api/search").mock(return_value=httpx.Response(500))
             firecrawl_route = respx.post("https://api.firecrawl.dev/v1/search").mock(
                 return_value=httpx.Response(200, json=web_payload)
             )
             search = SearchTools(firecrawl_api_key="test-key")
             try:
-                results = await search.search_devrel_docs("feature flags")
+                results = await search.search_devrel_ai_agents_docs("feature flags")
             finally:
                 await search.close()
 
@@ -133,12 +133,12 @@ class TestSearchDevrelDocs:
             ]
         }
         with respx.mock:
-            respx.get("https://example.com/api/search").mock(
+            respx.get("https://openclaw.ai/api/search").mock(
                 return_value=httpx.Response(200, json=payload)
             )
             search = SearchTools(firecrawl_api_key="test-key")
             try:
-                results = await search.search_devrel_docs("analytics", limit=3)
+                results = await search.search_devrel_ai_agents_docs("analytics", limit=3)
             finally:
                 await search.close()
 
@@ -151,8 +151,13 @@ class TestSearchDevrelDocs:
 
 
 class TestSearchDiscourse:
-    async def test_discourse_success(self):
-        """Mock discourse endpoint with topics array — verify parsed."""
+    async def test_discourse_success(self, monkeypatch):
+        """Mock discourse endpoint with topics array, verify parsed.
+
+        search_discourse early-returns [] when COMMUNITY_URL is unset, so the
+        env var has to be set inside the test to exercise the parsing path.
+        """
+        monkeypatch.setenv("COMMUNITY_URL", "https://community.example.com")
         payload = {
             "topics": [
                 {
@@ -587,10 +592,10 @@ class TestFetchOfficialDocs:
             respx.get("https://gitmcp.io/openclaw/openclaw").mock(
                 side_effect=httpx.ConnectError("Connection refused")
             )
-            respx.get("https://example.com/api/search").mock(
+            respx.get("https://openclaw.ai/api/search").mock(
                 return_value=httpx.Response(200, json=docs_payload)
             )
-            respx.get("https://example.com/docs/feature-flags").mock(
+            respx.get("https://openclaw.ai/docs/feature-flags").mock(
                 return_value=httpx.Response(200, text=section_html)
             )
             search = SearchTools()
@@ -608,7 +613,7 @@ class TestFetchOfficialDocs:
             respx.get("https://gitmcp.io/openclaw/openclaw").mock(
                 side_effect=httpx.ConnectError("Connection refused")
             )
-            respx.get("https://example.com/api/search").mock(return_value=httpx.Response(500))
+            respx.get("https://openclaw.ai/api/search").mock(return_value=httpx.Response(500))
             # Fallback web search also returns nothing
             search = SearchTools()
             try:

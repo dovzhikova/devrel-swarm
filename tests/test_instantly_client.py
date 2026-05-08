@@ -35,7 +35,8 @@ class TestInstantlyDTOs:
         d = lead.to_api_dict()
         assert d["email"] == "test@example.com"
         assert d["first_name"] == "Ada"
-        assert d["variables"] == {"role": "Engineer"}
+        # Field renamed `variables` -> `custom_variables` to match Instantly v2 API.
+        assert d["custom_variables"] == {"role": "Engineer"}
 
     def test_campaign_creation(self):
         c = InstantlyCampaign(
@@ -266,12 +267,18 @@ class TestLeadMethods:
     @pytest.mark.asyncio
     @respx.mock
     async def test_add_leads_bulk(self, instantly_client):
-        respx.post("https://api.instantly.ai/api/v2/leads/bulk-add").mock(
-            return_value=httpx.Response(200, json={"added": 3, "skipped": 0})
+        # add_leads_bulk now POSTs each lead to /api/v2/leads individually with
+        # semaphore-bounded concurrency (the bulk-add endpoint was retired in
+        # the v2 API rework). Each successful POST returns a lead id; the bulk
+        # method aggregates and returns {"added", "errors", "total"}.
+        respx.post("https://api.instantly.ai/api/v2/leads").mock(
+            return_value=httpx.Response(200, json={"id": "lead_x"})
         )
         leads = [InstantlyLead(email=f"user{i}@co.com", first_name=f"User{i}") for i in range(3)]
         result = await instantly_client.add_leads_bulk("camp_1", leads)
         assert result["added"] == 3
+        assert result["total"] == 3
+        assert result["errors"] == []
 
     @pytest.mark.asyncio
     @respx.mock

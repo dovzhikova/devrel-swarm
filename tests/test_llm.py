@@ -92,9 +92,12 @@ class TestCritiqueResult:
         assert result.revision_needed is True  # score < 7
 
     def test_from_invalid_json_returns_default(self):
+        # Default flipped from False to True: when the critique JSON is
+        # unparseable, the safe choice is to err toward another revision pass
+        # rather than ship something the editor never actually evaluated.
         result = CritiqueResult.from_json("not json at all")
         assert result.overall_score == 5
-        assert result.revision_needed is False
+        assert result.revision_needed is True
 
 
 class TestGenerateWithRevision:
