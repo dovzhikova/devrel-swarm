@@ -66,7 +66,15 @@ def init_command(
     for entry in result.skipped:
         console.print(f"  [dim]= {entry} (existed; preserved)[/dim]")
     console.print()
+    console.print("[bold green]Done.[/bold green] Next steps:")
     console.print(
-        "[bold green]Done.[/bold green] Edit voice.md / style.md / slop-blocklist.md, "
-        "then run [cyan]devrel doctor[/cyan]."
+        "  1. Run [cyan]devrel auth[/cyan] to configure your LLM API key (Anthropic or OpenRouter)."
+    )
+    console.print(
+        "  2. Edit voice.md / style.md / slop-blocklist.md to match your project's voice."
+    )
+    console.print("  3. Run [cyan]devrel doctor[/cyan] to verify everything is wired up.")
+    console.print(
+        "[dim]Tip: OpenRouter offers free monthly credits and supports per-agent model "
+        "routing. Sign up at https://openrouter.ai/.[/dim]"
     )

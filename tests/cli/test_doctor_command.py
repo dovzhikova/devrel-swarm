@@ -82,7 +82,9 @@ def test_doctor_fails_without_required_env(tmp_path):
         result = _run_in(tmp_path, "doctor")
         assert result.exit_code != 0
         assert "llm_api_key" in result.output
-        assert "neither" in result.output
+        # Detail line points the user at the fix verb instead of just stating
+        # the failure.
+        assert "devrel auth" in result.output
     finally:
         if saved_a is not None:
             os.environ["ANTHROPIC_API_KEY"] = saved_a

@@ -75,6 +75,25 @@ def test_init_dry_run_writes_nothing(tmp_path):
     assert not (tmp_path / ".devrel").exists()
 
 
+def test_init_success_points_at_devrel_auth(tmp_path):
+    """First step a new user sees should be `devrel auth`, not just `devrel doctor`,
+    so they don't bounce off the missing-key error before configuring."""
+    result = _run_in(
+        tmp_path,
+        "init",
+        "--non-interactive",
+        "--name",
+        "openclaw",
+        "--url",
+        "",
+        "--github-repo",
+        "",
+    )
+    assert result.exit_code == 0, result.output
+    assert "devrel auth" in result.output
+    assert "openrouter.ai" in result.output
+
+
 def test_version_flag():
     result = runner.invoke(app, ["--version"])
     assert result.exit_code == 0

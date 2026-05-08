@@ -74,7 +74,7 @@ def _run_checks(paths: ProjectPaths) -> list[CheckResult]:
     # State DB.
     sv = get_schema_version(paths.state_db)
     if sv is None:
-        results.append(CheckResult("state_db", "fail", "missing or unreadable"))
+        results.append(CheckResult("state_db", "fail", "missing or unreadable; run `devrel init`"))
     elif sv == SCHEMA_VERSION:
         results.append(CheckResult("state_db", "pass", f"schema v{sv}"))
     else:
@@ -82,11 +82,16 @@ def _run_checks(paths: ProjectPaths) -> list[CheckResult]:
             CheckResult(
                 "state_db",
                 "warn",
-                f"schema v{sv}, current is v{SCHEMA_VERSION} — migration needed",
+                f"schema v{sv}, current is v{SCHEMA_VERSION}; run `devrel migrate`",
             )
         )
 
     # LLM key: at least one of Anthropic direct or OpenRouter must be set.
+    # Pull keys out of .devrel/.env (or root .env) first so a user who set
+    # them via `devrel auth` and hasn't restarted their shell still passes.
+    from devrel_swarm.cli._common import _load_project_env
+
+    _load_project_env(paths)
     set_keys = [n for n in LLM_KEY_OPTIONS if os.environ.get(n)]
     if set_keys:
         results.append(CheckResult("llm_api_key", "pass", f"set: {', '.join(set_keys)}"))
@@ -95,7 +100,7 @@ def _run_checks(paths: ProjectPaths) -> list[CheckResult]:
             CheckResult(
                 "llm_api_key",
                 "fail",
-                "neither ANTHROPIC_API_KEY nor OPENROUTER_API_KEY is set",
+                "no LLM key set; run `devrel auth` (Anthropic or OpenRouter)",
             )
         )
 
