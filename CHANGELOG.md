@@ -1,5 +1,53 @@
 # Changelog
 
+## 0.2.9: BYO-key onboarding polish (2026-05-08)
+
+Reduces the friction between `pipx install devrel-swarm` and a working
+`devrel run`. None of the policy-disallowed Claude-Code-session-auth paths
+(see Anthropic's Agent SDK terms); the goal is just to make BYO-key as
+short a setup as possible.
+
+### Added
+
+- **`devrel auth`**: interactive verb that picks Anthropic or OpenRouter,
+  takes the key, validates it with a one-token ping, and writes
+  `.devrel/.env` with `chmod 600` (via `dotenv.set_key`, so other entries
+  are preserved). Flags: `--provider {anthropic,openrouter}`,
+  `--key VALUE`, `--rotate` (opt-in overwrite of an existing key),
+  `--no-validate` (skip the ping for offline / metered keys),
+  `--non-interactive` (fail-fast for CI). Output masks the key as
+  `<first4>...<last4>`. Registered between `init` and `doctor` so the
+  discoverability order is `init -> auth -> doctor -> run`.
+- **Auto-load `.devrel/.env`**: every CLI verb that builds Atlas now calls
+  `python-dotenv` on `.devrel/.env` (preferred) and project-root `.env`
+  (fallback) before reading env vars, so users no longer need to `export`
+  anything in their shell. `override=False`: shell-exported keys still win
+  for one-shot debugging. `python-dotenv` was already a core dep; no
+  install footprint change.
+
+### Changed
+
+- **Missing-key error message points at the fix.** Instead of
+  `"ANTHROPIC_API_KEY is required (or set OPENROUTER_API_KEY...)"`, the
+  exit prints a 4-line block with `devrel auth`, the manual env-var
+  alternative, and the OpenRouter free-credits link.
+- **`devrel init` success message** is now a numbered list with
+  `devrel auth` as step 1, then voice/style/slop edits, then
+  `devrel doctor`. Calls out OpenRouter free credits as the easier
+  onboarding.
+- **`devrel doctor` failure details name the fix verb.** `state_db`
+  missing -> "run `devrel init`"; `state_db` schema mismatch -> "run
+  `devrel migrate`"; `llm_api_key` missing -> "run `devrel auth`". Doctor
+  also auto-loads `.devrel/.env` before checking env vars so a user who
+  ran `devrel auth` in another shell session still passes.
+
+### Internal
+
+- 13 new tests across `test_auth_command.py` (9), `test_common_helpers.py`
+  (3 in TestEnvAutoLoad), `test_init_command.py` (1
+  test_init_success_points_at_devrel_auth), plus 1 doctor assertion
+  swap. Suite at 984 passed; ruff + format clean.
+
 ## 0.2.8: OpenRouter + remaining backlog (2026-05-08)
 
 Bundles the OpenRouter multi-provider backend with the rest of the v0.2.7
