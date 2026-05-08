@@ -35,7 +35,7 @@ async def generate_with_pipeline(
     )
     from devrel_swarm.quality.editorial import AbortLoud, run_pipeline
 
-    draft, _ = await llm_client.generate(
+    draft = await llm_client.generate(
         system_prompt=system_prompt,
         user_prompt=user_prompt,
     )

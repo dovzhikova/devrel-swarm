@@ -15,7 +15,7 @@ async def test_falls_back_when_no_devrel_project(tmp_path, monkeypatch):
     """When find_devrel_root raises, the helper uses generate_with_revision."""
     monkeypatch.chdir(tmp_path)  # tmp_path has no .devrel/
     client = MagicMock()
-    client.generate = AsyncMock(return_value=("initial draft", None))
+    client.generate = AsyncMock(return_value="initial draft")
     legacy_trace = MagicMock(critiques=[MagicMock(strengths=["s1"], issues=["i1"])])
     client.generate_with_revision = AsyncMock(return_value=("legacy text", legacy_trace))
 
@@ -40,7 +40,7 @@ async def test_uses_pipeline_when_devrel_project_present(tmp_path, monkeypatch):
     (devrel / "config.toml").write_text('[project]\nname = "x"\n')
     monkeypatch.chdir(tmp_path)
     client = MagicMock()
-    client.generate = AsyncMock(return_value=("initial draft", None))
+    client.generate = AsyncMock(return_value="initial draft")
     fake_result = MagicMock(
         final_text="pipeline output",
         stages=[MagicMock(detail="stage detail", issues=["pipeline issue"])],
@@ -68,7 +68,7 @@ async def test_falls_back_on_abort_loud(tmp_path, monkeypatch):
     (devrel / "config.toml").write_text('[project]\nname = "x"\n')
     monkeypatch.chdir(tmp_path)
     client = MagicMock()
-    client.generate = AsyncMock(return_value=("initial draft", None))
+    client.generate = AsyncMock(return_value="initial draft")
     legacy_trace = MagicMock(critiques=[MagicMock(strengths=[], issues=[])])
     client.generate_with_revision = AsyncMock(return_value=("legacy fallback", legacy_trace))
     from devrel_swarm.quality.editorial import AbortLoud

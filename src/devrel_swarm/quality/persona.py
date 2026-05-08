@@ -70,7 +70,7 @@ async def test_against_persona(
         + "\n\nContent to evaluate:\n\n"
         + text
     )
-    raw, _trace = await llm_client.generate(
+    raw = await llm_client.generate(
         system_prompt=_SYSTEM_PROMPT,
         user_prompt=user,
         model="haiku",

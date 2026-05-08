@@ -68,7 +68,7 @@ def test_find_slop_empty_when_no_matches():
 @pytest.mark.asyncio
 async def test_llm_lint_calls_haiku_and_parses_phrases():
     client = MagicMock()
-    client.generate = AsyncMock(return_value=("phrase one\nphrase two\n", None))
+    client.generate = AsyncMock(return_value="phrase one\nphrase two\n")
     out = await llm_lint("some draft text", "voice prose", client)
     assert out == ["phrase one", "phrase two"]
     # Verify it called with model="haiku" for cost.
@@ -79,14 +79,14 @@ async def test_llm_lint_calls_haiku_and_parses_phrases():
 @pytest.mark.asyncio
 async def test_llm_lint_returns_empty_on_empty_response():
     client = MagicMock()
-    client.generate = AsyncMock(return_value=("", None))
+    client.generate = AsyncMock(return_value="")
     assert await llm_lint("draft", "voice", client) == []
 
 
 @pytest.mark.asyncio
 async def test_llm_lint_filters_blank_lines_and_bullets():
     client = MagicMock()
-    client.generate = AsyncMock(return_value=("- phrase one\n  \n* phrase two\n#commented\n", None))
+    client.generate = AsyncMock(return_value="- phrase one\n  \n* phrase two\n#commented\n")
     out = await llm_lint("draft", "voice", client)
     assert out == ["phrase one", "phrase two"]
 
@@ -94,7 +94,7 @@ async def test_llm_lint_filters_blank_lines_and_bullets():
 @pytest.mark.asyncio
 async def test_force_rewrite_passes_hits_to_llm_and_returns_text():
     client = MagicMock()
-    client.generate = AsyncMock(return_value=("the rewritten text", None))
+    client.generate = AsyncMock(return_value="the rewritten text")
     hits = [SlopHit(phrase="delve", start=0, end=5)]
     out = await force_rewrite("delve into x", hits, ["extra-slop"], "voice", client)
     assert out == "the rewritten text"

@@ -139,7 +139,7 @@ class TestKaiContentTypeRouting:
     async def test_write_changelog_uses_landing_page_content_type(
         self, posthog_client, knowledge_base_path, mock_llm_client
     ):
-        mock_llm_client.generate = AsyncMock(return_value=("# Changelog body", None))
+        mock_llm_client.generate = AsyncMock(return_value="# Changelog body")
         kai = Kai(
             api_client=posthog_client,
             knowledge_base_path=knowledge_base_path,

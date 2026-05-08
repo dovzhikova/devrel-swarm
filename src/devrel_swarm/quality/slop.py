@@ -76,7 +76,7 @@ async def llm_lint(text: str, voice: str, llm_client) -> list[str]:
         "Content to screen:\n\n" + text + "\n\n"
         "List the phrases that read as AI-written, one per line. Empty if clean."
     )
-    raw, _trace = await llm_client.generate(
+    raw = await llm_client.generate(
         system_prompt=_LINT_SYSTEM,
         user_prompt=user,
         model="haiku",
@@ -111,7 +111,7 @@ async def force_rewrite(
         "and avoid close synonyms):\n\n" + flagged_listing + "\n\n"
         "Original content:\n\n" + text
     )
-    rewritten, _trace = await llm_client.generate(
+    rewritten = await llm_client.generate(
         system_prompt=_REWRITE_SYSTEM,
         user_prompt=user,
         model="sonnet",

@@ -46,7 +46,7 @@ def test_draft_writes_deliverable_and_trace(mock_pipeline, mock_client, tmp_path
     import devrel_swarm.cli.content as content_mod
 
     content_mod.run_pipeline = AsyncMock(return_value=mock_pipeline.return_value)
-    mock_client.return_value = MagicMock(generate=AsyncMock(return_value=("initial draft", None)))
+    mock_client.return_value = MagicMock(generate=AsyncMock(return_value="initial draft"))
 
     cwd = os.getcwd()
     os.chdir(tmp_path)
@@ -108,7 +108,7 @@ def test_audit_runs_pipeline_against_existing_file(tmp_path):
         ):
             with patch(
                 "devrel_swarm.cli.content._build_llm_client",
-                return_value=MagicMock(generate=AsyncMock(return_value=("x", None))),
+                return_value=MagicMock(generate=AsyncMock(return_value="x")),
             ):
                 result = runner.invoke(
                     app,
@@ -154,7 +154,7 @@ def test_draft_aborts_loud_exits_nonzero(mock_client, tmp_path):
     from devrel_swarm.quality.editorial import AbortLoud
 
     _init_project(tmp_path)
-    mock_client.return_value = MagicMock(generate=AsyncMock(return_value=("draft", None)))
+    mock_client.return_value = MagicMock(generate=AsyncMock(return_value="draft"))
 
     async def _raise(**kwargs):
         raise AbortLoud("slop persists")
@@ -176,7 +176,7 @@ def test_draft_aborts_loud_exits_nonzero(mock_client, tmp_path):
 @patch("devrel_swarm.cli.content._build_llm_client")
 def test_draft_flagged_prints_warning(mock_client, tmp_path):
     _init_project(tmp_path)
-    mock_client.return_value = MagicMock(generate=AsyncMock(return_value=("draft", None)))
+    mock_client.return_value = MagicMock(generate=AsyncMock(return_value="draft"))
     flagged_result = MagicMock(
         final_text="Final.",
         flagged=True,
@@ -207,7 +207,7 @@ def test_audit_aborts_loud_exits_nonzero(mock_client, tmp_path):
     from devrel_swarm.quality.editorial import AbortLoud
 
     _init_project(tmp_path)
-    mock_client.return_value = MagicMock(generate=AsyncMock(return_value=("x", None)))
+    mock_client.return_value = MagicMock(generate=AsyncMock(return_value="x"))
     draft = tmp_path / "draft.md"
     draft.write_text("seed")
 
@@ -231,7 +231,7 @@ def test_audit_aborts_loud_exits_nonzero(mock_client, tmp_path):
 @patch("devrel_swarm.cli.content._build_llm_client")
 def test_audit_flagged_prints_warning(mock_client, tmp_path):
     _init_project(tmp_path)
-    mock_client.return_value = MagicMock(generate=AsyncMock(return_value=("x", None)))
+    mock_client.return_value = MagicMock(generate=AsyncMock(return_value="x"))
     draft = tmp_path / "draft.md"
     draft.write_text("seed")
     flagged_result = MagicMock(

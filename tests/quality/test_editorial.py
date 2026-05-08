@@ -40,12 +40,12 @@ def _mock_client_for_clean_run():
     # Force-rewrite: not called on a clean run.
     async def _generate(*, system_prompt, user_prompt, model, **kwargs):
         if "screening AI-written content" in system_prompt:  # llm_lint
-            return ("", None)
+            return ""
         if "skeptical senior backend developer" in system_prompt:  # persona
-            return ('{"score": 8, "weak_sections": [], "feedback": "solid"}', None)
+            return '{"score": 8, "weak_sections": [], "feedback": "solid"}'
         if "rewrite editor" in system_prompt:  # force_rewrite (shouldn't fire)
-            return ("rewritten", None)
-        return ("", None)
+            return "rewritten"
+        return ""
 
     client.generate = AsyncMock(side_effect=_generate)
     client.set_agent = MagicMock()
@@ -109,12 +109,12 @@ async def test_slop_hit_triggers_force_rewrite(tmp_path):
 
     async def _generate(*, system_prompt, user_prompt, model, **kwargs):
         if "screening AI-written content" in system_prompt:
-            return ("", None)
+            return ""
         if "skeptical senior backend developer" in system_prompt:
-            return ('{"score": 8, "weak_sections": [], "feedback": "ok"}', None)
+            return '{"score": 8, "weak_sections": [], "feedback": "ok"}'
         if "rewrite editor" in system_prompt:
-            return (rewrite_text, None)
-        return ("", None)
+            return rewrite_text
+        return ""
 
     client.generate = AsyncMock(side_effect=_generate)
 
@@ -142,12 +142,12 @@ async def test_slop_persists_after_rewrite_aborts_loud(tmp_path):
 
     async def _generate(*, system_prompt, user_prompt, model, **kwargs):
         if "screening AI-written content" in system_prompt:
-            return ("", None)
+            return ""
         if "skeptical senior backend developer" in system_prompt:
-            return ('{"score": 8, "weak_sections": [], "feedback": "ok"}', None)
+            return '{"score": 8, "weak_sections": [], "feedback": "ok"}'
         if "rewrite editor" in system_prompt:
-            return ("delve still here.", None)  # rewrite still has slop
-        return ("", None)
+            return "delve still here."  # rewrite still has slop
+        return ""
 
     client.generate = AsyncMock(side_effect=_generate)
 
@@ -185,10 +185,10 @@ async def test_low_persona_score_returns_to_copy_edit_once(tmp_path):
 
     async def _generate(*, system_prompt, user_prompt, model, **kwargs):
         if "screening AI-written content" in system_prompt:
-            return ("", None)
+            return ""
         if "skeptical senior backend developer" in system_prompt:
-            return (next(persona_calls), None)
-        return ("", None)
+            return next(persona_calls)
+        return ""
 
     client.generate = AsyncMock(side_effect=_generate)
 
@@ -218,10 +218,10 @@ async def test_persona_fails_twice_logs_and_ships_flagged(tmp_path):
 
     async def _generate(*, system_prompt, user_prompt, model, **kwargs):
         if "screening AI-written content" in system_prompt:
-            return ("", None)
+            return ""
         if "skeptical senior backend developer" in system_prompt:
-            return ('{"score": 4, "weak_sections": ["x"], "feedback": "still weak"}', None)
-        return ("", None)
+            return '{"score": 4, "weak_sections": ["x"], "feedback": "still weak"}'
+        return ""
 
     client.generate = AsyncMock(side_effect=_generate)
 
