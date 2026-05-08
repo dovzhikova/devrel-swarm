@@ -11,6 +11,7 @@ from rich.console import Console
 from devrel_swarm.core.atlas import Atlas, DelegationResult
 from devrel_swarm.core.llm import LLMClient
 from devrel_swarm.project.paths import ProjectNotFoundError, ProjectPaths, find_devrel_root
+from devrel_swarm.tools.api_client import PostHogClient
 
 
 def find_paths_or_exit(console: Console) -> ProjectPaths:
@@ -27,11 +28,16 @@ def build_atlas_or_exit(paths: ProjectPaths, console: Console) -> Atlas:
         console.print("[red]ANTHROPIC_API_KEY is required.[/red]")
         raise typer.Exit(code=1)
     llm = LLMClient(api_key=api_key)
-    try:
-        return Atlas(llm_client=llm, project_paths=paths)
-    except TypeError:
-        # Atlas may not yet accept project_paths kwarg.
-        return Atlas(llm_client=llm)
+    posthog = PostHogClient(
+        api_key=os.environ.get("POSTHOG_API_KEY", ""),
+        project_id=os.environ.get("POSTHOG_PROJECT_ID", ""),
+    )
+    return Atlas(
+        api_client=posthog,
+        knowledge_base_path=paths.kb_dir,
+        llm_client=llm,
+        project_paths=paths,
+    )
 
 
 def render_result(result: DelegationResult, console: Console, *, json_output: bool = False) -> None:
