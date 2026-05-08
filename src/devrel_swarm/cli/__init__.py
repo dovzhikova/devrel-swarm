@@ -11,6 +11,7 @@ import typer
 from devrel_swarm import __version__
 from devrel_swarm.cli.analytics import analytics_app
 from devrel_swarm.cli.argus import argus_app
+from devrel_swarm.cli.auth import auth_command
 from devrel_swarm.cli.config import config_app
 from devrel_swarm.cli.content import content_app
 from devrel_swarm.cli.cost import cost_command
@@ -62,6 +63,7 @@ def main(
 
 
 app.command(name="init")(init_command)
+app.command(name="auth")(auth_command)
 app.command(name="doctor")(doctor_command)
 app.command(name="migrate")(migrate_command)
 app.add_typer(content_app, name="content")
