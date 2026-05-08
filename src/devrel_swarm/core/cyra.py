@@ -323,8 +323,62 @@ class Cyra:
             return "double_down"
         return "investigate"
 
+    def _db_writable(self) -> bool:
+        """True iff self.db_path points at a real SQLite file we can write to.
+
+        The Atlas Stage 5c fallback constructs Cyra with `Path("/dev/null")` when
+        no project_paths is available; recommendations and funnel metrics then
+        have nowhere to land. Detect that up-front so persist methods no-op
+        cleanly instead of FK-violating or corrupting /dev/null.
+        """
+        return self.db_path is not None and self.db_path.is_file()
+
+    def _persist_funnel_metrics(self, report: CroReport) -> None:
+        """Write one cro_funnel_metrics row per FunnelStep.
+
+        Without this, `devrel cro history` and `devrel cro diff` (which both
+        query cro_funnel_metrics) return empty rows even after Cyra has run.
+        INSERT OR REPLACE is intentional: re-running on the same period
+        replaces stale conversion-rate snapshots with the freshest read.
+        """
+        if not self._db_writable() or not report.funnel:
+            return
+        import sqlite3
+
+        with sqlite3.connect(self.db_path) as conn:
+            conn.executemany(
+                "INSERT OR REPLACE INTO cro_funnel_metrics "
+                "(funnel_id, step_index, period_end, conversion_rate, sample_size, "
+                "segment_breakdown_json) VALUES (?, ?, ?, ?, ?, ?)",
+                [
+                    (
+                        report.funnel_id,
+                        step.index,
+                        report.period_end,
+                        step.conversion_rate,
+                        step.count,
+                        "{}",
+                    )
+                    for step in report.funnel
+                ],
+            )
+            conn.commit()
+
     def _persist(self, report: CroReport, *, report_id: int) -> None:
-        """Convert dropoffs + hypotheses into Recommendation rows and append to report."""
+        """Convert dropoffs + hypotheses into Recommendation rows and append to report.
+
+        No-ops when the analytics_reports anchor row is missing (report_id <= 0)
+        or the project state DB isn't writable: persist_recommendation would
+        otherwise FK-violate under PRAGMA foreign_keys=ON. Funnel metrics are
+        independent and persist via _persist_funnel_metrics regardless.
+        """
+        if report_id <= 0 or not self._db_writable():
+            logger.warning(
+                "Cyra: skipping recommendation persistence (report_id=%d, db_writable=%s)",
+                report_id,
+                self._db_writable(),
+            )
+            return
         for d in report.dropoffs:
             action = self._action_for_dropoff(d)
             hypotheses = report.hypotheses_by_step.get(d.to_step, [])
@@ -498,6 +552,10 @@ class Cyra:
             hypotheses_by_step=hypotheses_by_step,
         )
 
+        # Funnel metrics persist independently of report_id (no FK to
+        # analytics_reports), so devrel cro history/diff can render trends
+        # even when the recommendations path no-ops on a missing report row.
+        self._persist_funnel_metrics(report)
         self._persist(report, report_id=report_id)
         if deliverables_dir is not None:
             self._write_briefs(report, deliverables_dir)

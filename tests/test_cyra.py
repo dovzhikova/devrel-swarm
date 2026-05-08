@@ -309,6 +309,153 @@ class TestPersistRecommendations:
         assert len(sids) == 1
         assert "Add social proof" in sids[0]
 
+    @pytest.mark.asyncio
+    async def test_persist_skips_when_report_id_zero(self, init_db):
+        """report_id=0 means _insert_cro_report_row had no real DB; skip persist
+        instead of FK-violating against a non-existent analytics_reports row."""
+        db, _real_report_id = init_db
+        cyra = Cyra(posthog_client=MagicMock(), llm_client=MagicMock(), db_path=db)
+        report = CroReport(
+            period_end="2026-04-01",
+            funnel_id="default",
+            funnel=[
+                FunnelStep(name="$pageview", index=0, count=1000, conversion_rate=1.0),
+            ],
+            dropoffs=[
+                DropOff(
+                    from_step="$pageview",
+                    to_step="signup_started",
+                    from_count=1000,
+                    to_count=300,
+                    conversion_rate=0.30,
+                    pp_delta_vs_prior=-0.08,
+                    sample_size=1000,
+                ),
+            ],
+        )
+        # report_id=0 is the bug-trap: should silently no-op, not raise FK error.
+        cyra._persist(report, report_id=0)
+
+        with sqlite3.connect(db) as conn:
+            cur = conn.execute(
+                "SELECT COUNT(*) FROM analytics_recommendations WHERE pillar = 'cro'"
+            )
+            assert cur.fetchone()[0] == 0
+
+    @pytest.mark.asyncio
+    async def test_persist_skips_when_db_path_unwritable(self, tmp_path):
+        """Path("/dev/null") (Atlas's no-project_paths fallback) must skip cleanly."""
+        cyra = Cyra(
+            posthog_client=MagicMock(),
+            llm_client=MagicMock(),
+            db_path=Path("/dev/null"),
+        )
+        report = CroReport(
+            period_end="2026-04-01",
+            funnel_id="default",
+            funnel=[],
+            dropoffs=[
+                DropOff(
+                    from_step="$pageview",
+                    to_step="signup_started",
+                    from_count=1000,
+                    to_count=300,
+                    conversion_rate=0.30,
+                    pp_delta_vs_prior=-0.08,
+                    sample_size=1000,
+                ),
+            ],
+        )
+        # Should not raise even though report_id is positive; db_path is the gate.
+        cyra._persist(report, report_id=42)
+
+
+class TestPersistFunnelMetrics:
+    @pytest.mark.asyncio
+    async def test_writes_one_row_per_funnel_step(self, init_db):
+        """devrel cro history queries cro_funnel_metrics; without these inserts
+        the trend table stays empty even after Cyra has run."""
+        db, _ = init_db
+        cyra = Cyra(posthog_client=MagicMock(), llm_client=MagicMock(), db_path=db)
+        report = CroReport(
+            period_end="2026-04-01",
+            funnel_id="signup",
+            funnel=[
+                FunnelStep(name="$pageview", index=0, count=1000, conversion_rate=1.0),
+                FunnelStep(name="signup_started", index=1, count=300, conversion_rate=0.30),
+                FunnelStep(name="signup_complete", index=2, count=120, conversion_rate=0.12),
+            ],
+            dropoffs=[],
+        )
+        cyra._persist_funnel_metrics(report)
+
+        with sqlite3.connect(db) as conn:
+            cur = conn.execute(
+                "SELECT funnel_id, step_index, conversion_rate, sample_size "
+                "FROM cro_funnel_metrics WHERE period_end = ? ORDER BY step_index",
+                ("2026-04-01",),
+            )
+            rows = cur.fetchall()
+        assert len(rows) == 3
+        assert rows[0] == ("signup", 0, 1.0, 1000)
+        assert rows[1] == ("signup", 1, 0.30, 300)
+        assert rows[2] == ("signup", 2, 0.12, 120)
+
+    @pytest.mark.asyncio
+    async def test_replaces_on_rerun(self, init_db):
+        """INSERT OR REPLACE: same period rerun overwrites stale snapshots."""
+        db, _ = init_db
+        cyra = Cyra(posthog_client=MagicMock(), llm_client=MagicMock(), db_path=db)
+
+        first = CroReport(
+            period_end="2026-04-01",
+            funnel_id="signup",
+            funnel=[FunnelStep(name="$pageview", index=0, count=1000, conversion_rate=1.0)],
+            dropoffs=[],
+        )
+        second = CroReport(
+            period_end="2026-04-01",
+            funnel_id="signup",
+            funnel=[FunnelStep(name="$pageview", index=0, count=1500, conversion_rate=1.0)],
+            dropoffs=[],
+        )
+        cyra._persist_funnel_metrics(first)
+        cyra._persist_funnel_metrics(second)
+
+        with sqlite3.connect(db) as conn:
+            cur = conn.execute(
+                "SELECT sample_size FROM cro_funnel_metrics WHERE period_end = ?",
+                ("2026-04-01",),
+            )
+            assert cur.fetchall() == [(1500,)]
+
+    @pytest.mark.asyncio
+    async def test_skips_when_db_path_unwritable(self):
+        """No-op cleanly on the Path('/dev/null') fallback."""
+        cyra = Cyra(
+            posthog_client=MagicMock(),
+            llm_client=MagicMock(),
+            db_path=Path("/dev/null"),
+        )
+        report = CroReport(
+            period_end="2026-04-01",
+            funnel_id="signup",
+            funnel=[FunnelStep(name="$pageview", index=0, count=1000, conversion_rate=1.0)],
+            dropoffs=[],
+        )
+        # Should not raise.
+        cyra._persist_funnel_metrics(report)
+
+    @pytest.mark.asyncio
+    async def test_skips_when_funnel_empty(self, init_db):
+        db, _ = init_db
+        cyra = Cyra(posthog_client=MagicMock(), llm_client=MagicMock(), db_path=db)
+        report = CroReport(period_end="2026-04-01", funnel_id="x", funnel=[], dropoffs=[])
+        cyra._persist_funnel_metrics(report)
+        with sqlite3.connect(db) as conn:
+            cur = conn.execute("SELECT COUNT(*) FROM cro_funnel_metrics")
+            assert cur.fetchone()[0] == 0
+
 
 class TestBriefGeneration:
     def test_write_briefs_creates_one_file_per_recommendation(self, tmp_path):
