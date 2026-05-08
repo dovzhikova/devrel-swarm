@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.2.5 — dogfood production fixes (2026-05-08)
+
+Four production-path bugs surfaced during a dogfood session running the
+weekly pipeline against a real cloned repo with a fresh Anthropic key. Every
+agent CLI verb that goes through `build_atlas_or_exit` plus the entire
+content-quality pipeline was broken on `0.2.4` and is now fixed. If you
+installed `0.2.4` and saw `Atlas.__init__()` arity errors, `result.result`
+AttributeErrors, or tuple-unpack TypeErrors mid-pipeline, upgrade to `0.2.5`.
+
+### Fixed
+
+- **`cli/_common.build_atlas_or_exit`**: was constructing `Atlas(llm_client=llm, project_paths=paths)`, but `Atlas.__init__` requires `api_client: PostHogClient` and `knowledge_base_path: Path` as positional args. The fallback `except TypeError: return Atlas(llm_client=llm)` was equally broken. Surfaced when any non-Cyra agent CLI verb (`devrel marketing`, `devrel sales`, `devrel triage`, `devrel listen`, `devrel synthesize`, `devrel experiment`, `devrel intel`, `devrel run`, etc.) was invoked. Fix: import `PostHogClient`, construct it with optional `POSTHOG_API_KEY`/`POSTHOG_PROJECT_ID` env vars (empty strings OK), and pass `paths.kb_dir` as `knowledge_base_path`.
+- **`cli/_common.render_result`**: accessed `result.result` on a `DelegationResult`, but the dataclass field is `output` (lines 55 + 64-67). Same typo in both the JSON branch and the human-readable branch. Surfaced when any successfully-completed Atlas-routed verb tried to render its output. Affected every CLI verb that goes through `render_result` except `cro`.
+- **`cli/content.draft`**: `draft, _ = await client.generate(...)` tuple-unpacked the return value, but `LLMClient.generate` returns plain `str`. Surfaced when `devrel content draft` was invoked with a real Anthropic key for the first time.
+- **`quality/__init__`, `quality/persona`, `quality/slop`** (the editorial pipeline core): same tuple-unpack bug across multiple sites. Surfaced when `quality.editorial.run_pipeline` ran end-to-end with a real key, which is what every revision-looped agent (Kai/Mox/Pax) does. Test suite was also a closed loop: 22+ test mock sites in `tests/test_kai.py`, `tests/quality/test_persona.py`, `tests/quality/test_slop.py`, `tests/quality/test_integration.py`, `tests/quality/test_editorial.py`, and `tests/cli/test_content_command.py` all returned `(str, None)` tuples to match the buggy unpacks. Tests passed forever because they never exercised the real `LLMClient.generate`. Caught only via real-key invocation. Fix touched 9 files across `src/` and `tests/`.
+
+### Internal
+
+- Suite stays at 882 passed / 21 xfailed; ruff + format clean. No coverage delta.
+
 ## 0.2.4 — pre-publish polish (2026-05-04)
 
 Final pre-publish pass across linting, packaging, and dependency footprint
