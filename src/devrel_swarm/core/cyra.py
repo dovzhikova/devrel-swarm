@@ -8,13 +8,10 @@ analytics_recommendations table for Mox to materialize as test variants.
 
 from __future__ import annotations
 
-import asyncio  # noqa: F401 -- used by Cyra.execute() in Tasks 3-9
 import json
 import logging
 from dataclasses import asdict, dataclass, field
-from datetime import date, datetime  # noqa: F401 -- used in Tasks 3-9 for period calculations
 from pathlib import Path
-from typing import Optional  # noqa: F401 -- used by Cyra attrs in Tasks 3-9
 
 from devrel_swarm.core.base import strip_markdown_fences
 from devrel_swarm.core.growth import (
