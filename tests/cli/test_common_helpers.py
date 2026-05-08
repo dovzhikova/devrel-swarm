@@ -234,5 +234,89 @@ class TestBuildAtlasWiring:
         console = Console()
         with patch.dict(os.environ, {}, clear=False):
             os.environ.pop("ANTHROPIC_API_KEY", None)
+            os.environ.pop("OPENROUTER_API_KEY", None)
             with pytest.raises(click.exceptions.Exit):
                 build_atlas_or_exit(paths, console)
+
+
+class TestLLMClientWiring:
+    """Provider selection + per-agent model overrides from .devrel/config.toml."""
+
+    def test_openrouter_selected_when_provider_explicitly_set(self, tmp_path):
+        from devrel_swarm.cli._common import _build_llm_client
+
+        paths = _make_paths(tmp_path)
+        paths.config_file.write_text('[project]\nname = "X"\n\n[llm]\nprovider = "openrouter"\n')
+        from rich.console import Console
+
+        console = Console()
+        with patch.dict(os.environ, {"OPENROUTER_API_KEY": "k_or"}, clear=False):
+            os.environ.pop("ANTHROPIC_API_KEY", None)
+            client = _build_llm_client(paths, console)
+        assert client.backend.name == "openrouter"
+
+    def test_openrouter_selected_when_only_or_key_in_env(self, tmp_path):
+        from devrel_swarm.cli._common import _build_llm_client
+
+        paths = _make_paths(tmp_path)
+        paths.config_file.write_text('[project]\nname = "X"\n')
+        from rich.console import Console
+
+        console = Console()
+        with patch.dict(os.environ, {"OPENROUTER_API_KEY": "k_or"}, clear=False):
+            os.environ.pop("ANTHROPIC_API_KEY", None)
+            client = _build_llm_client(paths, console)
+        assert client.backend.name == "openrouter"
+
+    def test_anthropic_selected_when_both_env_keys_present(self, tmp_path):
+        from devrel_swarm.cli._common import _build_llm_client
+
+        paths = _make_paths(tmp_path)
+        paths.config_file.write_text('[project]\nname = "X"\n')
+        from rich.console import Console
+
+        console = Console()
+        with patch.dict(
+            os.environ,
+            {"ANTHROPIC_API_KEY": "k_a", "OPENROUTER_API_KEY": "k_or"},
+            clear=False,
+        ):
+            client = _build_llm_client(paths, console)
+        assert client.backend.name == "anthropic"
+
+    def test_agent_models_passed_through(self, tmp_path):
+        from devrel_swarm.cli._common import _build_llm_client
+
+        paths = _make_paths(tmp_path)
+        paths.config_file.write_text(
+            '[project]\nname = "X"\n\n'
+            "[llm.agent_models]\n"
+            'argus = "openai/gpt-4o-mini"\n'
+            'kai = "anthropic/claude-opus-4-0-20250514"\n'
+        )
+        from rich.console import Console
+
+        console = Console()
+        with patch.dict(os.environ, {"ANTHROPIC_API_KEY": "k"}, clear=False):
+            os.environ.pop("OPENROUTER_API_KEY", None)
+            client = _build_llm_client(paths, console)
+        assert client.agent_models == {
+            "argus": "openai/gpt-4o-mini",
+            "kai": "anthropic/claude-opus-4-0-20250514",
+        }
+
+    def test_exits_when_provider_openrouter_but_no_or_key(self, tmp_path):
+        import click
+
+        from devrel_swarm.cli._common import _build_llm_client
+
+        paths = _make_paths(tmp_path)
+        paths.config_file.write_text('[project]\nname = "X"\n\n[llm]\nprovider = "openrouter"\n')
+        from rich.console import Console
+
+        console = Console()
+        with patch.dict(os.environ, {}, clear=False):
+            os.environ.pop("ANTHROPIC_API_KEY", None)
+            os.environ.pop("OPENROUTER_API_KEY", None)
+            with pytest.raises(click.exceptions.Exit):
+                _build_llm_client(paths, console)

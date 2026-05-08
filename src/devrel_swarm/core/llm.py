@@ -1,4 +1,12 @@
-"""Shared Anthropic LLM client wrapper for all agents."""
+"""Shared LLM client wrapper for all agents.
+
+Multi-provider via the LLMBackend abstraction in core/llm_backends.py:
+AnthropicBackend (default) and OpenRouterBackend. Per-agent model overrides
+flow through `agent_models={agent_name: model_id}` so e.g. Argus can run on
+a cheap classification model while Kai sticks to a high-quality writer.
+Cost tracking, budget gating, and agent-attribution stay in this layer; the
+backend's only job is the actual chat call.
+"""
 
 import asyncio
 import json
@@ -9,30 +17,57 @@ from contextvars import ContextVar
 from dataclasses import dataclass, field
 from typing import Any, Callable
 
-from anthropic import AsyncAnthropic
-
 from devrel_swarm.core.base import strip_markdown_fences
+from devrel_swarm.core.llm_backends import (
+    ANTHROPIC_DEFAULT_MODEL,
+    ANTHROPIC_MODELS,
+    LLMBackend,
+    make_backend,
+)
 
 logger = logging.getLogger(__name__)
 
 _current_agent_var: ContextVar[str] = ContextVar("devrel_swarm_current_agent", default="")
 
-DEFAULT_MODEL = "claude-sonnet-4-5-20250929"
+DEFAULT_MODEL = ANTHROPIC_DEFAULT_MODEL
 DEFAULT_MAX_TOKENS = 4096
 
-# Model catalog for multi-model routing
-MODELS = {
-    "opus": "claude-opus-4-0-20250514",
-    "sonnet": DEFAULT_MODEL,
-    "haiku": "claude-haiku-4-5-20251001",
-}
+# Backwards-compatible alias map. Re-exported for callers that imported it
+# directly; new code should rely on the backend's resolve_alias().
+MODELS = dict(ANTHROPIC_MODELS)
 
-# Cost per million tokens (USD) — used for budget tracking
+# Cost per million tokens (USD), used for budget tracking. Anthropic ids
+# stay un-prefixed; OpenRouter pass-through entries (`anthropic/...`,
+# `openai/...`) are stripped to their base model id at lookup time so we
+# don't have to duplicate every Anthropic price under both keys.
 MODEL_COSTS: dict[str, dict[str, float]] = {
     "claude-opus-4-0-20250514": {"input": 15.0, "output": 75.0},
     DEFAULT_MODEL: {"input": 3.0, "output": 15.0},
     "claude-haiku-4-5-20251001": {"input": 0.80, "output": 4.0},
+    # OpenAI models routed via OpenRouter; pricing per OpenAI public list.
+    "gpt-4o": {"input": 2.5, "output": 10.0},
+    "gpt-4o-mini": {"input": 0.15, "output": 0.60},
+    "gpt-4-turbo": {"input": 10.0, "output": 30.0},
 }
+
+
+def _lookup_cost(model: str) -> dict[str, float]:
+    """Return the per-million-token pricing for a model id.
+
+    Accepts both bare ids ('claude-sonnet-4-5-20250929') and OpenRouter-
+    style provider-prefixed ids ('anthropic/claude-sonnet-4-5-20250929',
+    'openai/gpt-4o-mini'); falls back to the bare id after splitting the
+    provider prefix once. Unknown models price at zero so the cost ledger
+    doesn't crash, but we lose accuracy.
+    """
+    if model in MODEL_COSTS:
+        return MODEL_COSTS[model]
+    if "/" in model:
+        bare = model.split("/", 1)[1]
+        if bare in MODEL_COSTS:
+            return MODEL_COSTS[bare]
+    return {"input": 0.0, "output": 0.0}
+
 
 _CRITIQUE_CRITERIA: dict[str, str] = {
     "content": (
@@ -155,8 +190,10 @@ class TokenUsage:
         self.total_output_tokens += output_tokens
         self.total_calls += 1
 
-        # Compute cost
-        costs = MODEL_COSTS.get(model, MODEL_COSTS[DEFAULT_MODEL])
+        # Compute cost. _lookup_cost handles both bare Anthropic ids and
+        # OpenRouter-style 'provider/model' paths so the ledger works for
+        # whichever backend ran the call.
+        costs = _lookup_cost(model) if model else MODEL_COSTS[DEFAULT_MODEL]
         call_cost = (
             input_tokens * costs["input"] / 1_000_000 + output_tokens * costs["output"] / 1_000_000
         )
@@ -188,43 +225,89 @@ class TokenUsage:
 
 
 class LLMClient:
-    """Async Anthropic client with multi-model routing and budget enforcement.
+    """Async LLM client with multi-provider routing, per-agent model
+    overrides, and budget enforcement.
 
     Supports per-call model overrides for cost optimization:
     - Use "haiku" for classification/extraction tasks
     - Use "opus" for high-quality content generation
     - Use default "sonnet" for everything else
 
-    Budget enforcement: when total spend exceeds ``budget_limit_usd``,
-    automatically downgrades to Haiku for remaining calls.
+    Per-agent overrides via `agent_models={agent_name: model_id}` are consulted
+    inside `_resolve_model` and win over the call-site default; explicit
+    `model=` arguments still win over the per-agent setting. The ContextVar
+    set by `agent_context()` drives the lookup so concurrent agents under
+    `asyncio.gather` each get their own configured model.
+
+    Budget enforcement: when total spend exceeds ``budget_limit_usd``, future
+    calls are forced to the backend's `cheap_model` (Haiku for Anthropic,
+    `anthropic/claude-haiku-4-5-...` for OpenRouter).
     """
 
     def __init__(
         self,
         api_key: str = "",
-        model: str = DEFAULT_MODEL,
+        model: str = "",
         max_tokens: int = DEFAULT_MAX_TOKENS,
         budget_limit_usd: float = 0.0,
+        *,
+        backend: LLMBackend | None = None,
+        provider: str | None = None,
+        openrouter_api_key: str = "",
+        agent_models: dict[str, str] | None = None,
     ):
-        self.model = model
+        # Backend resolution: caller-supplied wins; otherwise auto-detect from
+        # explicit `provider` arg or env vars (OPENROUTER_API_KEY presence).
+        self._backend: LLMBackend = backend or make_backend(
+            provider=provider,
+            anthropic_api_key=api_key,
+            openrouter_api_key=openrouter_api_key,
+        )
+        # Per-instance default model. Empty defers to the backend's default,
+        # which keeps callers that pass api_key but no model on the right
+        # default for whichever backend was auto-selected.
+        self.model = model or self._backend.default_model
         self.max_tokens = max_tokens
         self.budget_limit_usd = budget_limit_usd
+        self.agent_models: dict[str, str] = dict(agent_models or {})
         self.usage = TokenUsage()
         self._current_agent: str = ""
         self._budget_exhausted = False
         self._cost_sink: "Callable[[str, str, dict[str, Any]], Awaitable[None]] | None" = None
-        self._client = AsyncAnthropic(api_key=api_key or "dummy")
+
+    @property
+    def backend(self) -> LLMBackend:
+        return self._backend
+
+    @property
+    def _client(self):
+        """Back-compat shim. Pre-multi-provider tests reached into
+        ``client._client.messages.create`` to mock the Anthropic SDK; new code
+        should mock ``client._backend.chat`` (returns a ``BackendResponse``)
+        instead. Returns the AnthropicBackend's underlying SDK client when
+        present, otherwise None."""
+        return getattr(self._backend, "_client", None)
 
     def _resolve_model(self, model_override: str | None) -> str:
-        """Resolve the model to use for a call.
+        """Resolve the model id to use for a call, in priority order:
 
-        Priority: budget downgrade > explicit override > default.
+        1. Budget downgrade (forced cheap model, overrides everything)
+        2. Explicit ``model=`` argument at the call site
+        3. Per-agent override from ``agent_models[current_agent]``
+        4. The instance default (``self.model``)
+
+        Whatever value comes out is then run through the backend's
+        ``resolve_alias`` so shorthand ('haiku' / 'sonnet' / 'opus') ends up as
+        a real provider id before the chat call.
         """
         if self._budget_exhausted:
-            return MODELS["haiku"]
+            return self._backend.cheap_model
         if model_override:
-            return MODELS.get(model_override, model_override)
-        return self.model
+            return self._backend.resolve_alias(model_override)
+        agent = _current_agent_var.get() or self._current_agent
+        if agent and agent in self.agent_models:
+            return self._backend.resolve_alias(self.agent_models[agent])
+        return self._backend.resolve_alias(self.model)
 
     def _check_budget(self) -> None:
         """Check if budget limit has been exceeded."""
@@ -254,45 +337,55 @@ class LLMClient:
         """Send a prompt and return the response text.
 
         Args:
-            model: Optional model override — "haiku", "sonnet", "opus",
-                or a full model ID. If budget is exhausted, forced to haiku.
+            model: Optional model override, "haiku" / "sonnet" / "opus", or a
+                full model id (Anthropic bare or OpenRouter-style). Per-agent
+                overrides apply when this is left None. Budget downgrade still
+                wins over both.
         """
         resolved_model = self._resolve_model(model)
-        response = await self._client.messages.create(
+        response = await self._backend.chat(
             model=resolved_model,
-            max_tokens=max_tokens or self.max_tokens,
+            system_prompt=system_prompt,
+            user_prompt=user_prompt,
             temperature=temperature,
-            system=system_prompt,
-            messages=[{"role": "user", "content": user_prompt}],
+            max_tokens=max_tokens or self.max_tokens,
         )
-        text = response.content[0].text
+        # The backend may have downgraded or upgraded the model id (provider
+        # routing); record against the actually-served model so cost lookups
+        # match what was billed.
+        served_model = response.model or resolved_model
+        agent_for_record = _current_agent_var.get() or self._current_agent
         self.usage.record(
-            input_tokens=response.usage.input_tokens,
-            output_tokens=response.usage.output_tokens,
-            agent=self._current_agent,
-            model=resolved_model,
+            input_tokens=response.input_tokens,
+            output_tokens=response.output_tokens,
+            agent=agent_for_record,
+            model=served_model,
         )
         self._check_budget()
         await self._emit_cost(
-            model=resolved_model,
-            input_tokens=response.usage.input_tokens,
-            output_tokens=response.usage.output_tokens,
-            cache_creation_input_tokens=getattr(response.usage, "cache_creation_input_tokens", 0)
-            or 0,
-            cache_read_input_tokens=getattr(response.usage, "cache_read_input_tokens", 0) or 0,
+            model=served_model,
+            input_tokens=response.input_tokens,
+            output_tokens=response.output_tokens,
+            cache_creation_input_tokens=response.cache_creation_input_tokens,
+            cache_read_input_tokens=response.cache_read_input_tokens,
         )
         logger.info(
             "llm_call",
             extra={
-                "agent": _current_agent_var.get() or self._current_agent or "unknown",
-                "input_tokens": response.usage.input_tokens,
-                "output_tokens": response.usage.output_tokens,
-                "model": resolved_model,
+                "agent": agent_for_record or "unknown",
+                "backend": self._backend.name,
+                "input_tokens": response.input_tokens,
+                "output_tokens": response.output_tokens,
+                "model": served_model,
                 "cost_usd": round(self.usage.total_cost_usd, 4),
                 "cumulative_calls": self.usage.total_calls,
             },
         )
-        return text
+        return response.text
+
+    async def aclose(self) -> None:
+        """Release the underlying backend client (httpx pool / SDK client)."""
+        await self._backend.aclose()
 
     def set_agent(self, agent_name: str) -> None:
         """Set the current agent name for per-agent cost tracking."""

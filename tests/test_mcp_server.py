@@ -181,7 +181,10 @@ class TestHandleRequest:
             {
                 "method": "tools/call",
                 "id": 5,
-                "params": {"name": "search_devrel_ai_agents_docs", "arguments": {"query": "feature flags"}},
+                "params": {
+                    "name": "search_devrel_ai_agents_docs",
+                    "arguments": {"query": "feature flags"},
+                },
             }
         )
 
@@ -331,7 +334,9 @@ class TestToolHandlerDelegation:
 
         result = await server._handle_search_docs(query="feature flags", limit=5)
 
-        server._search.search_devrel_ai_agents_docs.assert_awaited_once_with(query="feature flags", limit=5)
+        server._search.search_devrel_ai_agents_docs.assert_awaited_once_with(
+            query="feature flags", limit=5
+        )
         # Result is a list of dicts (asdict conversion)
         assert isinstance(result, list)
         assert result[0]["title"] == "Doc"

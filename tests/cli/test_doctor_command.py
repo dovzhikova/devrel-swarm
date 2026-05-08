@@ -60,6 +60,9 @@ def test_doctor_passes_with_anthropic_key(tmp_path):
         os.chdir(cwd)
     result = _run_in(tmp_path, "doctor", env={"ANTHROPIC_API_KEY": "sk-ant-test"})
     assert result.exit_code == 0, result.output
+    # Doctor now reports the LLM key check as `llm_api_key` (one-of Anthropic
+    # or OpenRouter) and the detail line names which keys are set.
+    assert "llm_api_key" in result.output
     assert "ANTHROPIC_API_KEY" in result.output
 
 
@@ -73,14 +76,40 @@ def test_doctor_fails_without_required_env(tmp_path):
         )
     finally:
         os.chdir(cwd)
-    saved = os.environ.pop("ANTHROPIC_API_KEY", None)
+    saved_a = os.environ.pop("ANTHROPIC_API_KEY", None)
+    saved_or = os.environ.pop("OPENROUTER_API_KEY", None)
     try:
         result = _run_in(tmp_path, "doctor")
         assert result.exit_code != 0
-        assert "ANTHROPIC_API_KEY" in result.output
+        assert "llm_api_key" in result.output
+        assert "neither" in result.output
     finally:
-        if saved is not None:
-            os.environ["ANTHROPIC_API_KEY"] = saved
+        if saved_a is not None:
+            os.environ["ANTHROPIC_API_KEY"] = saved_a
+        if saved_or is not None:
+            os.environ["OPENROUTER_API_KEY"] = saved_or
+
+
+def test_doctor_passes_with_only_openrouter_key(tmp_path):
+    """OpenRouter alone is sufficient; doctor should pass on llm_api_key."""
+    cwd = os.getcwd()
+    os.chdir(tmp_path)
+    try:
+        runner.invoke(
+            app,
+            ["init", "--non-interactive", "--name", "x", "--url", "", "--github-repo", ""],
+        )
+    finally:
+        os.chdir(cwd)
+    saved_a = os.environ.pop("ANTHROPIC_API_KEY", None)
+    try:
+        result = _run_in(tmp_path, "doctor", env={"OPENROUTER_API_KEY": "sk-or-test"})
+        assert result.exit_code == 0, result.output
+        assert "llm_api_key" in result.output
+        assert "OPENROUTER_API_KEY" in result.output
+    finally:
+        if saved_a is not None:
+            os.environ["ANTHROPIC_API_KEY"] = saved_a
 
 
 def test_doctor_json_mode(tmp_path):
@@ -98,4 +127,4 @@ def test_doctor_json_mode(tmp_path):
     data = json.loads(result.output)
     assert data["status"] in ("ok", "warn", "fail")
     assert "checks" in data
-    assert any(c["name"] == "ANTHROPIC_API_KEY" for c in data["checks"])
+    assert any(c["name"] == "llm_api_key" for c in data["checks"])

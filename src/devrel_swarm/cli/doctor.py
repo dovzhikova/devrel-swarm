@@ -20,7 +20,8 @@ from devrel_swarm.project.state import SCHEMA_VERSION, get_schema_version
 
 console = Console()
 
-REQUIRED_ENV = ("ANTHROPIC_API_KEY",)
+# LLM key requirement is one-of: Anthropic direct OR OpenRouter (multi-provider).
+LLM_KEY_OPTIONS: tuple[str, ...] = ("ANTHROPIC_API_KEY", "OPENROUTER_API_KEY")
 OPTIONAL_ENV = (
     "GITHUB_TOKEN",
     "FIRECRAWL_API_KEY",
@@ -85,13 +86,18 @@ def _run_checks(paths: ProjectPaths) -> list[CheckResult]:
             )
         )
 
-    # Required env.
-    for name in REQUIRED_ENV:
-        val = os.environ.get(name)
-        if val:
-            results.append(CheckResult(name, "pass", "set"))
-        else:
-            results.append(CheckResult(name, "fail", "not set (required)"))
+    # LLM key: at least one of Anthropic direct or OpenRouter must be set.
+    set_keys = [n for n in LLM_KEY_OPTIONS if os.environ.get(n)]
+    if set_keys:
+        results.append(CheckResult("llm_api_key", "pass", f"set: {', '.join(set_keys)}"))
+    else:
+        results.append(
+            CheckResult(
+                "llm_api_key",
+                "fail",
+                "neither ANTHROPIC_API_KEY nor OPENROUTER_API_KEY is set",
+            )
+        )
 
     # Optional env.
     for name in OPTIONAL_ENV:

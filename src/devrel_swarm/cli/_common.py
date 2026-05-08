@@ -83,12 +83,56 @@ def _resolve_github_repo(paths: ProjectPaths) -> str:
     return str(repo).strip() if repo else ""
 
 
-def build_atlas_or_exit(paths: ProjectPaths, console: Console) -> Atlas:
-    api_key = os.environ.get("ANTHROPIC_API_KEY")
-    if not api_key:
-        console.print("[red]ANTHROPIC_API_KEY is required.[/red]")
+def _build_llm_client(paths: ProjectPaths, console: Console) -> LLMClient:
+    """Construct an LLMClient honoring provider + per-agent overrides from
+    .devrel/config.toml's [llm] section, with env-var fallback.
+
+    Provider resolution:
+      1. [llm].provider explicitly set ('anthropic' | 'openrouter')
+      2. OPENROUTER_API_KEY set without ANTHROPIC_API_KEY -> openrouter
+      3. Default -> anthropic
+
+    Either ANTHROPIC_API_KEY or OPENROUTER_API_KEY (matching the chosen
+    provider) must be present; otherwise we exit with a clear message.
+    """
+    raw = _read_project_toml(paths)
+    llm_cfg = raw.get("llm") or {}
+    provider = (llm_cfg.get("provider") or "").strip().lower() or None
+    agent_models_raw = llm_cfg.get("agent_models") or {}
+    agent_models = {str(k): str(v) for k, v in agent_models_raw.items()}
+
+    anthropic_key = os.environ.get("ANTHROPIC_API_KEY", "").strip()
+    openrouter_key = os.environ.get("OPENROUTER_API_KEY", "").strip()
+
+    # Decide which provider we'll actually use, matching make_backend's logic
+    # so we can validate the key presence before we even construct a client.
+    if provider == "openrouter" or (provider is None and openrouter_key and not anthropic_key):
+        if not openrouter_key:
+            console.print(
+                '[red]OPENROUTER_API_KEY is required when [llm].provider = "openrouter".[/red]'
+            )
+            raise typer.Exit(code=1)
+        return LLMClient(
+            provider="openrouter",
+            openrouter_api_key=openrouter_key,
+            agent_models=agent_models,
+        )
+
+    if not anthropic_key:
+        console.print(
+            "[red]ANTHROPIC_API_KEY is required (or set OPENROUTER_API_KEY + "
+            '[llm].provider = "openrouter").[/red]'
+        )
         raise typer.Exit(code=1)
-    llm = LLMClient(api_key=api_key)
+    return LLMClient(
+        provider="anthropic",
+        api_key=anthropic_key,
+        agent_models=agent_models,
+    )
+
+
+def build_atlas_or_exit(paths: ProjectPaths, console: Console) -> Atlas:
+    llm = _build_llm_client(paths, console)
     posthog = PostHogClient(
         api_key=os.environ.get("POSTHOG_API_KEY", ""),
         project_id=os.environ.get("POSTHOG_PROJECT_ID", ""),
