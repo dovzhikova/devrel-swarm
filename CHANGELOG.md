@@ -1,5 +1,75 @@
 # Changelog
 
+## 0.2.7: dogfood follow-on fixes (2026-05-08)
+
+Closes the gap surfaced by a 2026-05-08 user run on PyPI 0.2.6 against a
+PostHog-scale repo. Anyone on `0.2.6` running `devrel run`, `devrel run --health`,
+`devrel run --agent ...`, or any verb that builds Atlas via `build_atlas_or_exit`
+hit one or more of these. If you locally patched `cli/_common.py` to pass
+config + tools or bumped a hardcoded timeout, you can drop those patches and
+upgrade.
+
+### Fixed
+
+- **`cli/run.py` `--health` / `--agent`**: still printed `result.result` after
+  `feb5cab` fixed the same typo in `cli/_common.render_result`. Two more sites
+  in `run.py:28` and `:37` did the same on the watchdog and single-agent
+  paths. Now use `DelegationResult.output`.
+- **`cli/_common.build_atlas_or_exit` only passed 4 of Atlas's 9 init args**:
+  `archive_dir` defaulted to a relative `context_archive` instead of
+  `paths.context_dir`, `config` was never bridged from `.devrel/config.toml`
+  (so the shipped `[orchestration].agent_timeouts` knob was effectively dead
+  on the `devrel` CLI path), and `github_tools` / `search_tools` /
+  `instantly_client` / `apollo_client` were always `None`, forcing every
+  tool-using specialist (Sage / Echo / Rex / Vox / Pax / Mox) into its
+  degraded no-tool branch even when the corresponding API key was set.
+  New helpers `_load_agent_config` and `_resolve_github_repo` parse the
+  project toml; optional clients are constructed only when their env key is
+  present so projects without those integrations still degrade cleanly.
+- **`core/llm._emit_cost` lost cost rows under outer cancellation**:
+  `asyncio.CancelledError` is `BaseException` in Python 3.8+, so the existing
+  `except Exception` didn't catch it. Outer Atlas timeouts firing between an
+  Anthropic response returning and the SQLite cost write left the cost
+  invisible to `devrel cost` even though Anthropic had already billed. Fixed
+  with `asyncio.shield` around the sink so the SQLite commit completes even
+  while the calling task is being cancelled.
+- **`core/cyra._persist` never wrote `cro_funnel_metrics`**: `devrel cro
+  history` and `devrel cro diff` returned empty rows even after Cyra ran
+  end-to-end. New `_persist_funnel_metrics` writes one INSERT OR REPLACE per
+  `FunnelStep` (PK funnel_id+step_index+period_end deduplicates same-period
+  reruns).
+- **`core/cyra._persist` would FK-violate on `report_id=0`**: Atlas's
+  `_insert_cro_report_row` returns 0 when no project_paths or DB is
+  available; the downstream `persist_recommendation` call would then violate
+  the FK to `analytics_reports` once `PRAGMA foreign_keys=ON` was enforced.
+  Now short-circuits cleanly with a warning log.
+- **`core/atlas._insert_cro_report_row` wrote a duplicate
+  `analytics_reports` row in Stage 5c**: alongside Argus's Stage 5b row for
+  the same period, leaving two rows where one should be. Now does
+  get-or-insert keyed on `period_end`; reuses Argus's row id and preserves
+  its `report_json` blob untouched.
+- **Editorial-agent timeouts (Kai / Mox / Pax) bumped 600s -> 1800s**: a
+  PostHog-scale `devrel run` hit Kai timeout at 900s after the 0.2.6 default
+  of 600s was already locally patched. The cost-budget cap in `config.toml`
+  is a better safeguard than a tight timeout for these agents; override
+  per-agent via `[orchestration].agent_timeouts` when needed.
+
+### Added
+
+- **`devrel migrate`**: idempotent CLI verb that upgrades `.devrel/state.db`
+  to the current `SCHEMA_VERSION`. Same behavior as the internal
+  `init_db()`, just discoverable as a real verb. No-op when already at the
+  current version; reports `v{before} -> v{after}` on actual migration.
+
+### Internal
+
+- New tests: `tests/cli/test_common_helpers.py` (14 cases for the wiring
+  bridge), `tests/cli/test_migrate_command.py` (4 cases including a v4 -> v5
+  fixture upgrade), `tests/test_llm_cost_sink.py` (4 cases for the shield),
+  `tests/test_cyra.py` (7 new persist/funnel-metrics cases), `tests/test_atlas.py`
+  (5 new `_insert_cro_report_row` cases). Suite at 919 passed / 21 xfailed,
+  ruff + format clean.
+
 ## 0.2.6: Wave 4 timeout polish (2026-05-08)
 
 Addresses two production issues surfaced in 2026-05-08 dogfood runs against

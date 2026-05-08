@@ -109,9 +109,10 @@ def build_atlas_or_exit(paths: ProjectPaths, console: Console) -> Atlas:
     else:
         github_tools = None
 
-    if os.environ.get("FIRECRAWL_API_KEY", "").strip() or os.environ.get(
-        "BRAVE_API_KEY", ""
-    ).strip():
+    if (
+        os.environ.get("FIRECRAWL_API_KEY", "").strip()
+        or os.environ.get("BRAVE_API_KEY", "").strip()
+    ):
         search_tools = SearchTools(
             firecrawl_api_key=os.environ.get("FIRECRAWL_API_KEY", ""),
             brave_api_key=os.environ.get("BRAVE_API_KEY", ""),

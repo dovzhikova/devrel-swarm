@@ -41,9 +41,7 @@ class TestLoadAgentConfig:
 
     def test_reads_project_identity(self, tmp_path):
         paths = _make_paths(tmp_path)
-        paths.config_file.write_text(
-            '[project]\nname = "Example"\nurl = "https://example.com"\n'
-        )
+        paths.config_file.write_text('[project]\nname = "Example"\nurl = "https://example.com"\n')
         config = _load_agent_config(paths)
         assert config.product_name == "Example"
         assert config.product_url == "https://example.com"
@@ -51,10 +49,7 @@ class TestLoadAgentConfig:
     def test_reads_orchestration_agent_timeouts(self, tmp_path):
         paths = _make_paths(tmp_path)
         paths.config_file.write_text(
-            '[project]\nname = "X"\n\n'
-            "[orchestration.agent_timeouts]\n"
-            "kai = 1200.0\n"
-            "sage = 60.0\n"
+            '[project]\nname = "X"\n\n[orchestration.agent_timeouts]\nkai = 1200.0\nsage = 60.0\n'
         )
         config = _load_agent_config(paths)
         assert config.agent_timeouts == {"kai": 1200.0, "sage": 60.0}
@@ -148,8 +143,7 @@ class TestBuildAtlasWiring:
     def test_atlas_gets_config_with_agent_timeouts_from_toml(self, tmp_path):
         paths = _make_paths(tmp_path)
         paths.config_file.write_text(
-            '[project]\nname = "X"\n\n'
-            "[orchestration.agent_timeouts]\nkai = 900.0\n"
+            '[project]\nname = "X"\n\n[orchestration.agent_timeouts]\nkai = 900.0\n'
         )
         from rich.console import Console
 

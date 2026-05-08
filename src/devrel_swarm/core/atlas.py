@@ -1004,8 +1004,7 @@ class Atlas:
 
         with sqlite3.connect(db_path) as conn:
             existing = conn.execute(
-                "SELECT id FROM analytics_reports WHERE period_end = ? "
-                "ORDER BY id DESC LIMIT 1",
+                "SELECT id FROM analytics_reports WHERE period_end = ? ORDER BY id DESC LIMIT 1",
                 (period_end,),
             ).fetchone()
             if existing:
