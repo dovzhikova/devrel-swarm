@@ -7,6 +7,7 @@ grounded in the product knowledge base.
 
 import json
 import logging
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Optional
@@ -218,11 +219,20 @@ Always cite which knowledge base documents you referenced."""
     ) -> list[str]:
         """Return blocking gaps that would make generated content ungrounded."""
         brief = upstream.get("content_brief") or {}
+        grounding_text = "\n".join(
+            str(doc.get("content", "")) + "\n" + str(doc.get("source", ""))
+            for doc in grounding_docs
+        )
         has_repo_evidence = bool(
             upstream.get("architecture_doc")
             or upstream.get("dex_summary")
             or upstream.get("source_files")
             or brief.get("source_files")
+        )
+        has_file_path_evidence = bool(
+            upstream.get("source_files")
+            or brief.get("source_files")
+            or self._contains_file_path(grounding_text)
         )
         has_product_evidence = bool(grounding_docs or official_docs.strip())
         gaps: list[str] = []
@@ -230,19 +240,95 @@ Always cite which knowledge base documents you referenced."""
             gaps.append("no knowledge-base, official-docs, or repository evidence")
 
         task_lower = task.lower()
-        if "pain point" in task_lower and not (
+        if self._requires_evidence(task_lower, ("pain point", "developer pain")) and not (
             upstream.get("pain_points") or brief.get("pain_point")
         ):
             gaps.append("task requires a developer pain point, but none was provided")
-        if ("github issue" in task_lower or "real issue" in task_lower) and not (
+        if self._requires_evidence(task_lower, ("github issue", "real issue")) and not (
             upstream.get("real_issues") or brief.get("github_issues")
         ):
             gaps.append("task requires real GitHub issues, but none were provided")
-        if ("file path" in task_lower or "source code" in task_lower) and not (
-            upstream.get("source_files") or brief.get("source_files")
-        ):
-            gaps.append("task requires repository file paths, but Dex provided none")
+        if self._requires_evidence(task_lower, ("file path", "source code")) and not has_file_path_evidence:
+            gaps.append("task requires repository file paths, but no source-file evidence was provided")
         return gaps
+
+    @staticmethod
+    def _requires_evidence(task_lower: str, phrases: tuple[str, ...]) -> bool:
+        """Whether task wording positively requires a class of evidence.
+
+        Negative or conditional wording such as "avoid GitHub issues unless
+        available" should not force an evidence-gate failure. The generation
+        prompt already tells Kai not to invent missing evidence.
+        """
+        negation_markers = (
+            "avoid",
+            "without",
+            "do not",
+            "don't",
+            "unless",
+            "only if",
+            "if available",
+            "when available",
+            "if provided",
+            "when provided",
+        )
+        requirement_markers = (
+            "include",
+            "cite",
+            "reference",
+            "use",
+            "mention",
+            "based on",
+            "grounded in",
+            "with",
+            "from",
+        )
+        for phrase in phrases:
+            start = task_lower.find(phrase)
+            while start != -1:
+                window_start = max(0, start - 48)
+                window_end = min(len(task_lower), start + len(phrase) + 72)
+                window = task_lower[window_start:window_end]
+                if any(marker in window for marker in negation_markers):
+                    start = task_lower.find(phrase, start + len(phrase))
+                    continue
+                if any(marker in window for marker in requirement_markers):
+                    return True
+                start = task_lower.find(phrase, start + len(phrase))
+        return False
+
+    @staticmethod
+    def _contains_file_path(text: str) -> bool:
+        """Detect source-file path evidence in KB snippets or source names."""
+        if not text:
+            return False
+        return bool(
+            re.search(
+                r"(?:^|[`\s])(?:[A-Za-z0-9_.-]+/)+[A-Za-z0-9_.-]+\.(?:py|ts|tsx|js|jsx|md|sql|toml|yaml|yml|go|rs|java|rb|php|swift)",
+                text,
+                flags=re.MULTILINE,
+            )
+        )
+
+    @classmethod
+    def _search_query_from_task(cls, task: str) -> str:
+        """Drop guardrail-only clauses before KB retrieval.
+
+        Phrases like "avoid GitHub issue claims unless available" constrain the
+        output, but they are not the topic. Keeping them in the search query can
+        swamp product terms and retrieve issue-tracking docs for unrelated asks.
+        """
+        evidence_phrases = ("github issue", "real issue", "pain point")
+        clauses = re.split(r"(?<=[.!?])\s+", task)
+        kept: list[str] = []
+        for clause in clauses:
+            lower = clause.lower()
+            if any(phrase in lower for phrase in evidence_phrases) and not cls._requires_evidence(
+                lower, evidence_phrases
+            ):
+                continue
+            kept.append(clause)
+        return " ".join(kept).strip() or task
 
     async def execute(
         self,
@@ -266,9 +352,19 @@ Always cite which knowledge base documents you referenced."""
         logger.info(f"Kai executing: {task[:80]}...")
 
         # 1. Search knowledge base — cap total context to ~12K chars
-        raw_grounding_docs = self.search_knowledge_base(task, max_results=5)
+        search_query = self._search_query_from_task(task)
+        raw_grounding_docs = self.search_knowledge_base(search_query, max_results=5)
+        task_lower = task.lower()
         grounding_docs = [
-            doc for doc in raw_grounding_docs if float(doc.get("relevance", 0) or 0) > 0
+            doc
+            for doc in raw_grounding_docs
+            if float(doc.get("relevance", 0) or 0) > 0
+            or (
+                self._requires_evidence(task_lower, ("file path", "source code"))
+                and self._contains_file_path(
+                    f"{doc.get('content', '')}\n{doc.get('source', '')}"
+                )
+            )
         ]
         grounding_context = "\n\n".join(
             f"[Source: {doc['source']}]\n{doc['content']}" for doc in grounding_docs
@@ -278,7 +374,7 @@ Always cite which knowledge base documents you referenced."""
         official_docs = ""
         if self.search_tools:
             try:
-                raw_docs = await self.search_tools.fetch_official_docs(task)
+                raw_docs = await self.search_tools.fetch_official_docs(search_query)
                 official_docs = (raw_docs or "")[:4000]
             except Exception as exc:
                 logger.warning(f"Official docs fetch failed: {exc}")

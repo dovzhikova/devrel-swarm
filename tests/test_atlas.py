@@ -155,6 +155,44 @@ class TestAtlasRetryLogic:
         assert result.attempts == 1
         assert call_count == 1  # no retry burn
 
+    @pytest.mark.asyncio
+    async def test_delegate_hard_timeout_returns_if_agent_ignores_cancellation(
+        self, posthog_client, knowledge_base_path
+    ):
+        """A stubborn agent must not keep Atlas.delegate blocked forever."""
+        config = AgentConfig(agent_timeouts={"sage": 0.01})
+        atlas = Atlas(
+            api_client=posthog_client,
+            knowledge_base_path=knowledge_base_path,
+            config=config,
+        )
+        atlas.AGENT_CANCEL_GRACE = 0.01
+        cancelled = asyncio.Event()
+        release = asyncio.Event()
+
+        async def stubborn_execute(task, context=None):
+            try:
+                await asyncio.sleep(60)
+            except asyncio.CancelledError:
+                cancelled.set()
+                await release.wait()
+                return {"status": "late"}
+
+        atlas.sage.execute = stubborn_execute
+
+        start = asyncio.get_running_loop().time()
+        result = await atlas.delegate("sage", "triage issues")
+        elapsed = asyncio.get_running_loop().time() - start
+
+        assert result.success is False
+        assert "timed out" in result.error
+        assert result.attempts == 1
+        assert cancelled.is_set()
+        assert elapsed < 0.5
+
+        release.set()
+        await asyncio.sleep(0)
+
     def test_resolve_timeout_editorial_agents_default_to_1800s(
         self, posthog_client, knowledge_base_path
     ):

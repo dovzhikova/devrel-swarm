@@ -96,6 +96,41 @@ class TestKaiExecuteWired:
         assert result["status"] == "insufficient_evidence"
         assert result["evidence_gaps"]
 
+    @pytest.mark.asyncio
+    async def test_negated_github_issue_wording_does_not_require_issues(self, kai):
+        result = await kai.execute(
+            "Write about analytics tracking. Avoid GitHub issue claims unless issue evidence is available."
+        )
+        assert result["status"] == "generated"
+        assert not result.get("evidence_gaps")
+
+    @pytest.mark.asyncio
+    async def test_negated_issue_wording_does_not_pollute_kb_search(self, posthog_client, tmp_path):
+        kb = tmp_path / "kb"
+        kb.mkdir()
+        (kb / "analytics.md").write_text("# Analytics tracking\nTrack events and query insights.")
+        (kb / "error-issues.md").write_text("# Error tracking issues\nQuery error tracking issues.")
+        kai = Kai(api_client=posthog_client, knowledge_base_path=kb)
+
+        result = await kai.execute(
+            "Write about analytics tracking. Avoid GitHub issue claims unless issue evidence is available."
+        )
+
+        assert result["status"] == "generated"
+        assert result["grounding_sources"][0] == "analytics.md"
+
+    @pytest.mark.asyncio
+    async def test_file_path_request_accepts_kb_path_evidence(self, posthog_client, tmp_path):
+        kb = tmp_path / "kb"
+        kb.mkdir()
+        (kb / "analytics.md").write_text(
+            "# Analytics\nDebug analytics tracking in `posthog/hogql_queries/query_runner.py`."
+        )
+        kai = Kai(api_client=posthog_client, knowledge_base_path=kb)
+        result = await kai.execute("Write about analytics tracking and include concrete file paths.")
+        assert result["status"] == "generated"
+        assert not result.get("evidence_gaps")
+
 
 class TestKaiOfficialDocsValidation:
     """Test that Kai consults official docs when search_tools is provided."""
