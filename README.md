@@ -12,42 +12,50 @@ Every piece of content the system produces flows through an 8-stage editorial pi
 
 ## Quick start
 
-First content in five minutes. The system ships sensible voice/style/slop
-defaults, so step 1 is "see real output," step 2 is "make it sound like you."
+First content in five minutes. `devrel init` is now an interactive wizard
+that walks you through scaffold → LLM key → health check → voice tuning →
+first draft in one session.
 
 ```bash
 pipx install devrel-swarm
 
 cd /path/to/your/project
-devrel init --name myproject --url https://myproject.dev --github-repo me/myproject
-
-devrel auth                                    # interactive: pick Anthropic or OpenRouter
-devrel doctor                                  # confirm everything wired up
-devrel content draft "tutorial on feature flags" --type tutorial
+devrel init                # interactive wizard, all the way to first draft
 ```
 
-You'll see a real draft in `.devrel/deliverables/<timestamp>-tutorial-on-feature-flags.md`
-plus a `*-trace.json` with grounding sources, code-validation results, and
-revision history. Read it, then make it sound like you:
+The wizard:
+
+1. **Scaffolds `.devrel/`** with `config.toml`, `voice.md`, `style.md`,
+   `slop-blocklist.md`, `kb/`, `deliverables/`, `state.db`
+2. **Configures an LLM key** — pick Anthropic or OpenRouter (recommended:
+   free credits, no waitlist), validates with a one-token ping, writes to
+   `.devrel/.env` (chmod 600)
+3. **Runs a health check** — confirms env, scaffold, schema
+4. **Opens `voice.md` in `$EDITOR`** so you can drop in 3-5 sample passages
+   from your best published content
+5. **Generates your first content draft** — prompts for topic + type, calls
+   Kai through the full editorial pipeline, persists the draft +
+   grounding/code-validation trace
+
+Skip flags for non-default flows:
 
 ```bash
-# Edit the editorial contract (voice, house style, banned phrases)
-$EDITOR .devrel/voice.md .devrel/style.md .devrel/slop-blocklist.md
-
-# Re-draft with your voice applied
-devrel content draft "tutorial on feature flags" --type tutorial
+devrel init --skip-draft        # wizard through voice edit, no LLM call
+devrel init --skip-chain        # scaffold only, you run auth/doctor/draft yourself
+devrel init --non-interactive --name myproj --url ... --github-repo ...
+                                 # CI shape: scaffold only, no prompts
 ```
 
-When you're ready to run the full 13-agent weekly cycle:
+After onboarding:
 
 ```bash
-devrel run                                     # ad-hoc weekly pipeline
-devrel schedule install                        # or cron it (Mondays 09:00 UTC)
+devrel run                       # ad-hoc weekly pipeline (all 13 agents)
+devrel schedule install          # cron it (Mondays 09:00 UTC default)
 ```
 
 > **Why OpenRouter?** Lower onboarding barrier than Anthropic API access (no
 > waitlist, free monthly credits) and supports per-agent model routing.
-> `devrel auth` walks you through both.
+> The wizard recommends it.
 
 Stuck? See [docs/troubleshooting.md](docs/troubleshooting.md) for the
 common failures (OpenRouter 400, missing keys, ungrounded content,

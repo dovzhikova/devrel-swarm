@@ -1,5 +1,48 @@
 # Changelog
 
+## 0.2.12: Onboarding overhaul (2026-05-11)
+
+### Added
+
+- **`devrel init` is now an interactive wizard** that walks you from a
+  fresh shell to your first content draft in one session:
+  1. Scaffold `.devrel/` (existing behavior)
+  2. Configure an LLM key (provider picker + key entry + one-token
+     validation, auto-skipped if a key is already in `.devrel/.env`)
+  3. Run a health check inline; offer to continue or stop on failures
+  4. Open `voice.md` in `$EDITOR` so you can drop in voice samples
+     before the first generation
+  5. Prompt for topic + content type, generate the first draft via
+     Kai, persist `<slug>.md` + `<slug>-trace.json` to deliverables
+- **New flags** to opt out of pieces of the chain:
+  - `--skip-chain`: scaffold only, even in interactive mode (matches
+    the pre-0.2.12 behavior)
+  - `--skip-draft`: run the chain through health check + voice edit
+    but stop before the LLM call (no spend, no network)
+  - `--non-interactive`: implies `--skip-chain` (CI shape unchanged)
+- **`devrel auth` success message** now ends with explicit "Next steps"
+  pointing at `devrel doctor` + `devrel content draft "..."` so users
+  know what to run next.
+
+### Changed
+
+- **README quick start**: now leads with `devrel init` as a one-command
+  onboarding entry point. The old `init` → `auth` → `doctor` → `draft`
+  sequence is documented under "skip flags for non-default flows."
+- **docs/quickstart.md**: added a TL;DR block at the top featuring the
+  wizard; the rest of the doc explains what each step does and how to
+  recover if you skip or fail one.
+- **docs/troubleshooting.md** (added in 0.2.11): now anchored on the
+  wizard flow.
+
+### Internal
+
+- 5 new tests in `tests/cli/test_init_command.py` covering the chain:
+  scaffold-only escape hatches still work, chain stops on user 'n',
+  pre-existing key short-circuits the auth step, `--skip-draft` runs
+  voice edit but no LLM call, full chain produces deliverable + trace.
+- Suite at 997 passed, ruff + format clean.
+
 ## 0.2.11: Fix OpenRouter 400 on default model ids (2026-05-11)
 
 ### Fixed

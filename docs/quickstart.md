@@ -3,8 +3,24 @@
 Bootstrap a project, configure an LLM key, and produce your first
 grounded content draft in under five minutes.
 
+`devrel init` is an interactive wizard that walks you through every step:
+scaffold → LLM key → health check → voice tuning → first draft. The rest
+of this doc explains what each step does and how to recover if you skip
+or fail one.
+
 This guide assumes you already have `pipx` and Python 3.12+. If you
 don't, install [pipx](https://pipx.pypa.io/) first.
+
+## TL;DR
+
+```bash
+pipx install devrel-swarm
+cd /path/to/your/project
+devrel init             # interactive wizard, scaffold through first draft
+```
+
+That's it. Read on if you want to know what the wizard is doing, or if
+you want to run the steps manually instead.
 
 ## 1. Install
 
@@ -21,13 +37,21 @@ directory) and run:
 
 ```bash
 cd /path/to/your/project
+devrel init             # interactive: prompts for name, url, github-repo
+                        # then chains into the onboarding wizard
+```
+
+For CI / scripts that want scaffold without the wizard:
+
+```bash
 devrel init \
+  --non-interactive \
   --name myproduct \
   --url https://myproduct.dev \
   --github-repo me/myproduct
 ```
 
-You'll see the scaffold land in `.devrel/`:
+Either way you'll see the scaffold land in `.devrel/`:
 
 ```text
 + .devrel/
