@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "devrel-swarm"
-version = "0.2.10"
+version = "0.2.11"
 description = "A 13-agent CLI that runs DevRel, sales, and marketing on your repo. BYO Anthropic key."
 readme = "README.md"
 requires-python = ">=3.12"

@@ -65,9 +65,11 @@ class TestAnthropicBackend:
 class TestOpenRouterBackend:
     def test_resolve_alias_shorthand_maps_to_anthropic_paths(self):
         b = OpenRouterBackend(api_key="k")
-        assert b.resolve_alias("haiku") == "anthropic/claude-haiku-4-5-20251001"
-        assert b.resolve_alias("sonnet") == "anthropic/claude-sonnet-4-5-20250929"
-        assert b.resolve_alias("opus") == "anthropic/claude-opus-4-0-20250514"
+        # OpenRouter uses dot notation (4.5) and rejects Anthropic's dated
+        # suffix (-20250929) with a 400 Bad Request.
+        assert b.resolve_alias("haiku") == "anthropic/claude-haiku-4.5"
+        assert b.resolve_alias("sonnet") == "anthropic/claude-sonnet-4.5"
+        assert b.resolve_alias("opus") == "anthropic/claude-opus-4"
 
     def test_resolve_alias_promotes_bare_anthropic_id(self):
         b = OpenRouterBackend(api_key="k")

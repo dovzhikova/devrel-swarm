@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.2.11: Fix OpenRouter 400 on default model ids (2026-05-11)
+
+### Fixed
+
+- **`devrel run` / `devrel auth` no longer 400 on OpenRouter.** The
+  hardcoded default model ids in `core/llm_backends.py` used Anthropic's
+  dated suffix (`anthropic/claude-sonnet-4-5-20250929`), which OpenRouter
+  rejects with 400 Bad Request. OpenRouter uses dot notation without a
+  date suffix; bumped the three OPENROUTER_ALIASES to the real ids:
+  - `sonnet` → `anthropic/claude-sonnet-4.5` (was `…-4-5-20250929`)
+  - `haiku` → `anthropic/claude-haiku-4.5` (was `…-4-5-20251001`)
+  - `opus` → `anthropic/claude-opus-4` (was `…-4-0-20250514`)
+- Native Anthropic backend ids (`ANTHROPIC_DEFAULT_MODEL` etc.) are
+  unchanged: the dated form is what Anthropic's API expects.
+- Updated `LLMBackend.resolve_alias` docstring + the OpenRouter section
+  comment to spell out the dot-notation / no-date-suffix rule, with the
+  400-Bad-Request symptom called out so the next reader doesn't
+  re-introduce the bug.
+
 ## 0.2.10: Output grounding (2026-05-11)
 
 Two changes that close grounding gaps surfaced during PostHog dogfooding:
