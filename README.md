@@ -12,19 +12,46 @@ Every piece of content the system produces flows through an 8-stage editorial pi
 
 ## Quick start
 
+First content in five minutes. The system ships sensible voice/style/slop
+defaults, so step 1 is "see real output," step 2 is "make it sound like you."
+
 ```bash
 pipx install devrel-swarm
 
 cd /path/to/your/project
 devrel init --name myproject --url https://myproject.dev --github-repo me/myproject
 
-# edit .devrel/voice.md, .devrel/style.md, .devrel/slop-blocklist.md
-
-export ANTHROPIC_API_KEY=sk-ant-...
-devrel doctor                                  # check env + scaffold
+devrel auth                                    # interactive: pick Anthropic or OpenRouter
+devrel doctor                                  # confirm everything wired up
 devrel content draft "tutorial on feature flags" --type tutorial
-devrel run                                     # full weekly pipeline
 ```
+
+You'll see a real draft in `.devrel/deliverables/<timestamp>-tutorial-on-feature-flags.md`
+plus a `*-trace.json` with grounding sources, code-validation results, and
+revision history. Read it, then make it sound like you:
+
+```bash
+# Edit the editorial contract (voice, house style, banned phrases)
+$EDITOR .devrel/voice.md .devrel/style.md .devrel/slop-blocklist.md
+
+# Re-draft with your voice applied
+devrel content draft "tutorial on feature flags" --type tutorial
+```
+
+When you're ready to run the full 13-agent weekly cycle:
+
+```bash
+devrel run                                     # ad-hoc weekly pipeline
+devrel schedule install                        # or cron it (Mondays 09:00 UTC)
+```
+
+> **Why OpenRouter?** Lower onboarding barrier than Anthropic API access (no
+> waitlist, free monthly credits) and supports per-agent model routing.
+> `devrel auth` walks you through both.
+
+Stuck? See [docs/troubleshooting.md](docs/troubleshooting.md) for the
+common failures (OpenRouter 400, missing keys, ungrounded content,
+quality-gate aborts) and their fixes.
 
 After `devrel init`, your repo has a `.devrel/` directory with:
 
@@ -219,7 +246,8 @@ The agent system is product-agnostic. Per-project config + KB + voice files do a
 
 The user-facing docs live in [`docs/`](docs/):
 
-- [`docs/quickstart.md`](docs/quickstart.md) — bootstrap a project and run your first weekly cycle in 5 minutes
+- [`docs/quickstart.md`](docs/quickstart.md) — install, configure an LLM key, ship your first grounded draft in 5 minutes
+- [`docs/troubleshooting.md`](docs/troubleshooting.md) — common failures and fixes (OpenRouter 400, missing keys, ungrounded content, quality-gate aborts)
 - [`docs/agents/argus.md`](docs/agents/argus.md) — content performance analyst, the 13th agent
 - [`docs/cli/analytics.md`](docs/cli/analytics.md) — full reference for the `devrel analytics` subgroup
 - [`docs/cookbook.md`](docs/cookbook.md) — common recipes (calibration, weekly cron, multi-project rollups)

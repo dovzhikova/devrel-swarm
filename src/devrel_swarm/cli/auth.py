@@ -208,6 +208,14 @@ def auth_command(
         pass
     verb = "rotated" if existing else "saved"
     console.print(f"[green]✓[/green] {verb} {var}={masked} to {rel} (mode 0600)")
+    console.print()
+    console.print("Next steps:")
+    console.print(
+        "  1. [cyan]devrel doctor[/cyan]                    confirm everything is wired up"
+    )
+    console.print(
+        '  2. [cyan]devrel content draft "..."[/cyan]      ship your first grounded draft'
+    )
     if chosen == PROVIDER_ANTHROPIC:
         console.print(
             "[dim]Tip: switch providers with `devrel auth --provider openrouter` "
