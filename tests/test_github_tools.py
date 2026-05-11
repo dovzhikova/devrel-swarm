@@ -78,6 +78,13 @@ class TestGitHubToolsInit:
         finally:
             await gh.close()
 
+    async def test_repo_full_name_alias_matches_repo(self):
+        gh = GitHubTools(repo="PostHog/posthog")
+        try:
+            assert gh.repo_full_name == "PostHog/posthog"
+        finally:
+            await gh.close()
+
     async def test_init_custom_repo(self):
         gh = GitHubTools(repo="owner/custom-repo")
         try:

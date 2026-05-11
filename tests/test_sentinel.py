@@ -102,7 +102,7 @@ async def test_json_parse_failure_logs_distinctly_from_api_error(caplog):
             [{"agent": "kai_content", "content_type": "content", "content": "x"}],
         )
 
-    # Falls back to structural
-    assert result["status"] == "audited_structural"
+    assert result["status"] == "audit_failed"
+    assert result["overall_score"] == 0
     # Distinct log marker for JSON parse failure
     assert any("non-JSON" in rec.message for rec in caplog.records)

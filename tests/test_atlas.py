@@ -13,6 +13,7 @@ from devrel_swarm.core.mox import Mox
 from devrel_swarm.core.pax import Pax
 from devrel_swarm.core.rex import Rex
 from devrel_swarm.project import state as project_state
+from devrel_swarm.project.paths import ProjectPaths
 
 
 class TestSharedContext:
@@ -656,3 +657,70 @@ class TestInsertCroReportRow:
                 ("2026-05-08",),
             ).fetchone()[0]
         assert blob == '{"argus_findings": "important"}'
+
+
+class TestAtlasContentBriefAndDeliverables:
+    def test_build_content_brief_selects_relevant_source_files(
+        self, posthog_client, knowledge_base_path
+    ):
+        atlas = Atlas(api_client=posthog_client, knowledge_base_path=knowledge_base_path)
+        atlas.context.iris_themes = {
+            "themes": [
+                {
+                    "title": "SDK initialization fails",
+                    "description": "Developers hit init errors in the JavaScript SDK.",
+                    "severity": 8,
+                    "category": "sdk",
+                }
+            ]
+        }
+        atlas.context.sage_triage = {
+            "issues": [{"number": 101, "title": "SDK init fails", "product_area": "sdk"}]
+        }
+        atlas.context.dex_docs = {
+            "modules": [
+                {"path": "frontend/src/sdk/init.ts", "language": "typescript", "symbols": ["init"]},
+                {"path": "backend/billing.py", "language": "python", "symbols": ["invoice"]},
+            ]
+        }
+
+        brief = atlas._build_content_brief()
+        assert brief["pain_point"]["title"] == "SDK initialization fails"
+        assert brief["github_issues"][0]["number"] == 101
+        assert brief["source_files"][0]["path"] == "frontend/src/sdk/init.ts"
+
+    def test_write_weekly_deliverables_persists_content_and_trace(
+        self, posthog_client, knowledge_base_path, tmp_path
+    ):
+        root = tmp_path / "project"
+        (root / ".devrel").mkdir(parents=True)
+        paths = ProjectPaths.from_root(root)
+        paths.deliverables_dir.mkdir(parents=True, exist_ok=True)
+        atlas = Atlas(
+            api_client=posthog_client,
+            knowledge_base_path=knowledge_base_path,
+            project_paths=paths,
+        )
+        atlas.context.week_of = "2026-W18"
+        atlas.context.kai_content = {
+            "status": "generated",
+            "task": "Write about SDK init",
+            "content": "# SDK init\n\nBody",
+            "grounding_sources": ["sdks/python.md"],
+            "revision": {"strengths": ["clear"]},
+        }
+        atlas.context.dex_docs = {"llm_summary": "Repo summary", "architecture_doc": "Arch"}
+
+        written = atlas._write_weekly_deliverables()
+        assert len(written) == 3
+        assert (paths.deliverables_dir / "2026-W18" / "write-about-sdk-init.md").exists()
+        assert (paths.deliverables_dir / "2026-W18" / "write-about-sdk-init.trace.json").exists()
+        assert (paths.deliverables_dir / "2026-W18" / "dex-repository-summary.md").exists()
+
+    def test_compile_okrs_counts_only_generated_content(self, posthog_client, knowledge_base_path):
+        atlas = Atlas(api_client=posthog_client, knowledge_base_path=knowledge_base_path)
+        atlas.context.kai_content = {"status": "insufficient_evidence", "content": ""}
+        assert atlas._compile_okrs()["content_produced"] is False
+
+        atlas.context.kai_content = {"status": "generated", "content": "# Draft"}
+        assert atlas._compile_okrs()["content_produced"] is True

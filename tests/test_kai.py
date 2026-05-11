@@ -32,15 +32,24 @@ class TestKaiExecuteWired:
     """Test that execute() generates content via LLM."""
 
     @pytest.fixture
-    def wired_kai(self, posthog_client, knowledge_base_path, mock_llm_client):
+    def wired_kai(self, posthog_client, knowledge_base_path, mock_llm_client, monkeypatch):
         mock_llm_client.generate = AsyncMock(
             return_value=(
-                "# Getting Started with PostHog Feature Flags\n\n"
-                "This tutorial walks you through setting up feature flags...\n\n"
+                "# Getting Started with PostHog Analytics\n\n"
+                "This tutorial walks you through tracking events...\n\n"
                 "## Prerequisites\n- PostHog account\n- JavaScript SDK installed\n\n"
-                "## Step 1: Create a flag\n```javascript\nposthog.isFeatureEnabled('new-ui')\n```\n"
+                "## Step 1: Track an event\n```javascript\nposthog.capture('page_view')\n```\n"
             )
         )
+
+        async def fake_pipeline(*, llm_client, system_prompt, user_prompt, content_type, logger):
+            content = await llm_client.generate(
+                system_prompt=system_prompt,
+                user_prompt=user_prompt,
+            )
+            return content, ["grounded example"], []
+
+        monkeypatch.setattr("devrel_swarm.core.kai.generate_with_pipeline", fake_pipeline)
         return Kai(
             api_client=posthog_client,
             knowledge_base_path=knowledge_base_path,
@@ -49,12 +58,9 @@ class TestKaiExecuteWired:
 
     @pytest.mark.asyncio
     async def test_execute_generates_content(self, wired_kai, mock_llm_client):
-        result = await wired_kai.execute("Write a tutorial on feature flags")
-        # Mock returns a bare string, but generate_with_pipeline unpacks (draft, _);
-        # this lands in the exception path -> status="error", content="" (Wave 2).
-        assert result["status"] == "error"
-        assert result["content"] == ""
-        assert "error" in result
+        result = await wired_kai.execute("Write a tutorial on analytics tracking")
+        assert result["status"] == "generated"
+        assert "Track an event" in result["content"]
         mock_llm_client.generate.assert_awaited_once()
 
     @pytest.mark.asyncio
@@ -64,7 +70,7 @@ class TestKaiExecuteWired:
 
     @pytest.mark.asyncio
     async def test_execute_without_llm_returns_prompt(self, kai):
-        result = await kai.execute("Write a tutorial")
+        result = await kai.execute("Write a tutorial about analytics tracking")
         assert result["status"] == "generated"
         assert "content" not in result
         assert "prompt_used" in result
@@ -78,8 +84,17 @@ class TestKaiExecuteWired:
                 ],
             },
         }
-        result = await wired_kai.execute("Write tutorial", context=context)
+        result = await wired_kai.execute("Write python sdk tutorial", context=context)
         assert len(result.get("pain_points_addressed", [])) >= 1
+
+    @pytest.mark.asyncio
+    async def test_execute_blocks_when_no_evidence(self, posthog_client, tmp_path):
+        empty_kb = tmp_path / "kb"
+        empty_kb.mkdir()
+        kai = Kai(api_client=posthog_client, knowledge_base_path=empty_kb)
+        result = await kai.execute("Write a tutorial about imaginary integrations")
+        assert result["status"] == "insufficient_evidence"
+        assert result["evidence_gaps"]
 
 
 class TestKaiOfficialDocsValidation:
@@ -104,7 +119,7 @@ class TestKaiOfficialDocsValidation:
 
     @pytest.mark.asyncio
     async def test_execute_without_search_tools_still_works(self, kai):
-        result = await kai.execute("Write about feature flags")
+        result = await kai.execute("Write about analytics tracking")
         assert result["status"] == "generated"
         assert "prompt_used" in result
 
@@ -117,7 +132,7 @@ class TestKaiOfficialDocsValidation:
             knowledge_base_path=knowledge_base_path,
             search_tools=mock_search,
         )
-        result = await kai.execute("Write about feature flags")
+        result = await kai.execute("Write about analytics tracking")
         # Should not crash — degrades gracefully
         assert result["status"] == "generated"
 
@@ -174,7 +189,7 @@ class TestKaiContentTypeRouting:
             )
 
         with patch("devrel_swarm.core.kai.generate_with_pipeline", new=fake_pipeline):
-            result = await kai.execute("Write a tutorial")
+            result = await kai.execute("Write about analytics tracking")
 
         # String issues should now survive the filter; the empty/whitespace one is dropped
         remaining = result["revision"]["remaining_issues"]

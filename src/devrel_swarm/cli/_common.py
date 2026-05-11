@@ -173,13 +173,14 @@ def build_atlas_or_exit(paths: ProjectPaths, console: Console) -> Atlas:
     # init. Wiring is the regression that left agents (Sage / Echo / Rex / Vox /
     # Pax / Mox) in their no-tool branches even when keys were configured.
     github_token = os.environ.get("GITHUB_TOKEN", "").strip()
-    if github_token:
-        github_repo = _resolve_github_repo(paths)
-        github_tools = (
-            GitHubTools(token=github_token, repo=github_repo)
-            if github_repo
-            else GitHubTools(token=github_token)
-        )
+    github_repo = _resolve_github_repo(paths)
+    if github_repo:
+        # Public GitHub repositories can be read unauthenticated. Constructing
+        # GitHubTools with an empty token still lets Sage/Rex/Argus use the
+        # configured repo instead of silently falling back to no-tool mode.
+        github_tools = GitHubTools(token=github_token, repo=github_repo)
+    elif github_token:
+        github_tools = GitHubTools(token=github_token)
     else:
         github_tools = None
 

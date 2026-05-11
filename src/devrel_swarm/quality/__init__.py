@@ -20,10 +20,10 @@ async def generate_with_pipeline(
     logger,
 ) -> tuple[str, list[str], list[str]]:
     """Generate content via the editorial pipeline, falling back to the
-    legacy revision loop when there is no .devrel/ project or the pipeline
-    aborts on unrecoverable slop. Returns (final_text, strengths, issues).
-    The fallback path is logged via the provided logger so the calling
-    agent's logs surface why the pipeline didn't run."""
+    legacy revision loop only when there is no .devrel/ project. AbortLoud
+    from the editorial pipeline is intentionally allowed to propagate so
+    callers can treat quality-gate failures as blocked output instead of
+    silently publishing a weaker single-revision draft."""
     # Imports are kept inside the function to avoid circular-import risk at
     # module load (quality is imported by editorial; editorial imports
     # project.paths which is fine, but we also want this helper to remain
@@ -33,7 +33,7 @@ async def generate_with_pipeline(
         ProjectPaths,
         find_devrel_root,
     )
-    from devrel_swarm.quality.editorial import AbortLoud, run_pipeline
+    from devrel_swarm.quality.editorial import run_pipeline
 
     draft = await llm_client.generate(
         system_prompt=system_prompt,
@@ -50,7 +50,7 @@ async def generate_with_pipeline(
         strengths = [result.stages[-1].detail] if result.stages else []
         issues = [i for s in result.stages for i in s.issues]
         return result.final_text, strengths, issues
-    except (ProjectNotFoundError, AbortLoud) as e:
+    except ProjectNotFoundError as e:
         logger.warning("editorial pipeline unavailable, using single-revision: %s", e)
         content, trace = await llm_client.generate_with_revision(
             system_prompt=system_prompt,

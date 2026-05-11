@@ -85,6 +85,11 @@ class GitHubTools:
     async def close(self) -> None:
         await self._client.aclose()
 
+    @property
+    def repo_full_name(self) -> str:
+        """Compatibility alias used by analytics collectors."""
+        return self.repo
+
     # -- Issues -----------------------------------------------------------
 
     async def fetch_recent_issues(
