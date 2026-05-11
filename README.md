@@ -12,19 +12,54 @@ Every piece of content the system produces flows through an 8-stage editorial pi
 
 ## Quick start
 
+First content in five minutes. `devrel init` is now an interactive wizard
+that walks you through scaffold → LLM key → health check → voice tuning →
+first draft in one session.
+
 ```bash
 pipx install devrel-swarm
 
 cd /path/to/your/project
-devrel init --name myproject --url https://myproject.dev --github-repo me/myproject
-
-# edit .devrel/voice.md, .devrel/style.md, .devrel/slop-blocklist.md
-
-export ANTHROPIC_API_KEY=sk-ant-...
-devrel doctor                                  # check env + scaffold
-devrel content draft "tutorial on feature flags" --type tutorial
-devrel run                                     # full weekly pipeline
+devrel init                # interactive wizard, all the way to first draft
 ```
+
+The wizard:
+
+1. **Scaffolds `.devrel/`** with `config.toml`, `voice.md`, `style.md`,
+   `slop-blocklist.md`, `kb/`, `deliverables/`, `state.db`
+2. **Configures an LLM key** — pick Anthropic or OpenRouter (recommended:
+   free credits, no waitlist), validates with a one-token ping, writes to
+   `.devrel/.env` (chmod 600)
+3. **Runs a health check** — confirms env, scaffold, schema
+4. **Opens `voice.md` in `$EDITOR`** so you can drop in 3-5 sample passages
+   from your best published content
+5. **Generates your first content draft** — prompts for topic + type, calls
+   Kai through the full editorial pipeline, persists the draft +
+   grounding/code-validation trace
+
+Skip flags for non-default flows:
+
+```bash
+devrel init --skip-draft        # wizard through voice edit, no LLM call
+devrel init --skip-chain        # scaffold only, you run auth/doctor/draft yourself
+devrel init --non-interactive --name myproj --url ... --github-repo ...
+                                 # CI shape: scaffold only, no prompts
+```
+
+After onboarding:
+
+```bash
+devrel run                       # ad-hoc weekly pipeline (all 13 agents)
+devrel schedule install          # cron it (Mondays 09:00 UTC default)
+```
+
+> **Why OpenRouter?** Lower onboarding barrier than Anthropic API access (no
+> waitlist, free monthly credits) and supports per-agent model routing.
+> The wizard recommends it.
+
+Stuck? See [docs/troubleshooting.md](docs/troubleshooting.md) for the
+common failures (OpenRouter 400, missing keys, ungrounded content,
+quality-gate aborts) and their fixes.
 
 After `devrel init`, your repo has a `.devrel/` directory with:
 
@@ -219,7 +254,8 @@ The agent system is product-agnostic. Per-project config + KB + voice files do a
 
 The user-facing docs live in [`docs/`](docs/):
 
-- [`docs/quickstart.md`](docs/quickstart.md) — bootstrap a project and run your first weekly cycle in 5 minutes
+- [`docs/quickstart.md`](docs/quickstart.md) — install, configure an LLM key, ship your first grounded draft in 5 minutes
+- [`docs/troubleshooting.md`](docs/troubleshooting.md) — common failures and fixes (OpenRouter 400, missing keys, ungrounded content, quality-gate aborts)
 - [`docs/agents/argus.md`](docs/agents/argus.md) — content performance analyst, the 13th agent
 - [`docs/cli/analytics.md`](docs/cli/analytics.md) — full reference for the `devrel analytics` subgroup
 - [`docs/cookbook.md`](docs/cookbook.md) — common recipes (calibration, weekly cron, multi-project rollups)

@@ -14,8 +14,9 @@ Each backend exposes:
 - `default_model`: backend-default when the caller doesn't override
 - `cheap_model`: budget-downgrade target (used by BudgetGate)
 - `resolve_alias(alias)`: translates `"haiku"`/`"sonnet"`/`"opus"` shorthand
-  to a real model id (backend-specific; OpenRouter wants
-  `anthropic/claude-haiku-4-5-20251001`, native Anthropic wants the bare id)
+  to a real model id (backend-specific; OpenRouter uses dot notation without
+  date suffix like `anthropic/claude-haiku-4.5`, native Anthropic wants the
+  bare dated id like `claude-haiku-4-5-20251001`)
 - async `chat(...)`: the actual call, returns a `BackendResponse`
 - async `aclose()`: release any underlying clients (httpx pools etc.)
 """
@@ -140,14 +141,16 @@ class AnthropicBackend(LLMBackend):
 # --- OpenRouter -------------------------------------------------------------
 
 # OpenRouter is OpenAI-compatible. We POST to /chat/completions with model ids
-# in the form `<provider>/<model>` (e.g. `anthropic/claude-sonnet-4-5-20250929`,
-# `openai/gpt-4o-mini`). Pricing is per-model; OpenRouter's docs lists rates,
-# and the response usage is OpenAI-shape (prompt_tokens / completion_tokens).
+# in the form `<provider>/<model>` (e.g. `anthropic/claude-sonnet-4.5`,
+# `openai/gpt-4o-mini`). OpenRouter uses dot notation for Anthropic versions
+# and does NOT accept Anthropic's dated suffixes (`-20250929`); a 400 Bad
+# Request is the symptom of using the dated id here. Pricing is per-model;
+# response usage is OpenAI-shape (prompt_tokens / completion_tokens).
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
-OPENROUTER_DEFAULT_MODEL = "anthropic/claude-sonnet-4-5-20250929"
-OPENROUTER_CHEAP_MODEL = "anthropic/claude-haiku-4-5-20251001"
+OPENROUTER_DEFAULT_MODEL = "anthropic/claude-sonnet-4.5"
+OPENROUTER_CHEAP_MODEL = "anthropic/claude-haiku-4.5"
 OPENROUTER_ALIASES: dict[str, str] = {
-    "opus": "anthropic/claude-opus-4-0-20250514",
+    "opus": "anthropic/claude-opus-4",
     "sonnet": OPENROUTER_DEFAULT_MODEL,
     "haiku": OPENROUTER_CHEAP_MODEL,
 }

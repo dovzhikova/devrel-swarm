@@ -28,25 +28,33 @@ def _init_project(tmp_path):
 
 
 @patch("devrel_swarm.cli.content._build_llm_client")
-@patch("devrel_swarm.cli.content.run_pipeline")
-def test_draft_writes_deliverable_and_trace(mock_pipeline, mock_client, tmp_path):
+@patch("devrel_swarm.cli.content._build_kai")
+def test_draft_writes_deliverable_and_trace(mock_build_kai, mock_client, tmp_path):
     _init_project(tmp_path)
-    mock_pipeline.return_value = MagicMock(
-        final_text="Final clean draft.",
-        flagged=False,
-        stages=[],
-        revision_trace={"content_type": "tutorial", "stages": []},
-    )
-    mock_pipeline.side_effect = None
-
-    # Make run_pipeline awaitable
-    async def _runner(**kwargs):
-        return mock_pipeline.return_value
-
-    import devrel_swarm.cli.content as content_mod
-
-    content_mod.run_pipeline = AsyncMock(return_value=mock_pipeline.return_value)
     mock_client.return_value = MagicMock(generate=AsyncMock(return_value="initial draft"))
+    fake_kai = MagicMock()
+    fake_kai.execute = AsyncMock(
+        return_value={
+            "agent": "kai",
+            "task": "tutorial on feature flags",
+            "status": "generated",
+            "content": "Final clean draft.",
+            "grounding_sources": ["sdks/python.md"],
+            "pain_points_addressed": ["init errors"],
+            "real_issues_referenced": [101],
+            "revision": {"strengths": ["clear"], "remaining_issues": []},
+            "code_validation": {
+                "total_blocks": 1,
+                "validated": 1,
+                "passed": 1,
+                "failed": 0,
+                "skipped": 0,
+                "all_passed": True,
+                "errors": [],
+            },
+        }
+    )
+    mock_build_kai.return_value = fake_kai
 
     cwd = os.getcwd()
     os.chdir(tmp_path)
@@ -72,6 +80,11 @@ def test_draft_writes_deliverable_and_trace(mock_pipeline, mock_client, tmp_path
     assert "Final clean draft." in deliverables[0].read_text()
     trace = json.loads(traces[0].read_text())
     assert trace["content_type"] == "tutorial"
+    assert trace["grounding_sources"] == ["sdks/python.md"]
+    assert trace["agent"] == "kai"
+    fake_kai.execute.assert_awaited_once_with(
+        task="tutorial on feature flags", content_type="tutorial"
+    )
 
 
 def test_draft_fails_without_project(tmp_path):
@@ -150,56 +163,114 @@ def test_build_llm_client_raises_without_api_key(monkeypatch):
 
 
 @patch("devrel_swarm.cli.content._build_llm_client")
-def test_draft_aborts_loud_exits_nonzero(mock_client, tmp_path):
-    from devrel_swarm.quality.editorial import AbortLoud
-
+@patch("devrel_swarm.cli.content._build_kai")
+def test_draft_exits_nonzero_when_kai_blocks(mock_build_kai, mock_client, tmp_path):
     _init_project(tmp_path)
     mock_client.return_value = MagicMock(generate=AsyncMock(return_value="draft"))
-
-    async def _raise(**kwargs):
-        raise AbortLoud("slop persists")
+    fake_kai = MagicMock()
+    fake_kai.execute = AsyncMock(
+        return_value={
+            "agent": "kai",
+            "task": "topic",
+            "status": "blocked_by_quality_gate",
+            "content": "",
+            "error": "slop persists",
+        }
+    )
+    mock_build_kai.return_value = fake_kai
 
     cwd = os.getcwd()
     os.chdir(tmp_path)
     try:
-        with patch("devrel_swarm.cli.content.run_pipeline", new=_raise):
-            result = runner.invoke(
-                app,
-                ["content", "draft", "topic", "--type", "tutorial"],
-                env={"ANTHROPIC_API_KEY": "sk-ant-test", **os.environ},
-            )
+        result = runner.invoke(
+            app,
+            ["content", "draft", "topic", "--type", "tutorial"],
+            env={"ANTHROPIC_API_KEY": "sk-ant-test", **os.environ},
+        )
     finally:
         os.chdir(cwd)
     assert result.exit_code == 1
+    assert "blocked_by_quality_gate" in result.output
 
 
 @patch("devrel_swarm.cli.content._build_llm_client")
-def test_draft_flagged_prints_warning(mock_client, tmp_path):
+@patch("devrel_swarm.cli.content._build_kai")
+def test_draft_warns_when_no_kb_grounding(mock_build_kai, mock_client, tmp_path):
     _init_project(tmp_path)
     mock_client.return_value = MagicMock(generate=AsyncMock(return_value="draft"))
-    flagged_result = MagicMock(
-        final_text="Final.",
-        flagged=True,
-        stages=[],
-        revision_trace={"content_type": "tutorial", "stages": []},
+    fake_kai = MagicMock()
+    fake_kai.execute = AsyncMock(
+        return_value={
+            "agent": "kai",
+            "task": "topic",
+            "status": "generated",
+            "content": "Final.",
+            "grounding_sources": [],
+            "code_validation": {
+                "total_blocks": 0,
+                "validated": 0,
+                "passed": 0,
+                "failed": 0,
+                "skipped": 0,
+                "all_passed": True,
+                "errors": [],
+            },
+        }
     )
+    mock_build_kai.return_value = fake_kai
 
     cwd = os.getcwd()
     os.chdir(tmp_path)
     try:
-        with patch(
-            "devrel_swarm.cli.content.run_pipeline",
-            new=AsyncMock(return_value=flagged_result),
-        ):
-            result = runner.invoke(
-                app,
-                ["content", "draft", "topic", "--type", "tutorial"],
-                env={"ANTHROPIC_API_KEY": "sk-ant-test", **os.environ},
-            )
+        result = runner.invoke(
+            app,
+            ["content", "draft", "topic", "--type", "tutorial"],
+            env={"ANTHROPIC_API_KEY": "sk-ant-test", **os.environ},
+        )
     finally:
         os.chdir(cwd)
     assert result.exit_code == 0, result.output
-    assert "Flagged" in result.output
+    assert "No KB sources matched" in result.output
+
+
+@patch("devrel_swarm.cli.content._build_llm_client")
+@patch("devrel_swarm.cli.content._build_kai")
+def test_draft_warns_when_code_validation_fails(mock_build_kai, mock_client, tmp_path):
+    _init_project(tmp_path)
+    mock_client.return_value = MagicMock(generate=AsyncMock(return_value="draft"))
+    fake_kai = MagicMock()
+    fake_kai.execute = AsyncMock(
+        return_value={
+            "agent": "kai",
+            "task": "topic",
+            "status": "generated",
+            "content": "Final.",
+            "grounding_sources": ["sdks/python.md"],
+            "code_validation": {
+                "total_blocks": 3,
+                "validated": 3,
+                "passed": 1,
+                "failed": 2,
+                "skipped": 0,
+                "all_passed": False,
+                "errors": [],
+            },
+        }
+    )
+    mock_build_kai.return_value = fake_kai
+
+    cwd = os.getcwd()
+    os.chdir(tmp_path)
+    try:
+        result = runner.invoke(
+            app,
+            ["content", "draft", "topic", "--type", "tutorial"],
+            env={"ANTHROPIC_API_KEY": "sk-ant-test", **os.environ},
+        )
+    finally:
+        os.chdir(cwd)
+    assert result.exit_code == 0, result.output
+    assert "Code validation: 2/3 blocks failed" in result.output
 
 
 @patch("devrel_swarm.cli.content._build_llm_client")

@@ -586,6 +586,7 @@ class Atlas:
 
     def _build_content_brief(self) -> dict[str, Any]:
         """Create a compact evidence brief for Kai from upstream agents."""
+
         def symbols_for(module: dict[str, Any], limit: int = 20) -> list[Any]:
             symbols = module.get("symbols", [])
             if isinstance(symbols, list):
@@ -596,11 +597,7 @@ class Atlas:
 
         themes = self.context.iris_themes.get("themes", [])
         top_theme = themes[0] if themes and isinstance(themes[0], dict) else {}
-        issues = [
-            i
-            for i in self.context.sage_triage.get("issues", [])[:8]
-            if isinstance(i, dict)
-        ]
+        issues = [i for i in self.context.sage_triage.get("issues", [])[:8] if isinstance(i, dict)]
         modules = [
             m
             for m in self.context.dex_docs.get("modules", [])

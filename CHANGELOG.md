@@ -1,5 +1,134 @@
 # Changelog
 
+## 0.2.12: Onboarding overhaul (2026-05-11)
+
+### Added
+
+- **`devrel init` is now an interactive wizard** that walks you from a
+  fresh shell to your first content draft in one session:
+  1. Scaffold `.devrel/` (existing behavior)
+  2. Configure an LLM key (provider picker + key entry + one-token
+     validation, auto-skipped if a key is already in `.devrel/.env`)
+  3. Run a health check inline; offer to continue or stop on failures
+  4. Open `voice.md` in `$EDITOR` so you can drop in voice samples
+     before the first generation
+  5. Prompt for topic + content type, generate the first draft via
+     Kai, persist `<slug>.md` + `<slug>-trace.json` to deliverables
+- **New flags** to opt out of pieces of the chain:
+  - `--skip-chain`: scaffold only, even in interactive mode (matches
+    the pre-0.2.12 behavior)
+  - `--skip-draft`: run the chain through health check + voice edit
+    but stop before the LLM call (no spend, no network)
+  - `--non-interactive`: implies `--skip-chain` (CI shape unchanged)
+- **`devrel auth` success message** now ends with explicit "Next steps"
+  pointing at `devrel doctor` + `devrel content draft "..."` so users
+  know what to run next.
+
+### Changed
+
+- **README quick start**: now leads with `devrel init` as a one-command
+  onboarding entry point. The old `init` → `auth` → `doctor` → `draft`
+  sequence is documented under "skip flags for non-default flows."
+- **docs/quickstart.md**: added a TL;DR block at the top featuring the
+  wizard; the rest of the doc explains what each step does and how to
+  recover if you skip or fail one.
+- **docs/troubleshooting.md** (added in 0.2.11): now anchored on the
+  wizard flow.
+
+### Internal
+
+- 5 new tests in `tests/cli/test_init_command.py` covering the chain:
+  scaffold-only escape hatches still work, chain stops on user 'n',
+  pre-existing key short-circuits the auth step, `--skip-draft` runs
+  voice edit but no LLM call, full chain produces deliverable + trace.
+- Suite at 997 passed, ruff + format clean.
+
+## 0.2.11: Fix OpenRouter 400 on default model ids (2026-05-11)
+
+### Fixed
+
+- **`devrel run` / `devrel auth` no longer 400 on OpenRouter.** The
+  hardcoded default model ids in `core/llm_backends.py` used Anthropic's
+  dated suffix (`anthropic/claude-sonnet-4-5-20250929`), which OpenRouter
+  rejects with 400 Bad Request. OpenRouter uses dot notation without a
+  date suffix; bumped the three OPENROUTER_ALIASES to the real ids:
+  - `sonnet` → `anthropic/claude-sonnet-4.5` (was `…-4-5-20250929`)
+  - `haiku` → `anthropic/claude-haiku-4.5` (was `…-4-5-20251001`)
+  - `opus` → `anthropic/claude-opus-4` (was `…-4-0-20250514`)
+- Native Anthropic backend ids (`ANTHROPIC_DEFAULT_MODEL` etc.) are
+  unchanged: the dated form is what Anthropic's API expects.
+- Updated `LLMBackend.resolve_alias` docstring + the OpenRouter section
+  comment to spell out the dot-notation / no-date-suffix rule, with the
+  400-Bad-Request symptom called out so the next reader doesn't
+  re-introduce the bug.
+
+## 0.2.10: Output grounding (2026-05-11)
+
+Two changes that close grounding gaps surfaced during PostHog dogfooding:
+content paths now refuse to silently produce ungrounded output, and the
+CLI verb that pitches the editorial pipeline now actually uses the KB.
+
+### Added
+
+- **Kai evidence gates.** `Kai.execute` now refuses to generate when no
+  KB / official-docs / repository evidence is available, returning
+  `status="insufficient_evidence"` with an `evidence_gaps` list instead of
+  silently producing ungrounded content. Task-shape gating: prompts that
+  ask for "pain points" / "GitHub issues" / "file paths" require the
+  matching upstream signal or short-circuit.
+- **Content brief in Stage 3.** Atlas builds a compact evidence pack (top
+  relevant Dex modules + Sage issues + Iris pain point) and threads it
+  into Kai's stage-3 task via the new `context={"content_brief": ...}`
+  delegation kwarg. Forbidden-claims list bans inventing SDK methods,
+  endpoints, install commands, file paths, benchmarks, or issue numbers.
+- **Weekly deliverables.** `Atlas._write_weekly_deliverables` persists
+  Kai's content + grounding trace + Dex repo summary as
+  `.devrel/deliverables/<week>/<slug>.md` + `.trace.json`, surfaced in
+  OKRs as `deliverables_written`.
+- **Code validator coverage.** `bash` / `sh` / `zsh` / `yaml` / `yml`
+  moved from `SKIP_LANGUAGES` to `SUPPORTED_LANGUAGES`. YAML uses
+  `yaml.safe_load` and flags deprecated `actions/upload-artifact@v3`.
+  Shell uses `shlex.split` per line plus a `rm -rf /` guard.
+- **`GitHubTools.repo_full_name`** alias for analytics collectors.
+
+### Changed
+
+- **`devrel content draft` now routes through Kai** instead of calling
+  `client.generate()` with a generic "writer producing a first draft"
+  system prompt. Kai's path searches `.devrel/kb`, fetches official docs
+  via SearchTools when configured, runs the editorial pipeline via
+  `generate_with_pipeline`, and validates code blocks. The trace JSON
+  carries `grounding_sources`, `pain_points_addressed`,
+  `real_issues_referenced`, `revision`, and `code_validation`. Surfaces
+  "No KB sources matched" and "Code validation: N/M blocks failed"
+  warnings; exits nonzero on `insufficient_evidence` or
+  `blocked_by_quality_gate`.
+- **`AbortLoud` propagates from `generate_with_pipeline`** instead of
+  being silently swallowed and replaced with a single-revision draft.
+  Kai catches it explicitly and sets `status="blocked_by_quality_gate"`
+  so quality-gate failures are visible, not masked.
+- **Sentinel JSON parse failures** no longer fall back to structural
+  audit; return `status="audit_failed"` with `overall_score=0` so failed
+  audits are visible in the report. `_safe_json_loads` strips markdown
+  fences and scans for `{...}` substring before raising.
+- **`Atlas._compile_okrs` `content_produced`** is now strict:
+  `status=="generated"` AND content non-empty (was: any truthy
+  `kai_content` dict, which was True even on `status="error"`).
+- **`build_atlas_or_exit` constructs `GitHubTools` for public repos**
+  even when `GITHUB_TOKEN` is unset, so Sage / Rex / Argus can read the
+  configured repo unauthenticated instead of dropping to no-tool mode.
+- **Argus `GitHubCollector`** uses real `GitHubTools` when wired (was:
+  always `_dummy_github_client()`).
+
+### Internal
+
+- 13 files / +555 / -55 across PR #1 (`7778325`); 2 files / +184 / -69
+  across PR #2 (`91b166f`). Suite at 992 passed, ruff + format clean.
+- Test fixture fix: `make_atlas` now mocks `generate_with_revision`, so
+  the editorial pipeline completes end-to-end in integration tests; the
+  pre-PR `_compile_okrs` check was masking the unmocked-revision crash.
+- Renamed `test_falls_back_on_abort_loud` → `test_propagates_abort_loud`.
+
 ## 0.2.9: BYO-key onboarding polish (2026-05-08)
 
 Reduces the friction between `pipx install devrel-swarm` and a working

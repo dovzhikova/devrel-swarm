@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+from unittest.mock import AsyncMock, MagicMock, patch
 
 from typer.testing import CliRunner
 
@@ -98,3 +99,168 @@ def test_version_flag():
     result = runner.invoke(app, ["--version"])
     assert result.exit_code == 0
     assert "devrel-swarm" in result.output
+
+
+# --- Onboarding chain ------------------------------------------------------
+#
+# `devrel init` (interactive, default) chains through auth -> doctor -> voice
+# edit -> first draft. The chain is the new onboarding flow; verify (a) the
+# scaffold-only escape hatches still work, (b) the chain runs in the right
+# order, and (c) a key already configured short-circuits the auth step so
+# re-running init doesn't ask again.
+
+
+def test_init_skip_chain_prints_manual_next_steps(tmp_path):
+    """With --skip-chain, scaffold runs and the manual next-steps block prints
+    (mirrors the --non-interactive scaffold-only path)."""
+    cwd = os.getcwd()
+    try:
+        os.chdir(tmp_path)
+        # --skip-chain is interactive-only; have to feed prompts.
+        result = runner.invoke(
+            app,
+            ["init", "--skip-chain"],
+            input="testproj\n\n\n",  # name, url, github_repo
+        )
+    finally:
+        os.chdir(cwd)
+    assert result.exit_code == 0, result.output
+    assert (tmp_path / ".devrel" / "config.toml").is_file()
+    # Manual next-steps block.
+    assert "devrel auth" in result.output
+    assert "devrel doctor" in result.output
+    assert "devrel content draft" in result.output
+    # Chain didn't fire.
+    assert "Step 1 of 4" not in result.output
+
+
+def test_init_chain_aborts_when_user_declines_auth(tmp_path):
+    """If the user types 'n' at the auth confirmation, the chain stops and
+    no validation / draft is attempted."""
+    cwd = os.getcwd()
+    try:
+        os.chdir(tmp_path)
+        # Prompts: name, url, github_repo, then "Configure your LLM key now?"
+        # Decline the chain at the auth step.
+        result = runner.invoke(
+            app,
+            ["init"],
+            input="testproj\n\n\nn\n",
+        )
+    finally:
+        os.chdir(cwd)
+    assert result.exit_code == 0, result.output
+    assert "Step 1 of 4" in result.output
+    assert "Skipping" in result.output
+    # Chain stopped at auth; doctor/voice/draft never ran.
+    assert "Step 2 of 4" not in result.output
+
+
+def test_init_chain_skips_auth_when_key_already_present(tmp_path):
+    """If .devrel/.env already has an API key (e.g. user re-runs init after
+    auth), the auth step short-circuits with the 'already configured' message
+    and the chain continues to doctor."""
+    devrel = tmp_path / ".devrel"
+    devrel.mkdir()
+    (devrel / ".env").write_text("ANTHROPIC_API_KEY=sk-ant-test\n")
+
+    cwd = os.getcwd()
+    try:
+        os.chdir(tmp_path)
+        # name, url, github_repo, then decline doctor's continue-on-fail prompt
+        # if it triggers (unlikely on a fresh scaffold), then decline voice
+        # edit, then decline draft.
+        result = runner.invoke(
+            app,
+            ["init", "--skip-draft"],
+            input="testproj\n\n\nn\nn\n",
+        )
+    finally:
+        os.chdir(cwd)
+    assert result.exit_code == 0, result.output
+    assert "ANTHROPIC_API_KEY already configured" in result.output
+    # Auth was short-circuited, so doctor must have run.
+    assert "Step 2 of 4" in result.output
+
+
+@patch("devrel_swarm.cli.init.subprocess.run")
+def test_init_chain_skip_draft_stops_before_llm_call(mock_subproc, tmp_path):
+    """--skip-draft runs auth + doctor + voice edit but does NOT call the LLM."""
+    devrel = tmp_path / ".devrel"
+    devrel.mkdir()
+    (devrel / ".env").write_text("ANTHROPIC_API_KEY=sk-ant-test\n")
+
+    with patch("devrel_swarm.cli.content._build_kai") as mock_build_kai:
+        cwd = os.getcwd()
+        try:
+            os.chdir(tmp_path)
+            # name, url, github_repo, decline doctor-continue (won't trigger
+            # on pass), accept voice edit (which will mock subprocess)
+            result = runner.invoke(
+                app,
+                ["init", "--skip-draft"],
+                input="testproj\n\n\ny\n",
+            )
+        finally:
+            os.chdir(cwd)
+        assert result.exit_code == 0, result.output
+        assert "Skipped first draft" in result.output
+        # Editor invoked.
+        mock_subproc.assert_called_once()
+        # Kai never built (no LLM call).
+        mock_build_kai.assert_not_called()
+
+
+@patch("devrel_swarm.cli.init.subprocess.run")
+@patch("devrel_swarm.cli.content._build_kai")
+@patch("devrel_swarm.cli.content._build_llm_client")
+def test_init_chain_runs_first_draft_when_accepted(
+    mock_client, mock_build_kai, mock_subproc, tmp_path
+):
+    """Full chain: auth (existing key) -> doctor -> voice edit -> first draft.
+    Kai returns a successful draft; deliverable + trace land in .devrel/."""
+    devrel = tmp_path / ".devrel"
+    devrel.mkdir()
+    (devrel / ".env").write_text("OPENROUTER_API_KEY=sk-or-test\n")
+
+    mock_client.return_value = MagicMock(generate=AsyncMock(return_value="x"))
+    fake_kai = MagicMock()
+    fake_kai.execute = AsyncMock(
+        return_value={
+            "agent": "kai",
+            "task": "tutorial on feature flags",
+            "status": "generated",
+            "content": "# Tutorial\n\nBody.",
+            "grounding_sources": ["sdks/python.md"],
+            "code_validation": {
+                "total_blocks": 0,
+                "validated": 0,
+                "passed": 0,
+                "failed": 0,
+                "skipped": 0,
+                "all_passed": True,
+                "errors": [],
+            },
+        }
+    )
+    mock_build_kai.return_value = fake_kai
+
+    cwd = os.getcwd()
+    try:
+        os.chdir(tmp_path)
+        # name, url, github_repo, accept voice edit, accept draft, topic, type
+        result = runner.invoke(
+            app,
+            ["init"],
+            input="testproj\n\n\ny\ny\ntutorial on feature flags\ntutorial\n",
+        )
+    finally:
+        os.chdir(cwd)
+    assert result.exit_code == 0, result.output
+    assert "Step 4 of 4" in result.output
+    fake_kai.execute.assert_awaited_once_with(
+        task="tutorial on feature flags", content_type="tutorial"
+    )
+    deliverables = list((tmp_path / ".devrel" / "deliverables").glob("*.md"))
+    assert len(deliverables) == 1
+    assert "Onboarding complete" in result.output
