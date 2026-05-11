@@ -12,10 +12,13 @@ from pathlib import Path
 import typer
 from rich.console import Console
 
+from devrel_swarm.core.kai import Kai
 from devrel_swarm.core.llm import LLMClient
 from devrel_swarm.project.paths import ProjectNotFoundError, ProjectPaths, find_devrel_root
 from devrel_swarm.quality.editorial import AbortLoud, run_pipeline
 from devrel_swarm.quality.slop import find_slop, parse_blocklist
+from devrel_swarm.tools.api_client import PostHogClient
+from devrel_swarm.tools.search_tools import SearchTools
 
 console = Console()
 
@@ -32,6 +35,31 @@ def _build_llm_client() -> LLMClient:
     if not api_key:
         raise typer.BadParameter("ANTHROPIC_API_KEY is required.")
     return LLMClient(api_key=api_key)
+
+
+def _build_kai(paths: ProjectPaths, llm_client: LLMClient) -> Kai:
+    """Wire Kai with the same KB + optional search-tools the weekly cycle uses,
+    so `devrel content draft` produces grounded, code-validated output instead
+    of an editorial-pipeline pass over a generic LLM draft."""
+    posthog = PostHogClient(
+        api_key=os.environ.get("POSTHOG_API_KEY", ""),
+        project_id=os.environ.get("POSTHOG_PROJECT_ID", ""),
+    )
+    search_tools: SearchTools | None = None
+    if (
+        os.environ.get("FIRECRAWL_API_KEY", "").strip()
+        or os.environ.get("BRAVE_API_KEY", "").strip()
+    ):
+        search_tools = SearchTools(
+            firecrawl_api_key=os.environ.get("FIRECRAWL_API_KEY", ""),
+            brave_api_key=os.environ.get("BRAVE_API_KEY", ""),
+        )
+    return Kai(
+        api_client=posthog,
+        knowledge_base_path=paths.kb_dir,
+        llm_client=llm_client,
+        search_tools=search_tools,
+    )
 
 
 def _slug(text: str) -> str:
@@ -58,7 +86,7 @@ def draft_command(
         help="Content type for targeting (tutorial, blog_post, landing_page, cold_email, battle_card).",
     ),
 ) -> None:
-    """Generate new content via the 8-stage editorial pipeline."""
+    """Generate new content through Kai: KB-grounded prompt + editorial pipeline + code validation."""
     try:
         root = find_devrel_root()
     except ProjectNotFoundError as e:
@@ -66,33 +94,49 @@ def draft_command(
         raise typer.Exit(code=1) from None
     paths = ProjectPaths.from_root(root)
     client = _build_llm_client()
+    kai = _build_kai(paths, client)
 
     async def _do() -> None:
-        draft = await client.generate(
-            system_prompt=(
-                "You are a writer producing a first draft. Stay specific and concrete. "
-                "Avoid marketing fluff."
-            ),
-            user_prompt=prompt,
-        )
-        try:
-            result = await run_pipeline(
-                initial_draft=draft,
-                content_type=content_type,
-                project_paths=paths,
-                llm_client=client,
-            )
-        except AbortLoud as e:
-            console.print(f"[red]Pipeline aborted: {e}[/red]")
-            raise typer.Exit(code=1) from None
-        body_path, trace_path = _write_outputs(
-            paths, _slug(prompt), result.final_text, result.revision_trace
-        )
-        console.print(f"[green]✓[/green] Wrote {body_path.name} ({len(result.final_text)} chars)")
+        result = await kai.execute(task=prompt, content_type=content_type)
+
+        status = result.get("status")
+        body = result.get("content") or ""
+        if status != "generated" or not body:
+            console.print(f"[red]Kai did not produce content (status={status}).[/red]")
+            for gap in result.get("evidence_gaps", []):
+                console.print(f"  - {gap}")
+            if result.get("error"):
+                console.print(f"  error: {result['error']}")
+            raise typer.Exit(code=1)
+
+        trace = {
+            "agent": "kai",
+            "task": result.get("task"),
+            "content_type": content_type,
+            "grounding_sources": result.get("grounding_sources", []),
+            "pain_points_addressed": result.get("pain_points_addressed", []),
+            "real_issues_referenced": result.get("real_issues_referenced", []),
+            "revision": result.get("revision", {}),
+            "code_validation": result.get("code_validation", {}),
+        }
+        body_path, trace_path = _write_outputs(paths, _slug(prompt), body, trace)
+        console.print(f"[green]✓[/green] Wrote {body_path.name} ({len(body)} chars)")
         console.print(f"[green]✓[/green] Wrote {trace_path.name}")
-        if result.flagged:
+
+        sources = result.get("grounding_sources") or []
+        if sources:
+            console.print(f"[green]✓[/green] Grounded in {len(sources)} KB doc(s)")
+        else:
             console.print(
-                "[yellow]⚠[/yellow] Flagged: persona or readability gates failed twice; output shipped anyway."
+                "[yellow]⚠[/yellow] No KB sources matched the prompt; "
+                "output may be ungrounded. Run `devrel kb add` to populate the KB."
+            )
+
+        cv = result.get("code_validation") or {}
+        if cv and not cv.get("all_passed", True):
+            console.print(
+                f"[yellow]⚠[/yellow] Code validation: "
+                f"{cv.get('failed', 0)}/{cv.get('validated', 0)} blocks failed syntax checks"
             )
 
     asyncio.run(_do())
