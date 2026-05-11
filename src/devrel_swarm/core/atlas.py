@@ -10,6 +10,7 @@ import json
 import logging
 import os
 import random
+import re
 import shutil
 import subprocess
 from contextlib import nullcontext as _nullcontext
@@ -283,6 +284,7 @@ class Atlas:
         self.llm_client = llm_client
         self.instantly_client = instantly_client
         self.apollo_client = apollo_client
+        self.github_tools = github_tools
         self.project_paths = project_paths
         self.config = config or AgentConfig()
         self.context = SharedContext(week_of=datetime.now().strftime("%Y-W%U"))
@@ -553,6 +555,148 @@ class Atlas:
             f.unlink(missing_ok=True)
         logger.info("Cleaned up stage checkpoints")
 
+    def _build_content_brief(self) -> dict[str, Any]:
+        """Create a compact evidence brief for Kai from upstream agents."""
+
+        def symbols_for(module: dict[str, Any], limit: int = 20) -> list[Any]:
+            symbols = module.get("symbols", [])
+            if isinstance(symbols, list):
+                return symbols[:limit]
+            if symbols:
+                return [symbols]
+            return []
+
+        themes = self.context.iris_themes.get("themes", [])
+        top_theme = themes[0] if themes and isinstance(themes[0], dict) else {}
+        issues = [i for i in self.context.sage_triage.get("issues", [])[:8] if isinstance(i, dict)]
+        modules = [
+            m
+            for m in self.context.dex_docs.get("modules", [])
+            if isinstance(m, dict) and m.get("path")
+        ]
+
+        query_text = " ".join(
+            [
+                str(top_theme.get("title", "")),
+                str(top_theme.get("description", "")),
+                " ".join(str(i.get("title", "")) for i in issues),
+            ]
+        ).lower()
+        tokens = {
+            t
+            for t in re.findall(r"[a-z0-9_/-]{4,}", query_text)
+            if t not in {"issue", "docs", "user", "users", "with", "from"}
+        }
+
+        scored: list[tuple[int, dict[str, Any]]] = []
+        for module in modules:
+            haystack = " ".join(
+                [
+                    str(module.get("path", "")),
+                    str(module.get("language", "")),
+                    str(module.get("docstring", "")),
+                    " ".join(str(s) for s in symbols_for(module)),
+                ]
+            ).lower()
+            score = sum(1 for token in tokens if token in haystack)
+            if score:
+                scored.append((score, module))
+        scored.sort(key=lambda item: item[0], reverse=True)
+        selected_modules = [m for _, m in scored[:10]] or modules[:10]
+
+        github_issues = []
+        for issue in issues[:6]:
+            number = issue.get("number")
+            title = issue.get("title", "")
+            if number or title:
+                github_issues.append(
+                    {
+                        "number": number,
+                        "title": title,
+                        "product_area": issue.get("product_area", ""),
+                        "category": issue.get("category", ""),
+                    }
+                )
+
+        return {
+            "topic": top_theme.get("title") or "Top developer pain point",
+            "pain_point": {
+                "title": top_theme.get("title", ""),
+                "description": top_theme.get("description", ""),
+                "severity": top_theme.get("severity", 0),
+                "category": top_theme.get("category", ""),
+            },
+            "github_issues": github_issues,
+            "source_files": [
+                {
+                    "path": m.get("path", ""),
+                    "language": m.get("language", ""),
+                    "symbols": symbols_for(m, limit=8),
+                }
+                for m in selected_modules
+            ],
+            "allowed_claims": [
+                "Use only the listed source files, knowledge-base docs, official docs, and Dex architecture text as evidence.",
+                "Mention GitHub issues only when they appear in github_issues.",
+                "Treat missing file paths, commands, or APIs as a reason to say the context is insufficient.",
+            ],
+            "forbidden_claims": [
+                "Do not invent SDK methods, endpoints, install commands, file paths, benchmarks, or issue numbers.",
+                "Do not cite repository internals unless a source file is listed.",
+            ],
+        }
+
+    def _slug(self, value: str, fallback: str) -> str:
+        slug = re.sub(r"[^a-z0-9]+", "-", value.lower()).strip("-")
+        return slug[:80] or fallback
+
+    def _write_weekly_deliverables(self) -> list[str]:
+        """Persist publishable outputs outside the transient context JSON."""
+        if not self.project_paths:
+            return []
+
+        out_dir = self.project_paths.deliverables_dir / self.context.week_of
+        out_dir.mkdir(parents=True, exist_ok=True)
+        written: list[str] = []
+
+        kai = self.context.kai_content
+        if isinstance(kai, dict) and kai.get("status") == "generated" and kai.get("content"):
+            slug = self._slug(str(kai.get("task", "kai-content")), "kai-content")
+            content_path = out_dir / f"{slug}.md"
+            content_path.write_text(str(kai["content"]))
+            written.append(str(content_path))
+
+            trace = {
+                "task": kai.get("task"),
+                "grounding_sources": kai.get("grounding_sources", []),
+                "pain_points_addressed": kai.get("pain_points_addressed", []),
+                "real_issues_referenced": kai.get("real_issues_referenced", []),
+                "revision": kai.get("revision", {}),
+                "code_validation": kai.get("code_validation", {}),
+            }
+            trace_path = out_dir / f"{slug}.trace.json"
+            trace_path.write_text(json.dumps(trace, indent=2, default=str))
+            written.append(str(trace_path))
+
+        dex = self.context.dex_docs
+        if isinstance(dex, dict) and (dex.get("llm_summary") or dex.get("architecture_doc")):
+            docs_path = out_dir / "dex-repository-summary.md"
+            docs_path.write_text(
+                "\n\n".join(
+                    part
+                    for part in [
+                        "# Repository Summary",
+                        str(dex.get("llm_summary", "")).strip(),
+                        "## Architecture",
+                        str(dex.get("architecture_doc", "")).strip()[:12000],
+                    ]
+                    if part.strip()
+                )
+            )
+            written.append(str(docs_path))
+
+        return written
+
     async def run_weekly_cycle(self) -> SharedContext:
         """
         Execute the full weekly orchestration cycle with checkpointing.
@@ -677,7 +821,15 @@ class Atlas:
                         "Use actual file paths, commands, and APIs from the source code."
                     ),
                 }
-                coros = [self.delegate(a, tasks_3[a]) for a in stage_3_pending]
+                content_brief = self._build_content_brief()
+                coros = [
+                    self.delegate(
+                        a,
+                        tasks_3[a],
+                        context={"content_brief": content_brief} if a == "kai" else None,
+                    )
+                    for a in stage_3_pending
+                ]
                 results = await asyncio.gather(*coros)
                 for agent_name, res in zip(stage_3_pending, results, strict=True):
                     if res.success:
@@ -780,6 +932,7 @@ class Atlas:
 
         # Stage 7: OKR compilation (Atlas)
         self.context.okr_progress = self._compile_okrs()
+        self.context.okr_progress["deliverables_written"] = self._write_weekly_deliverables()
 
         # Archive the week's context and clean up checkpoints
         self.context.save(self.archive_dir)
@@ -940,7 +1093,7 @@ class Atlas:
 
         return Argus(
             posthog_collector=PostHogCollector(self.api_client),
-            github_collector=GitHubCollector(self._dummy_github_client()),
+            github_collector=GitHubCollector(self.github_tools or self._dummy_github_client()),
             instantly_collector=InstantlyCollector(
                 self.instantly_client or self._dummy_instantly_client()
             ),
@@ -1038,9 +1191,10 @@ class Atlas:
 
     def _compile_okrs(self) -> dict[str, Any]:
         """Compile weekly OKR progress from all agent outputs."""
+        kai = self.context.kai_content if isinstance(self.context.kai_content, dict) else {}
         return {
             "week": self.context.week_of,
-            "content_produced": bool(self.context.kai_content),
+            "content_produced": kai.get("status") == "generated" and bool(kai.get("content")),
             "issues_triaged": len(self.context.sage_triage.get("issues", [])),
             "social_mentions_found": self.context.echo_social.get("total_mentions", 0),
             "themes_identified": len(self.context.iris_themes.get("themes", [])),

@@ -5,6 +5,7 @@ Produces technical tutorials, blog posts, and changelog announcements
 grounded in the product knowledge base.
 """
 
+import json
 import logging
 from dataclasses import dataclass
 from pathlib import Path
@@ -13,6 +14,7 @@ from typing import Any, Optional
 from devrel_swarm.core.base import get_kb_search, load_agent_prompt
 from devrel_swarm.core.llm import LLMClient
 from devrel_swarm.quality import generate_with_pipeline
+from devrel_swarm.quality.editorial import AbortLoud
 from devrel_swarm.tools.api_client import PostHogClient
 from devrel_swarm.tools.code_validator import CodeValidator
 from devrel_swarm.tools.search_tools import SearchTools
@@ -121,11 +123,22 @@ Always cite which knowledge base documents you referenced."""
             "real_issues": [],
             "architecture_doc": "",
             "dex_summary": "",
+            "source_files": [],
+            "api_paths": [],
+            "content_brief": {},
             "previous_content_titles": [],
             "recurring_themes": [],
         }
         if not context:
             return extracted
+
+        def symbols_for(module: dict[str, Any], limit: int = 8) -> list[Any]:
+            symbols = module.get("symbols", [])
+            if isinstance(symbols, list):
+                return symbols[:limit]
+            if symbols:
+                return [symbols]
+            return []
 
         # Cross-run memory → dedup and trend detection
         if "previous_weeks" in context:
@@ -173,8 +186,63 @@ Always cite which knowledge base documents you referenced."""
             if isinstance(dex, dict):
                 extracted["architecture_doc"] = dex.get("architecture_doc", "")[:4000]
                 extracted["dex_summary"] = dex.get("llm_summary", "")[:2000]
+                modules = dex.get("modules", [])
+                if isinstance(modules, list):
+                    extracted["source_files"] = [
+                        {
+                            "path": m.get("path", ""),
+                            "language": m.get("language", ""),
+                            "symbols": symbols_for(m),
+                            "docstring": (m.get("docstring") or "")[:240],
+                        }
+                        for m in modules[:30]
+                        if isinstance(m, dict) and m.get("path")
+                    ]
+                api_reference = dex.get("api_reference", {})
+                if isinstance(api_reference, dict):
+                    extracted["api_paths"] = list(api_reference.keys())[:20]
+
+        brief = context.get("content_brief")
+        if isinstance(brief, dict):
+            extracted["content_brief"] = brief
 
         return extracted
+
+    def _evidence_gaps(
+        self,
+        task: str,
+        *,
+        grounding_docs: list[dict[str, Any]],
+        official_docs: str,
+        upstream: dict[str, Any],
+    ) -> list[str]:
+        """Return blocking gaps that would make generated content ungrounded."""
+        brief = upstream.get("content_brief") or {}
+        has_repo_evidence = bool(
+            upstream.get("architecture_doc")
+            or upstream.get("dex_summary")
+            or upstream.get("source_files")
+            or brief.get("source_files")
+        )
+        has_product_evidence = bool(grounding_docs or official_docs.strip())
+        gaps: list[str] = []
+        if not has_product_evidence and not has_repo_evidence:
+            gaps.append("no knowledge-base, official-docs, or repository evidence")
+
+        task_lower = task.lower()
+        if "pain point" in task_lower and not (
+            upstream.get("pain_points") or brief.get("pain_point")
+        ):
+            gaps.append("task requires a developer pain point, but none was provided")
+        if ("github issue" in task_lower or "real issue" in task_lower) and not (
+            upstream.get("real_issues") or brief.get("github_issues")
+        ):
+            gaps.append("task requires real GitHub issues, but none were provided")
+        if ("file path" in task_lower or "source code" in task_lower) and not (
+            upstream.get("source_files") or brief.get("source_files")
+        ):
+            gaps.append("task requires repository file paths, but Dex provided none")
+        return gaps
 
     async def execute(
         self,
@@ -198,7 +266,10 @@ Always cite which knowledge base documents you referenced."""
         logger.info(f"Kai executing: {task[:80]}...")
 
         # 1. Search knowledge base — cap total context to ~12K chars
-        grounding_docs = self.search_knowledge_base(task, max_results=5)
+        raw_grounding_docs = self.search_knowledge_base(task, max_results=5)
+        grounding_docs = [
+            doc for doc in raw_grounding_docs if float(doc.get("relevance", 0) or 0) > 0
+        ]
         grounding_context = "\n\n".join(
             f"[Source: {doc['source']}]\n{doc['content']}" for doc in grounding_docs
         )[:12000]
@@ -218,6 +289,9 @@ Always cite which knowledge base documents you referenced."""
         real_issues = upstream["real_issues"]
         arch_doc = upstream["architecture_doc"]
         dex_summary = upstream["dex_summary"]
+        source_files = upstream["source_files"]
+        api_paths = upstream["api_paths"]
+        content_brief = upstream["content_brief"]
 
         # Build pain points section
         pain_section = ""
@@ -256,6 +330,22 @@ Always cite which knowledge base documents you referenced."""
             for t in unique_recurring:
                 dedup_section += f"- {t}\n"
 
+        source_section = ""
+        if source_files:
+            source_section = "Repository files Dex identified as usable evidence:\n"
+            for item in source_files[:12]:
+                symbols = ", ".join(str(s) for s in item.get("symbols", [])[:5])
+                detail = f" — {symbols}" if symbols else ""
+                source_section += f"- {item.get('path', '')}{detail}\n"
+        if api_paths:
+            source_section += "\nAPI/reference paths Dex identified:\n"
+            for path in api_paths[:12]:
+                source_section += f"- {path}\n"
+
+        brief_section = ""
+        if content_brief:
+            brief_section = json.dumps(content_brief, indent=2, default=str)[:4000]
+
         prompt = f"""Task: {task}
 
 ## Knowledge Base (AUTHORITATIVE — use these as ground truth)
@@ -265,8 +355,14 @@ Always cite which knowledge base documents you referenced."""
 {arch_doc if arch_doc else "No architecture analysis available."}
 {f"Summary: {dex_summary}" if dex_summary else ""}
 
+## Source Evidence
+{source_section if source_section else "No source file evidence available."}
+
 ## Official Documentation Reference
 {official_docs if official_docs else "No official docs fetched."}
+
+## Content Brief
+{brief_section if brief_section else "No explicit content brief available."}
 
 ## Community Context
 {pain_section if pain_section else "No pain point data from upstream agents."}
@@ -302,6 +398,18 @@ Always cite which knowledge base documents you referenced."""
             "real_issues_referenced": [i["number"] for i in real_issues[:5]],
             "status": "generated",
         }
+
+        evidence_gaps = self._evidence_gaps(
+            task,
+            grounding_docs=grounding_docs,
+            official_docs=official_docs,
+            upstream=upstream,
+        )
+        if evidence_gaps:
+            base_result["status"] = "insufficient_evidence"
+            base_result["evidence_gaps"] = evidence_gaps
+            base_result["prompt_used"] = prompt[:500]
+            return base_result
 
         if self.llm_client:
             try:
@@ -348,6 +456,12 @@ Always cite which knowledge base documents you referenced."""
                         f"Code validation: {report.failed}/{report.validated} "
                         f"blocks failed syntax checks"
                     )
+            except AbortLoud as exc:
+                logger.warning("Content generation blocked by quality gate: %s", exc)
+                base_result["status"] = "blocked_by_quality_gate"
+                base_result["error"] = str(exc)
+                base_result["content"] = ""
+                base_result["prompt_used"] = prompt[:500]
             except Exception as exc:
                 logger.exception(f"Content generation failed: {exc}")
                 base_result["status"] = "error"

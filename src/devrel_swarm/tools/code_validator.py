@@ -10,17 +10,32 @@ import ast
 import json
 import logging
 import re
+import shlex
 from dataclasses import dataclass, field
 
 logger = logging.getLogger(__name__)
 
 CODE_BLOCK_RE = re.compile(r"```(\w*)\n(.*?)```", re.DOTALL)
 
-# Languages where we can validate syntax
-SUPPORTED_LANGUAGES = {"python", "py", "javascript", "js", "json", "html", "sql"}
+# Languages where we can validate syntax or safety heuristics
+SUPPORTED_LANGUAGES = {
+    "python",
+    "py",
+    "javascript",
+    "js",
+    "json",
+    "html",
+    "sql",
+    "yaml",
+    "yml",
+    "bash",
+    "sh",
+    "shell",
+    "zsh",
+}
 
-# Languages we skip validation for (shell commands, config, etc.)
-SKIP_LANGUAGES = {"bash", "sh", "shell", "zsh", "yaml", "yml", "toml", "nginx", "css", "text", ""}
+# Languages we skip validation for.
+SKIP_LANGUAGES = {"toml", "nginx", "css", "text", ""}
 
 
 @dataclass
@@ -99,6 +114,10 @@ class CodeValidator:
             return self._validate_html(block)
         elif lang == "sql":
             return self._validate_sql(block)
+        elif lang in ("yaml", "yml"):
+            return self._validate_yaml(block)
+        elif lang in ("bash", "sh", "shell", "zsh"):
+            return self._validate_shell(block)
         else:
             # Unknown language — skip, don't fail
             return ValidationResult(block=block, is_valid=True)
@@ -109,7 +128,7 @@ class CodeValidator:
         report = ValidationReport(total_blocks=len(blocks))
 
         for block in blocks:
-            if block.language in SKIP_LANGUAGES:
+            if block.language in SKIP_LANGUAGES or block.language not in SUPPORTED_LANGUAGES:
                 report.skipped += 1
                 continue
 
@@ -201,6 +220,55 @@ class CodeValidator:
                 is_valid=False,
                 error=f"Unclosed delimiter: '{stack[-1]}'",
             )
+
+        return ValidationResult(block=block, is_valid=True)
+
+    def _validate_yaml(self, block: CodeBlock) -> ValidationResult:
+        """Validate YAML syntax and flag stale GitHub Actions examples."""
+        if re.search(r"actions/(?:upload|download)-artifact@v3\b", block.code):
+            return ValidationResult(
+                block=block,
+                is_valid=False,
+                error="Deprecated GitHub Actions artifact action v3; use v4.",
+            )
+
+        try:
+            import yaml
+        except ImportError:
+            return ValidationResult(
+                block=block,
+                is_valid=False,
+                error="PyYAML is required for YAML validation.",
+            )
+
+        try:
+            yaml.safe_load(block.code)
+            return ValidationResult(block=block, is_valid=True)
+        except yaml.YAMLError as e:
+            return ValidationResult(block=block, is_valid=False, error=f"Invalid YAML: {e}")
+
+    def _validate_shell(self, block: CodeBlock) -> ValidationResult:
+        """Validate shell snippets for parseability and obvious destructive commands."""
+        for offset, line in enumerate(block.code.splitlines(), start=1):
+            stripped = line.strip()
+            if not stripped or stripped.startswith("#"):
+                continue
+
+            if re.search(r"\brm\s+-[rfRf-]*\s+/(?:\s|$)", stripped):
+                return ValidationResult(
+                    block=block,
+                    is_valid=False,
+                    error=f"Unsafe shell command at line {offset}: refuses to delete root.",
+                )
+
+            try:
+                shlex.split(stripped)
+            except ValueError as e:
+                return ValidationResult(
+                    block=block,
+                    is_valid=False,
+                    error=f"Shell parse error at line {offset}: {e}",
+                )
 
         return ValidationResult(block=block, is_valid=True)
 

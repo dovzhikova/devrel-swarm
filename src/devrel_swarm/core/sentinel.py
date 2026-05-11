@@ -43,6 +43,21 @@ _AGENT_CONTENT_FIELDS: dict[str, list[str]] = {
 }
 
 
+def _safe_json_loads(raw: str) -> dict[str, Any]:
+    """Parse JSON even when an LLM wraps it in prose or markdown fences."""
+    cleaned = strip_markdown_fences(raw or "").strip()
+    try:
+        parsed = json.loads(cleaned)
+        return parsed if isinstance(parsed, dict) else {}
+    except json.JSONDecodeError:
+        start = cleaned.find("{")
+        end = cleaned.rfind("}")
+        if start == -1 or end == -1 or end <= start:
+            raise
+        parsed = json.loads(cleaned[start : end + 1])
+        return parsed if isinstance(parsed, dict) else {}
+
+
 @dataclass
 class AuditItem:
     """Audit result for a single content piece."""
@@ -249,8 +264,7 @@ Return JSON:
                 temperature=0.2,
                 max_tokens=4096,
             )
-            cleaned = strip_markdown_fences(raw).strip()
-            audit = json.loads(cleaned)
+            audit = _safe_json_loads(raw)
             return {
                 "agent": "sentinel",
                 "task": task,
@@ -259,13 +273,22 @@ Return JSON:
             }
         except json.JSONDecodeError as exc:
             logger.warning(
-                "Sentinel LLM audit returned non-JSON response; falling back "
-                "to structural. error=%s raw_head=%r",
+                "Sentinel LLM audit returned non-JSON response; marking audit_failed. "
+                "error=%s raw_head=%r",
                 exc,
                 (raw or "")[:200],
             )
             logger.debug("Full raw response: %s", raw)
-            return self._structural_audit(task, pieces)
+            return {
+                "agent": "sentinel",
+                "task": task,
+                "status": "audit_failed",
+                "overall_score": 0,
+                "items": [],
+                "cross_piece_issues": [],
+                "recommendations": ["Retry Sentinel audit; model response was not valid JSON."],
+                "error": str(exc),
+            }
         except Exception as exc:
             logger.warning(
                 "Sentinel LLM audit API error; falling back to structural: %s",

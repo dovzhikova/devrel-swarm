@@ -61,8 +61,10 @@ async def test_uses_pipeline_when_devrel_project_present(tmp_path, monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_falls_back_on_abort_loud(tmp_path, monkeypatch):
-    """When run_pipeline raises AbortLoud, helper falls back to legacy."""
+async def test_propagates_abort_loud(tmp_path, monkeypatch):
+    """When run_pipeline raises AbortLoud, the helper propagates instead of
+    silently falling back to a single-revision draft. Callers (Kai) catch
+    AbortLoud explicitly so quality-gate failures are visible, not masked."""
     devrel = tmp_path / ".devrel"
     devrel.mkdir()
     (devrel / "config.toml").write_text('[project]\nname = "x"\n')
@@ -77,12 +79,12 @@ async def test_falls_back_on_abort_loud(tmp_path, monkeypatch):
         "devrel_swarm.quality.editorial.run_pipeline",
         new=AsyncMock(side_effect=AbortLoud("slop persisted: delve")),
     ):
-        text, strengths, issues = await generate_with_pipeline(
-            llm_client=client,
-            system_prompt="sys",
-            user_prompt="usr",
-            content_type="tutorial",
-            logger=logging.getLogger("test"),
-        )
-    assert text == "legacy fallback"
-    client.generate_with_revision.assert_awaited_once()
+        with pytest.raises(AbortLoud, match="slop persisted: delve"):
+            await generate_with_pipeline(
+                llm_client=client,
+                system_prompt="sys",
+                user_prompt="usr",
+                content_type="tutorial",
+                logger=logging.getLogger("test"),
+            )
+    client.generate_with_revision.assert_not_awaited()

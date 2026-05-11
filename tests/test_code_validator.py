@@ -274,15 +274,26 @@ class TestSqlValidation:
 
 
 class TestSkipLanguages:
-    def test_bash_is_skipped(self, validator):
+    def test_bash_flags_unsafe_command(self, validator):
         block = CodeBlock(language="bash", code="rm -rf /", line_number=1)
         result = validator.validate_block(block)
-        assert result.is_valid  # skipped, not validated
+        assert not result.is_valid
+        assert "Unsafe shell command" in result.error
 
-    def test_yaml_is_skipped(self, validator):
+    def test_yaml_is_validated(self, validator):
         block = CodeBlock(language="yaml", code="key: value", line_number=1)
         result = validator.validate_block(block)
         assert result.is_valid
+
+    def test_yaml_rejects_deprecated_artifact_action(self, validator):
+        block = CodeBlock(
+            language="yaml",
+            code="uses: actions/upload-artifact@v3\nwith:\n  name: build",
+            line_number=1,
+        )
+        result = validator.validate_block(block)
+        assert not result.is_valid
+        assert "artifact action v3" in result.error
 
     def test_unknown_language_passes(self, validator):
         block = CodeBlock(language="rust", code="fn main() {}", line_number=1)
@@ -326,9 +337,9 @@ posthog.capture('page_view', { url: window.location.href });
         report = validator.validate_content(md)
         assert report.all_passed
         assert report.total_blocks == 3
-        assert report.skipped == 1  # bash
-        assert report.validated == 2  # python + javascript
-        assert report.passed == 2
+        assert report.skipped == 0
+        assert report.validated == 3
+        assert report.passed == 3
         assert report.failed == 0
 
     def test_content_with_invalid_block(self, validator):
@@ -359,8 +370,9 @@ const x = 1;
         md = "```bash\nnpm install posthog-js\n```"
         report = validator.validate_content(md)
         assert report.all_passed
-        assert report.skipped == 1
-        assert report.validated == 0
+        assert report.skipped == 0
+        assert report.validated == 1
+        assert report.passed == 1
 
     def test_report_includes_error_details(self, validator):
         md = "```json\n{invalid: json}\n```"
@@ -440,7 +452,7 @@ class TestKaiCodeValidation:
 
     @pytest.mark.asyncio
     async def test_execute_includes_code_validation(self, wired_kai):
-        result = await wired_kai.execute("Write a tutorial")
+        result = await wired_kai.execute("Write about analytics tracking")
         assert "code_validation" in result
         cv = result["code_validation"]
         assert cv["total_blocks"] == 3
@@ -449,7 +461,7 @@ class TestKaiCodeValidation:
 
     @pytest.mark.asyncio
     async def test_execute_reports_invalid_code(self, broken_kai):
-        result = await broken_kai.execute("Write a tutorial")
+        result = await broken_kai.execute("Write about analytics tracking")
         assert "code_validation" in result
         cv = result["code_validation"]
         assert cv["all_passed"] is False

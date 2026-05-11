@@ -6,7 +6,7 @@ and that SharedContext is populated correctly at each stage.
 
 import json
 from pathlib import Path
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -48,6 +48,15 @@ def make_atlas(
 ) -> Atlas:
     """Create a fully-wired Atlas instance with all mocks injected."""
     mock_llm_client.generate = AsyncMock(return_value=IRIS_THEMES_JSON)
+    # Editorial pipeline stages call generate_with_revision per stage; without
+    # a real return tuple, Kai's content path crashes with a tuple-unpack
+    # ValueError, leaving kai_content with status="error" and content="".
+    # The post-PR _compile_okrs check is strict (status=="generated" AND
+    # content non-empty), so we mock revision properly to let the cycle
+    # actually produce content end-to-end.
+    mock_llm_client.generate_with_revision = AsyncMock(
+        return_value=("Mocked revised content body.", MagicMock(critiques=[]))
+    )
     atlas = Atlas(
         api_client=posthog_client,
         knowledge_base_path=knowledge_base_path,

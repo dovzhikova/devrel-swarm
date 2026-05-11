@@ -196,6 +196,36 @@ class TestBuildAtlasWiring:
                 assert gh is not None
                 assert gh.repo == "PostHog/posthog"
 
+    def test_atlas_gets_public_github_tools_when_repo_set_without_token(self, tmp_path):
+        paths = _make_paths(tmp_path)
+        paths.config_file.write_text('[project]\nname = "X"\ngithub_repo = "PostHog/posthog"\n')
+        from rich.console import Console
+
+        console = Console()
+        with patch.dict(
+            os.environ,
+            {
+                "ANTHROPIC_API_KEY": "test",
+                "POSTHOG_API_KEY": "",
+                "POSTHOG_PROJECT_ID": "",
+            },
+            clear=False,
+        ):
+            for k in (
+                "GITHUB_TOKEN",
+                "FIRECRAWL_API_KEY",
+                "BRAVE_API_KEY",
+                "INSTANTLY_API_KEY",
+                "APOLLO_API_KEY",
+                "GITHUB_REPO",
+            ):
+                os.environ.pop(k, None)
+            with patch("devrel_swarm.cli._common.Atlas") as MockAtlas:
+                build_atlas_or_exit(paths, console)
+                gh = MockAtlas.call_args.kwargs["github_tools"]
+                assert gh is not None
+                assert gh.repo == "PostHog/posthog"
+
     def test_atlas_gets_search_tools_when_firecrawl_set(self, tmp_path):
         paths = _make_paths(tmp_path)
         paths.config_file.write_text('[project]\nname = "X"\n')
