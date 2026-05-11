@@ -330,6 +330,159 @@ Always cite which knowledge base documents you referenced."""
             kept.append(clause)
         return " ".join(kept).strip() or task
 
+    @staticmethod
+    def _normalize_claim(value: str) -> str:
+        return re.sub(r"[^a-z0-9]+", "", value.lower())
+
+    def _is_evidenced(self, value: str, evidence_text: str) -> bool:
+        if not value:
+            return False
+        normalized_value = self._normalize_claim(value)
+        normalized_evidence = self._normalize_claim(evidence_text)
+        return bool(normalized_value and normalized_value in normalized_evidence)
+
+    def _grounded_output_issues(
+        self, content: str, evidence_text: str
+    ) -> list[dict[str, str]]:
+        """Find high-risk execution claims that are unsupported by evidence.
+
+        This is intentionally conservative and deterministic. It focuses on
+        failure modes that make content non-executable: invented helper APIs,
+        unverified MCP tool names, undocumented scripts/imports, ungrounded REST
+        endpoints, and native ClickHouse system tables presented as normal HogQL.
+        """
+        issues: list[dict[str, str]] = []
+
+        def add(severity: str, issue: str, fix: str) -> None:
+            if not any(existing["issue"] == issue for existing in issues):
+                issues.append({"severity": severity, "issue": issue, "fix": fix})
+
+        if re.search(r"\b\w*mcp_call\s*\(", content) and not self._is_evidenced(
+            "mcp_call", evidence_text
+        ):
+            add(
+                "high",
+                "content uses an unsupported MCP wrapper function",
+                "Replace invented MCP helper calls with evidenced REST endpoints, HogQL examples, or prose.",
+            )
+
+        for tool_name in sorted(set(re.findall(r"['\"](posthog:[A-Za-z0-9_-]+)['\"]", content))):
+            if not self._is_evidenced(tool_name, evidence_text):
+                add(
+                    "high",
+                    f"content references unsupported MCP tool `{tool_name}`",
+                    "Remove the tool call or replace it with an API/table that appears in evidence.",
+                )
+
+        for script_path in sorted(set(re.findall(r"\b(?:scripts|bin)/[A-Za-z0-9_./-]+\.py\b", content))):
+            if not self._is_evidenced(script_path, evidence_text):
+                add(
+                    "medium",
+                    f"content references unsupported script `{script_path}`",
+                    "Remove the script reference or replace it with an evidenced file path.",
+                )
+
+        for endpoint in sorted(set(re.findall(r"(?<!:)`?(/api/[A-Za-z0-9_/@{}<>.-]+/?)[`'\",)]?", content))):
+            if not self._is_evidenced(endpoint, evidence_text):
+                add(
+                    "high",
+                    f"content references unsupported endpoint `{endpoint}`",
+                    "Use only API paths present in the evidence or describe the request generically.",
+                )
+
+        direct_only_tables = (
+            "system.replicas",
+            "system.parts",
+            "system.replication_queue",
+            "system.part_log",
+        )
+        direct_access_terms = ("direct clickhouse", "clickhouse client", "clickhouse cli")
+        content_lower = content.lower()
+        for table in direct_only_tables:
+            if table in content_lower and not any(term in content_lower for term in direct_access_terms):
+                add(
+                    "high",
+                    f"native ClickHouse table `{table}` is not marked as direct ClickHouse access only",
+                    "Either remove it or explicitly state it requires direct ClickHouse access outside PostHog HogQL.",
+                )
+
+        import_patterns = (
+            r"^\s*from\s+([A-Za-z_][A-Za-z0-9_.]*)\s+import\s+",
+            r"^\s*import\s+([A-Za-z_][A-Za-z0-9_.]*)",
+        )
+        for pattern in import_patterns:
+            for module in sorted(set(re.findall(pattern, content, flags=re.MULTILINE))):
+                if module.startswith(("posthog.", "products.")) and not self._is_evidenced(
+                    f"from {module}", evidence_text
+                ) and not self._is_evidenced(
+                    f"import {module}", evidence_text
+                ):
+                    add(
+                        "medium",
+                        f"content imports unsupported internal module `{module}`",
+                        "Use the module as a referenced file path, not as runnable guidance, unless the import is evidenced.",
+                    )
+
+        return issues
+
+    async def _rewrite_ungrounded_content(
+        self,
+        *,
+        content: str,
+        issues: list[dict[str, str]],
+        evidence_text: str,
+        content_type: str,
+    ) -> str:
+        issue_lines = "\n".join(
+            f"- {issue['severity']}: {issue['issue']} Fix: {issue['fix']}" for issue in issues
+        )
+        prompt = f"""Rewrite the draft to remove unsupported execution claims.
+
+Hard requirements:
+- Use only APIs, endpoints, tables, imports, scripts, and file paths present in the evidence.
+- Delete invented MCP helpers and MCP tool names unless they appear in evidence.
+- Prefer verified REST endpoints and HogQL tables over wrapper functions.
+- Treat native ClickHouse system tables as direct ClickHouse access only, not normal PostHog HogQL.
+- If an implementation detail is internal, describe it as a file to inspect rather than a public API to import.
+- Return only the revised content.
+
+Grounding issues to fix:
+{issue_lines}
+
+Evidence:
+{evidence_text[:12000]}
+
+Draft:
+{content}
+"""
+        return await self.llm_client.generate(
+            system_prompt=self.SYSTEM_PROMPT,
+            user_prompt=prompt,
+            temperature=0.2,
+            max_tokens=5000,
+            model="sonnet" if content_type in {"tutorial", "blog_post"} else None,
+        )
+
+    @staticmethod
+    def _code_validation_payload(report: Any) -> dict[str, Any]:
+        return {
+            "total_blocks": report.total_blocks,
+            "validated": report.validated,
+            "passed": report.passed,
+            "failed": report.failed,
+            "skipped": report.skipped,
+            "all_passed": report.all_passed,
+            "errors": [
+                {
+                    "language": e.block.language,
+                    "line": e.block.line_number,
+                    "error": e.error,
+                    "code_snippet": e.block.code[:200],
+                }
+                for e in report.errors
+            ],
+        }
+
     async def execute(
         self,
         task: str,
@@ -476,14 +629,19 @@ Always cite which knowledge base documents you referenced."""
    script URL, actual CLI commands, actual configuration keys).
 3. Reference REAL file paths and directory structures from the architecture analysis.
 4. When showing code examples, base them on actual patterns from the source code.
-5. Address the #1 pain point from the community context — this is what developers
-   actually struggle with right now.
-6. Include a "Common Issues" section that references REAL GitHub issue titles/numbers.
+   Prefer documented REST endpoints, HogQL queries, and existing file paths over
+   invented helper functions. Never invent MCP tool names or wrapper functions.
+5. Address a community pain point only when one is present in the Community Context.
+6. Reference GitHub issue titles/numbers only when real issues are present in the
+   Community Context. If none are present, omit issue references entirely.
 7. Structure: Prerequisites → Step-by-step → Verification → Troubleshooting → Next Steps.
 8. Cite which knowledge base documents you referenced at the end.
 9. Do NOT hallucinate URLs, endpoints, or configuration options that aren't in the context.
 10. Do NOT repeat topics from the Content History section — pick a fresh angle or go deeper.
 11. If a theme keeps recurring across weeks, produce advanced/deep-dive content instead of intro-level.
+12. If you mention a native ClickHouse system table such as system.replicas,
+    system.parts, system.replication_queue, or system.part_log, clearly mark it
+    as direct ClickHouse access only, not a PostHog HogQL table.
 """
 
         base_result = {
@@ -530,28 +688,55 @@ Always cite which knowledge base documents you referenced."""
 
                 # Validate code blocks in generated content
                 report = self.code_validator.validate_content(content)
-                base_result["code_validation"] = {
-                    "total_blocks": report.total_blocks,
-                    "validated": report.validated,
-                    "passed": report.passed,
-                    "failed": report.failed,
-                    "skipped": report.skipped,
-                    "all_passed": report.all_passed,
-                    "errors": [
-                        {
-                            "language": e.block.language,
-                            "line": e.block.line_number,
-                            "error": e.error,
-                            "code_snippet": e.block.code[:200],
-                        }
-                        for e in report.errors
-                    ],
-                }
+                base_result["code_validation"] = self._code_validation_payload(report)
                 if not report.all_passed:
                     logger.warning(
                         f"Code validation: {report.failed}/{report.validated} "
                         f"blocks failed syntax checks"
                     )
+
+                evidence_text = "\n\n".join(
+                    [
+                        grounding_context,
+                        arch_doc,
+                        dex_summary,
+                        source_section,
+                        official_docs,
+                        brief_section,
+                    ]
+                )
+                grounding_issues = self._grounded_output_issues(content, evidence_text)
+                if grounding_issues:
+                    rewritten = await self._rewrite_ungrounded_content(
+                        content=content,
+                        issues=grounding_issues,
+                        evidence_text=evidence_text,
+                        content_type=content_type,
+                    )
+                    rewritten_issues = self._grounded_output_issues(rewritten, evidence_text)
+                    rewritten_report = self.code_validator.validate_content(rewritten)
+                    base_result["content"] = rewritten
+                    base_result["code_validation"] = self._code_validation_payload(rewritten_report)
+                    base_result["grounding_validation"] = {
+                        "rewritten": True,
+                        "initial_issues": grounding_issues,
+                        "remaining_issues": rewritten_issues,
+                        "all_passed": not rewritten_issues,
+                    }
+                    if rewritten_issues:
+                        base_result["status"] = "blocked_by_grounding_gate"
+                        base_result["content"] = ""
+                        logger.warning(
+                            "Kai grounding gate blocked content after rewrite: %s",
+                            rewritten_issues,
+                        )
+                else:
+                    base_result["grounding_validation"] = {
+                        "rewritten": False,
+                        "initial_issues": [],
+                        "remaining_issues": [],
+                        "all_passed": True,
+                    }
             except AbortLoud as exc:
                 logger.warning("Content generation blocked by quality gate: %s", exc)
                 base_result["status"] = "blocked_by_quality_gate"

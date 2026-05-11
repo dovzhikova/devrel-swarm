@@ -131,6 +131,73 @@ class TestKaiExecuteWired:
         assert result["status"] == "generated"
         assert not result.get("evidence_gaps")
 
+    @pytest.mark.asyncio
+    async def test_grounding_gate_rewrites_unsupported_mcp_calls(
+        self, posthog_client, tmp_path, mock_llm_client
+    ):
+        kb = tmp_path / "kb"
+        kb.mkdir()
+        (kb / "analytics.md").write_text(
+            "# Analytics\nUse `POST /api/projects/@current/query/` for query execution."
+        )
+        (kb / "billing.md").write_text("# Billing\nInvoices and subscriptions.")
+        kai = Kai(
+            api_client=posthog_client,
+            knowledge_base_path=kb,
+            llm_client=mock_llm_client,
+        )
+
+        async def fake_pipeline(**_):
+            return (
+                "```python\nposthog_mcp_call('posthog:query-trends', {})\n```",
+                ["structure"],
+                [],
+            )
+
+        mock_llm_client.generate = AsyncMock(
+            return_value="Use `POST /api/projects/@current/query/` with a documented query payload."
+        )
+
+        with patch("devrel_swarm.core.kai.generate_with_pipeline", new=fake_pipeline):
+            result = await kai.execute("Write about analytics query freshness")
+
+        assert result["status"] == "generated"
+        assert "posthog_mcp_call" not in result["content"]
+        assert result["grounding_validation"]["rewritten"] is True
+        assert result["grounding_validation"]["all_passed"] is True
+
+    @pytest.mark.asyncio
+    async def test_grounding_gate_blocks_when_rewrite_still_unsupported(
+        self, posthog_client, tmp_path, mock_llm_client
+    ):
+        kb = tmp_path / "kb"
+        kb.mkdir()
+        (kb / "analytics.md").write_text("# Analytics\nTrack events.")
+        (kb / "billing.md").write_text("# Billing\nInvoices and subscriptions.")
+        kai = Kai(
+            api_client=posthog_client,
+            knowledge_base_path=kb,
+            llm_client=mock_llm_client,
+        )
+
+        async def fake_pipeline(**_):
+            return (
+                "```python\nposthog_mcp_call('posthog:query-trends', {})\n```",
+                ["structure"],
+                [],
+            )
+
+        mock_llm_client.generate = AsyncMock(
+            return_value="```python\nposthog_mcp_call('posthog:query-trends', {})\n```"
+        )
+
+        with patch("devrel_swarm.core.kai.generate_with_pipeline", new=fake_pipeline):
+            result = await kai.execute("Write about analytics query freshness")
+
+        assert result["status"] == "blocked_by_grounding_gate"
+        assert result["content"] == ""
+        assert result["grounding_validation"]["all_passed"] is False
+
 
 class TestKaiOfficialDocsValidation:
     """Test that Kai consults official docs when search_tools is provided."""
