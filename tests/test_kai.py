@@ -127,7 +127,9 @@ class TestKaiExecuteWired:
             "# Analytics\nDebug analytics tracking in `posthog/hogql_queries/query_runner.py`."
         )
         kai = Kai(api_client=posthog_client, knowledge_base_path=kb)
-        result = await kai.execute("Write about analytics tracking and include concrete file paths.")
+        result = await kai.execute(
+            "Write about analytics tracking and include concrete file paths."
+        )
         assert result["status"] == "generated"
         assert not result.get("evidence_gaps")
 
@@ -197,6 +199,57 @@ class TestKaiExecuteWired:
         assert result["status"] == "blocked_by_grounding_gate"
         assert result["content"] == ""
         assert result["grounding_validation"]["all_passed"] is False
+
+    def test_grounding_guard_flags_unverified_posthog_diagnostics(self, kai):
+        evidence = (
+            "[Source: analytics/lazy-computation-consistency.md]\n"
+            "preaggregation_results, sharded_preaggregation_results, system.replicas"
+        )
+        content = """
+**Source**: `products/analytics_platform/backend/lazy_computation/CONSISTENCY.md`
+
+Check `docker/clickhouse/users.xml`, enable `HOGQL_QUERY_LOG`, and tail
+`/var/log/posthog/hogql.log`.
+
+```sql
+SELECT id, status FROM lazy_computation_jobs;
+```
+"""
+
+        issues = kai._grounded_output_issues(
+            content,
+            evidence,
+            allowed_source_ids=["analytics/lazy-computation-consistency.md"],
+        )
+        issue_text = "\n".join(issue["issue"] for issue in issues)
+
+        assert (
+            "cites `products/analytics_platform/backend/lazy_computation/CONSISTENCY.md`"
+            in issue_text
+        )
+        assert "unsupported file path `docker/clickhouse/users.xml`" in issue_text
+        assert "unsupported setting or constant `HOGQL_QUERY_LOG`" in issue_text
+        assert "unsupported file path `/var/log/posthog/hogql.log`" in issue_text
+        assert "unsupported database table `lazy_computation_jobs`" in issue_text
+
+    def test_grounding_guard_allows_evidenced_repo_paths_when_not_source_labels(self, kai):
+        evidence = (
+            "[Source: repo/query-api-and-web-analytics-source-evidence.md]\n"
+            "`posthog/hogql_queries/query_runner.py` contains get_query_runner."
+        )
+        content = (
+            "Inspect `posthog/hogql_queries/query_runner.py` for the query runner.\n\n"
+            "## Sources\n"
+            "- `repo/query-api-and-web-analytics-source-evidence.md`\n"
+        )
+
+        issues = kai._grounded_output_issues(
+            content,
+            evidence,
+            allowed_source_ids=["repo/query-api-and-web-analytics-source-evidence.md"],
+        )
+
+        assert issues == []
 
 
 class TestKaiOfficialDocsValidation:

@@ -6,12 +6,14 @@ import asyncio
 import json
 import os
 import re
+from contextlib import suppress
 from datetime import datetime, timezone
 from pathlib import Path
 
 import typer
 from rich.console import Console
 
+from devrel_swarm.cli._common import _build_llm_client as _build_project_llm_client
 from devrel_swarm.core.kai import Kai
 from devrel_swarm.core.llm import LLMClient
 from devrel_swarm.project.paths import ProjectNotFoundError, ProjectPaths, find_devrel_root
@@ -30,11 +32,8 @@ content_app = typer.Typer(
 )
 
 
-def _build_llm_client() -> LLMClient:
-    api_key = os.environ.get("ANTHROPIC_API_KEY")
-    if not api_key:
-        raise typer.BadParameter("ANTHROPIC_API_KEY is required.")
-    return LLMClient(api_key=api_key)
+def _build_llm_client(paths: ProjectPaths) -> LLMClient:
+    return _build_project_llm_client(paths, console)
 
 
 def _build_kai(paths: ProjectPaths, llm_client: LLMClient) -> Kai:
@@ -85,6 +84,12 @@ def draft_command(
         "--type",
         help="Content type for targeting (tutorial, blog_post, landing_page, cold_email, battle_card).",
     ),
+    timeout_seconds: float = typer.Option(
+        600.0,
+        "--timeout",
+        min=0.1,
+        help="Maximum seconds to wait for Kai before exiting with a clear timeout.",
+    ),
 ) -> None:
     """Generate new content through Kai: KB-grounded prompt + editorial pipeline + code validation."""
     try:
@@ -93,11 +98,37 @@ def draft_command(
         console.print(f"[red]{e}[/red]")
         raise typer.Exit(code=1) from None
     paths = ProjectPaths.from_root(root)
-    client = _build_llm_client()
+    client = _build_llm_client(paths)
     kai = _build_kai(paths, client)
 
     async def _do() -> None:
-        result = await kai.execute(task=prompt, content_type=content_type)
+        console.print(
+            f"[cyan]Generating with Kai[/cyan] ({content_type}, timeout {timeout_seconds:g}s)..."
+        )
+
+        async def _heartbeat() -> None:
+            elapsed = 0
+            while True:
+                await asyncio.sleep(30)
+                elapsed += 30
+                console.print(f"[dim]Still generating... {elapsed}s elapsed[/dim]")
+
+        heartbeat = asyncio.create_task(_heartbeat())
+        try:
+            result = await asyncio.wait_for(
+                kai.execute(task=prompt, content_type=content_type),
+                timeout=timeout_seconds,
+            )
+        except TimeoutError:
+            console.print(
+                f"[red]Kai timed out after {timeout_seconds:g}s.[/red] "
+                "Try a narrower prompt, add more focused KB evidence, or increase --timeout."
+            )
+            raise typer.Exit(code=1) from None
+        finally:
+            heartbeat.cancel()
+            with suppress(asyncio.CancelledError):
+                await heartbeat
 
         status = result.get("status")
         body = result.get("content") or ""
@@ -118,6 +149,8 @@ def draft_command(
             "real_issues_referenced": result.get("real_issues_referenced", []),
             "revision": result.get("revision", {}),
             "code_validation": result.get("code_validation", {}),
+            "grounding_validation": result.get("grounding_validation", {}),
+            "status": status,
         }
         body_path, trace_path = _write_outputs(paths, _slug(prompt), body, trace)
         console.print(f"[green]✓[/green] Wrote {body_path.name} ({len(body)} chars)")
@@ -183,7 +216,7 @@ def audit_command(
         console.print(f"[red]{e}[/red]")
         raise typer.Exit(code=1) from None
     paths = ProjectPaths.from_root(root)
-    client = _build_llm_client()
+    client = _build_llm_client(paths)
 
     async def _do() -> None:
         body = file.read_text()

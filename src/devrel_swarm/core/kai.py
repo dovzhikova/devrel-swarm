@@ -22,6 +22,24 @@ from devrel_swarm.tools.search_tools import SearchTools
 
 logger = logging.getLogger(__name__)
 
+_FILE_PATH_RE = re.compile(
+    r"(?:^|[`\s(\[])((?:[A-Za-z0-9_.-]+/)+[A-Za-z0-9_.-]+\."
+    r"(?:py|ts|tsx|js|jsx|md|sql|toml|yaml|yml|xml|json|txt|log|ambr|go|rs|java|rb|php|swift))",
+    re.IGNORECASE | re.MULTILINE,
+)
+_ABSOLUTE_PATH_RE = re.compile(
+    r"(?<!\w)(/(?:var|etc|opt|usr|tmp|home|srv|app|data)/[A-Za-z0-9_./-]+)",
+    re.IGNORECASE,
+)
+_CONFIG_NAME_RE = re.compile(r"\b[A-Z][A-Z0-9]+(?:_[A-Z0-9]+)+\b")
+_SQL_TABLE_RE = re.compile(
+    r"\b(?:FROM|JOIN|UPDATE|INTO|DESCRIBE|DESC|TABLE)\s+`?"
+    r"([A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)?)`?",
+    re.IGNORECASE,
+)
+_SOURCE_LABEL_RE = re.compile(r"(?im)^\s*(?:[-*]\s*)?(?:\*\*)?Sources?(?:\*\*)?\s*:\s*(.+)$")
+_SOURCE_HEADING_RE = re.compile(r"^\s{0,3}#{1,4}\s+sources?\b", re.IGNORECASE)
+
 
 @dataclass
 class ContentPiece:
@@ -248,8 +266,13 @@ Always cite which knowledge base documents you referenced."""
             upstream.get("real_issues") or brief.get("github_issues")
         ):
             gaps.append("task requires real GitHub issues, but none were provided")
-        if self._requires_evidence(task_lower, ("file path", "source code")) and not has_file_path_evidence:
-            gaps.append("task requires repository file paths, but no source-file evidence was provided")
+        if (
+            self._requires_evidence(task_lower, ("file path", "source code"))
+            and not has_file_path_evidence
+        ):
+            gaps.append(
+                "task requires repository file paths, but no source-file evidence was provided"
+            )
         return gaps
 
     @staticmethod
@@ -302,13 +325,7 @@ Always cite which knowledge base documents you referenced."""
         """Detect source-file path evidence in KB snippets or source names."""
         if not text:
             return False
-        return bool(
-            re.search(
-                r"(?:^|[`\s])(?:[A-Za-z0-9_.-]+/)+[A-Za-z0-9_.-]+\.(?:py|ts|tsx|js|jsx|md|sql|toml|yaml|yml|go|rs|java|rb|php|swift)",
-                text,
-                flags=re.MULTILINE,
-            )
-        )
+        return bool(_FILE_PATH_RE.search(text) or _ABSOLUTE_PATH_RE.search(text))
 
     @classmethod
     def _search_query_from_task(cls, task: str) -> str:
@@ -341,21 +358,59 @@ Always cite which knowledge base documents you referenced."""
         normalized_evidence = self._normalize_claim(evidence_text)
         return bool(normalized_value and normalized_value in normalized_evidence)
 
+    @staticmethod
+    def _extract_file_paths(text: str) -> list[str]:
+        paths = [match.group(1).strip("`'\".,);]") for match in _FILE_PATH_RE.finditer(text)]
+        paths.extend(
+            match.group(1).strip("`'\".,);]") for match in _ABSOLUTE_PATH_RE.finditer(text)
+        )
+        return paths
+
+    @staticmethod
+    def _source_citation_lines(content: str) -> list[str]:
+        lines = content.splitlines()
+        citation_lines = [match.group(1) for match in _SOURCE_LABEL_RE.finditer(content)]
+        in_sources = False
+        for line in lines:
+            if _SOURCE_HEADING_RE.match(line):
+                in_sources = True
+                continue
+            if in_sources and line.startswith("#"):
+                in_sources = False
+            if in_sources and line.strip():
+                citation_lines.append(line)
+        return citation_lines
+
     def _grounded_output_issues(
-        self, content: str, evidence_text: str
+        self,
+        content: str,
+        evidence_text: str,
+        *,
+        allowed_source_ids: list[str] | None = None,
     ) -> list[dict[str, str]]:
         """Find high-risk execution claims that are unsupported by evidence.
 
         This is intentionally conservative and deterministic. It focuses on
         failure modes that make content non-executable: invented helper APIs,
         unverified MCP tool names, undocumented scripts/imports, ungrounded REST
-        endpoints, and native ClickHouse system tables presented as normal HogQL.
+        endpoints, invented settings/log paths/tables, source-citation drift,
+        and native ClickHouse system tables presented as normal HogQL.
         """
         issues: list[dict[str, str]] = []
+        allowed_sources = set(allowed_source_ids or [])
 
         def add(severity: str, issue: str, fix: str) -> None:
             if not any(existing["issue"] == issue for existing in issues):
                 issues.append({"severity": severity, "issue": issue, "fix": fix})
+
+        for citation_line in self._source_citation_lines(content):
+            for cited_path in sorted(set(self._extract_file_paths(citation_line))):
+                if cited_path not in allowed_sources:
+                    add(
+                        "high",
+                        f"content cites `{cited_path}` as a source instead of a KB source id",
+                        "Cite the KB source id from grounding_sources; mention repo files only as files to inspect.",
+                    )
 
         if re.search(r"\b\w*mcp_call\s*\(", content) and not self._is_evidenced(
             "mcp_call", evidence_text
@@ -374,20 +429,42 @@ Always cite which knowledge base documents you referenced."""
                     "Remove the tool call or replace it with an API/table that appears in evidence.",
                 )
 
-        for script_path in sorted(set(re.findall(r"\b(?:scripts|bin)/[A-Za-z0-9_./-]+\.py\b", content))):
-            if not self._is_evidenced(script_path, evidence_text):
+        for file_path in sorted(set(self._extract_file_paths(content))):
+            if file_path in allowed_sources:
+                continue
+            if not self._is_evidenced(file_path, evidence_text):
                 add(
-                    "medium",
-                    f"content references unsupported script `{script_path}`",
-                    "Remove the script reference or replace it with an evidenced file path.",
+                    "high",
+                    f"content references unsupported file path `{file_path}`",
+                    "Remove the path or replace it with a file path present in the evidence.",
                 )
 
-        for endpoint in sorted(set(re.findall(r"(?<!:)`?(/api/[A-Za-z0-9_/@{}<>.-]+/?)[`'\",)]?", content))):
+        for endpoint in sorted(
+            set(re.findall(r"(?<!:)`?(/api/[A-Za-z0-9_/@{}<>.-]+/?)[`'\",)]?", content))
+        ):
             if not self._is_evidenced(endpoint, evidence_text):
                 add(
                     "high",
                     f"content references unsupported endpoint `{endpoint}`",
                     "Use only API paths present in the evidence or describe the request generically.",
+                )
+
+        for config_name in sorted(set(_CONFIG_NAME_RE.findall(content))):
+            if not self._is_evidenced(config_name, evidence_text):
+                add(
+                    "medium",
+                    f"content references unsupported setting or constant `{config_name}`",
+                    "Remove the setting name or replace it with an evidenced configuration key.",
+                )
+
+        for table_name in sorted(set(_SQL_TABLE_RE.findall(content))):
+            if "." not in table_name and "_" not in table_name:
+                continue
+            if not self._is_evidenced(table_name, evidence_text):
+                add(
+                    "high",
+                    f"content references unsupported database table `{table_name}`",
+                    "Use only table names present in evidence or describe the storage layer generically.",
                 )
 
         direct_only_tables = (
@@ -399,7 +476,9 @@ Always cite which knowledge base documents you referenced."""
         direct_access_terms = ("direct clickhouse", "clickhouse client", "clickhouse cli")
         content_lower = content.lower()
         for table in direct_only_tables:
-            if table in content_lower and not any(term in content_lower for term in direct_access_terms):
+            if table in content_lower and not any(
+                term in content_lower for term in direct_access_terms
+            ):
                 add(
                     "high",
                     f"native ClickHouse table `{table}` is not marked as direct ClickHouse access only",
@@ -412,10 +491,10 @@ Always cite which knowledge base documents you referenced."""
         )
         for pattern in import_patterns:
             for module in sorted(set(re.findall(pattern, content, flags=re.MULTILINE))):
-                if module.startswith(("posthog.", "products.")) and not self._is_evidenced(
-                    f"from {module}", evidence_text
-                ) and not self._is_evidenced(
-                    f"import {module}", evidence_text
+                if (
+                    module.startswith(("posthog.", "products."))
+                    and not self._is_evidenced(f"from {module}", evidence_text)
+                    and not self._is_evidenced(f"import {module}", evidence_text)
                 ):
                     add(
                         "medium",
@@ -432,19 +511,26 @@ Always cite which knowledge base documents you referenced."""
         issues: list[dict[str, str]],
         evidence_text: str,
         content_type: str,
+        allowed_source_ids: list[str] | None = None,
     ) -> str:
         issue_lines = "\n".join(
             f"- {issue['severity']}: {issue['issue']} Fix: {issue['fix']}" for issue in issues
         )
+        allowed_sources = "\n".join(f"- {source}" for source in allowed_source_ids or [])
         prompt = f"""Rewrite the draft to remove unsupported execution claims.
 
 Hard requirements:
 - Use only APIs, endpoints, tables, imports, scripts, and file paths present in the evidence.
 - Delete invented MCP helpers and MCP tool names unless they appear in evidence.
 - Prefer verified REST endpoints and HogQL tables over wrapper functions.
+- Do not invent environment variables, settings, log paths, table schemas, function signatures, or latency numbers.
 - Treat native ClickHouse system tables as direct ClickHouse access only, not normal PostHog HogQL.
 - If an implementation detail is internal, describe it as a file to inspect rather than a public API to import.
+- Cite source documents only by the allowed KB source ids below. Do not cite repository file paths as source labels.
 - Return only the revised content.
+
+Allowed KB source ids:
+{allowed_sources if allowed_sources else "- No KB source ids were provided."}
 
 Grounding issues to fix:
 {issue_lines}
@@ -514,14 +600,14 @@ Draft:
             if float(doc.get("relevance", 0) or 0) > 0
             or (
                 self._requires_evidence(task_lower, ("file path", "source code"))
-                and self._contains_file_path(
-                    f"{doc.get('content', '')}\n{doc.get('source', '')}"
-                )
+                and self._contains_file_path(f"{doc.get('content', '')}\n{doc.get('source', '')}")
             )
         ]
         grounding_context = "\n\n".join(
             f"[Source: {doc['source']}]\n{doc['content']}" for doc in grounding_docs
         )[:12000]
+        grounding_source_ids = [doc["source"] for doc in grounding_docs]
+        citation_source_section = "\n".join(f"- {source}" for source in grounding_source_ids)
 
         # 2. Fetch official docs from GitMCP (capped)
         official_docs = ""
@@ -600,6 +686,9 @@ Draft:
 ## Knowledge Base (AUTHORITATIVE — use these as ground truth)
 {grounding_context if grounding_context else "No specific docs found."}
 
+## Allowed Citation Source IDs
+{citation_source_section if citation_source_section else "No knowledge base source ids available."}
+
 ## Repository Architecture (from source code analysis)
 {arch_doc if arch_doc else "No architecture analysis available."}
 {f"Summary: {dex_summary}" if dex_summary else ""}
@@ -627,7 +716,8 @@ Draft:
    it in the context provided, do NOT invent it.
 2. Use REAL installation commands from the knowledge base (e.g., the actual install
    script URL, actual CLI commands, actual configuration keys).
-3. Reference REAL file paths and directory structures from the architecture analysis.
+3. Reference REAL file paths and directory structures only when they appear in the
+   evidence above. Treat repo paths as files to inspect, not source-citation labels.
 4. When showing code examples, base them on actual patterns from the source code.
    Prefer documented REST endpoints, HogQL queries, and existing file paths over
    invented helper functions. Never invent MCP tool names or wrapper functions.
@@ -635,19 +725,25 @@ Draft:
 6. Reference GitHub issue titles/numbers only when real issues are present in the
    Community Context. If none are present, omit issue references entirely.
 7. Structure: Prerequisites → Step-by-step → Verification → Troubleshooting → Next Steps.
-8. Cite which knowledge base documents you referenced at the end.
+8. Cite only the allowed KB source ids listed above. Use those ids exactly; do not
+   cite repository file paths as standalone sources.
 9. Do NOT hallucinate URLs, endpoints, or configuration options that aren't in the context.
 10. Do NOT repeat topics from the Content History section — pick a fresh angle or go deeper.
 11. If a theme keeps recurring across weeks, produce advanced/deep-dive content instead of intro-level.
 12. If you mention a native ClickHouse system table such as system.replicas,
     system.parts, system.replication_queue, or system.part_log, clearly mark it
     as direct ClickHouse access only, not a PostHog HogQL table.
+13. Do NOT invent log file paths, environment variables, Django settings, table schemas,
+    function signatures, or latency/capacity numbers. If the evidence does not specify
+    them, say the evidence does not specify them.
+14. For maintainer diagnostics, attach a KB source id to each concrete path, table,
+    setting, endpoint, or command claim so the reader can verify it.
 """
 
         base_result = {
             "agent": "kai",
             "task": task,
-            "grounding_sources": [doc["source"] for doc in grounding_docs],
+            "grounding_sources": grounding_source_ids,
             "pain_points_addressed": [pp["title"] for pp in pain_points[:3]],
             "real_issues_referenced": [i["number"] for i in real_issues[:5]],
             "status": "generated",
@@ -705,15 +801,24 @@ Draft:
                         brief_section,
                     ]
                 )
-                grounding_issues = self._grounded_output_issues(content, evidence_text)
+                grounding_issues = self._grounded_output_issues(
+                    content,
+                    evidence_text,
+                    allowed_source_ids=grounding_source_ids,
+                )
                 if grounding_issues:
                     rewritten = await self._rewrite_ungrounded_content(
                         content=content,
                         issues=grounding_issues,
                         evidence_text=evidence_text,
                         content_type=content_type,
+                        allowed_source_ids=grounding_source_ids,
                     )
-                    rewritten_issues = self._grounded_output_issues(rewritten, evidence_text)
+                    rewritten_issues = self._grounded_output_issues(
+                        rewritten,
+                        evidence_text,
+                        allowed_source_ids=grounding_source_ids,
+                    )
                     rewritten_report = self.code_validator.validate_content(rewritten)
                     base_result["content"] = rewritten
                     base_result["code_validation"] = self._code_validation_payload(rewritten_report)

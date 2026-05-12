@@ -375,6 +375,7 @@ class CodeValidator:
             "WITH",
             "EXPLAIN",
             "SET",
+            "SYSTEM",
             "GRANT",
             "REVOKE",
             "BEGIN",

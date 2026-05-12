@@ -404,7 +404,7 @@ class Atlas:
 
         Resolution order: config override → class default (DEFAULT_AGENT_TIMEOUTS) →
         global AGENT_TIMEOUT (300s). Editorial-pipeline agents (Kai/Mox/Pax) default
-        to 600s because their 8-stage revision-looped pipeline routinely exceeds 300s.
+        to 1800s because their 8-stage revision-looped pipeline routinely exceeds 300s.
         """
         return self.agent_timeouts.get(agent_name, self.AGENT_TIMEOUT)
 
