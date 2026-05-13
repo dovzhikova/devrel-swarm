@@ -5,7 +5,7 @@ import httpx
 import pytest
 import respx
 
-from devrel_swarm.tools.instantly_client import (
+from devrel_origin.tools.instantly_client import (
     CampaignAnalytics,
     InstantlyAPIError,
     InstantlyCampaign,

@@ -1,8 +1,8 @@
-# Setting up the shared "devrel-swarm" Google OAuth project
+# Setting up the shared "devrel-origin" Google OAuth project
 
 `devrel seo connect-gsc` runs a standard OAuth 2.0 installed-app flow against a
 GCP project owned by the maintainer. Users never set their own
-client_id/secret: they consent against the shared "devrel-swarm" app the first
+client_id/secret: they consent against the shared "devrel-origin" app the first
 time they connect, and refresh tokens are stored locally at
 `.devrel/credentials/gsc.json`.
 
@@ -13,10 +13,10 @@ project and submit it for Google verification (so end users do not see the
 ## 1. Create the GCP project
 
 1. Sign into https://console.cloud.google.com with the account that should
-   own the OAuth client (recommend a dedicated `devrel-swarm@` Google
+   own the OAuth client (recommend a dedicated `devrel-origin@` Google
    Workspace account separate from personal Gmail).
 2. Click the project selector (top bar), then "New Project".
-3. Project name: `devrel-swarm`. No organisation. Click Create.
+3. Project name: `devrel-origin`. No organisation. Click Create.
 4. Wait ~30 seconds for provisioning, then select the new project.
 
 ## 2. Enable the Search Console API
@@ -29,7 +29,7 @@ project and submit it for Google verification (so end users do not see the
 1. Navigation menu, APIs & Services, OAuth consent screen.
 2. User type: **External**. Click Create.
 3. App information:
-   - App name: `devrel-swarm`
+   - App name: `devrel-origin`
    - User support email: `dovzhikova@gmail.com` (or the Workspace email)
    - App logo: 120x120 png hosted somewhere stable (e.g. the project's
      marketing site)
@@ -47,7 +47,7 @@ project and submit it for Google verification (so end users do not see the
 1. Navigation menu, APIs & Services, Credentials, "+ CREATE CREDENTIALS",
    OAuth client ID.
 2. Application type: **Desktop app**.
-3. Name: `devrel-swarm CLI`.
+3. Name: `devrel-origin CLI`.
 4. Save. Click the download icon next to the new credential to grab the JSON.
    The relevant fields are `client_id` and `client_secret`.
 
@@ -60,7 +60,7 @@ auth happens against the user's Google account, not the client_secret. (See
 Google's docs at https://developers.google.com/identity/protocols/oauth2/native-app
 for the full rationale.)
 
-Edit `src/devrel_swarm/core/oauth_constants.py` (created in Wave 3, Task 1):
+Edit `src/devrel_origin/core/oauth_constants.py` (created in Wave 3, Task 1):
 
 ```python
 GSC_OAUTH_CLIENT_ID = "<paste here>.apps.googleusercontent.com"
@@ -91,7 +91,7 @@ the values via env vars `GSC_OAUTH_CLIENT_ID` and `GSC_OAUTH_CLIENT_SECRET`
 
 The OAuth flow still works with the consent screen showing "Google hasn't
 verified this app". Users can proceed via "Advanced, Continue to
-devrel-swarm". This is acceptable for the first 100 users (Google's "Testing"
+devrel-origin". This is acceptable for the first 100 users (Google's "Testing"
 mode quota). Document this in `docs/seo-setup.md` (Wave 4) so users are not
 surprised.
 

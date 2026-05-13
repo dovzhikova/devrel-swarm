@@ -1,22 +1,22 @@
-# devrel-swarm CLI — Phase 2: Project Bootstrap — Implementation Plan
+# devrel-origin CLI — Phase 2: Project Bootstrap — Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Build the `devrel init` and `devrel doctor` user-facing commands plus the supporting `project/` package (paths, config, state, init, templates) and a minimal Typer CLI skeleton that registers them, so a developer can `cd` into any repo, run `devrel init`, and have a working `.devrel/` scaffold validated by `devrel doctor`.
 
-**Architecture:** Five new modules under `src/devrel_swarm/project/` (paths, config, state, init, templates) plus a thin Typer app under `src/devrel_swarm/cli/` with two registered commands. `init_project()` is idempotent — re-running merges, never clobbers committed files (voice.md / style.md / slop-blocklist.md / config.toml). State DB at `.devrel/state.db` is initialized empty with a versioned schema; agents start writing to it in Phase 3. Paths discovery walks up from cwd like `git rev-parse --show-toplevel`. Templates ship as in-package data files copied on init.
+**Architecture:** Five new modules under `src/devrel_origin/project/` (paths, config, state, init, templates) plus a thin Typer app under `src/devrel_origin/cli/` with two registered commands. `init_project()` is idempotent — re-running merges, never clobbers committed files (voice.md / style.md / slop-blocklist.md / config.toml). State DB at `.devrel/state.db` is initialized empty with a versioned schema; agents start writing to it in Phase 3. Paths discovery walks up from cwd like `git rev-parse --show-toplevel`. Templates ship as in-package data files copied on init.
 
 **Tech Stack:** Python 3.12+, Typer (`>=0.12.0`), Rich (`>=13.7.0`), `tomli-w` for TOML serialization (`tomllib` stdlib for reads), stdlib `sqlite3`, pytest + pytest-asyncio + Typer's `CliRunner` for tests.
 
-**Spec:** `docs/superpowers/specs/2026-04-29-devrel-swarm-cli-design.md`
-**Phase 1 (prerequisite, already merged):** `be971bd refactor: move to src/devrel_swarm/ layout (Phase 1)`
+**Spec:** `docs/superpowers/specs/2026-04-29-devrel-origin-cli-design.md`
+**Phase 1 (prerequisite, already merged):** `be971bd refactor: move to src/devrel_origin/ layout (Phase 1)`
 
 ---
 
 ## File structure after Phase 2
 
 ```
-src/devrel_swarm/
+src/devrel_origin/
   cli/                              NEW
     __init__.py                     # Typer app, version flag, command registration
     init.py                         # devrel init
@@ -63,7 +63,7 @@ Use **superpowers:using-git-worktrees** to create a worktree at `.worktrees/cli-
 ```bash
 git rev-parse --abbrev-ref HEAD
 git log --oneline -1
-test -d src/devrel_swarm/core && test -d src/devrel_swarm/tools && echo "Phase 1 layout present"
+test -d src/devrel_origin/core && test -d src/devrel_origin/tools && echo "Phase 1 layout present"
 ```
 Expected: branch `feat/cli-phase2-bootstrap`, HEAD at the latest `main` commit, `Phase 1 layout present` printed.
 
@@ -138,14 +138,14 @@ git commit -m "feat(deps): add Typer + Rich + tomli-w for Phase 2 CLI"
 ## Task 2: `project/paths.py` — root discovery + path dataclass
 
 **Files:**
-- Create: `src/devrel_swarm/project/__init__.py`
-- Create: `src/devrel_swarm/project/paths.py`
+- Create: `src/devrel_origin/project/__init__.py`
+- Create: `src/devrel_origin/project/paths.py`
 - Create: `tests/project/__init__.py`
 - Create: `tests/project/test_paths.py`
 
 - [ ] **Step 1: Create empty package init files**
 
-Write `src/devrel_swarm/project/__init__.py`:
+Write `src/devrel_origin/project/__init__.py`:
 ```python
 """Project bootstrap: .devrel/ scaffold, config, state, paths."""
 ```
@@ -165,7 +165,7 @@ from __future__ import annotations
 
 import pytest
 
-from devrel_swarm.project.paths import (
+from devrel_origin.project.paths import (
     DEVREL_DIR_NAME,
     ProjectNotFoundError,
     ProjectPaths,
@@ -227,11 +227,11 @@ def test_paths_dataclass_derives_all_paths(tmp_path):
 ```bash
 python -m pytest tests/project/test_paths.py -v --no-cov 2>&1 | tail -10
 ```
-Expected: ImportError or ModuleNotFoundError on `devrel_swarm.project.paths`.
+Expected: ImportError or ModuleNotFoundError on `devrel_origin.project.paths`.
 
 - [ ] **Step 4: Implement `paths.py`**
 
-Write `src/devrel_swarm/project/paths.py`:
+Write `src/devrel_origin/project/paths.py`:
 ```python
 """Project path discovery and structure.
 
@@ -255,7 +255,7 @@ class ProjectNotFoundError(Exception):
 
 @dataclass(frozen=True)
 class ProjectPaths:
-    """All derived paths for a devrel-swarm project."""
+    """All derived paths for a devrel-origin project."""
 
     root: Path
     devrel_dir: Path
@@ -320,7 +320,7 @@ Expected: 5 passed.
 - [ ] **Step 6: Commit**
 
 ```bash
-git add src/devrel_swarm/project/__init__.py src/devrel_swarm/project/paths.py \
+git add src/devrel_origin/project/__init__.py src/devrel_origin/project/paths.py \
         tests/project/__init__.py tests/project/test_paths.py
 git commit -m "feat(project): add path discovery and ProjectPaths dataclass"
 ```
@@ -330,7 +330,7 @@ git commit -m "feat(project): add path discovery and ProjectPaths dataclass"
 ## Task 3: `project/config.py` — TOML config loader
 
 **Files:**
-- Create: `src/devrel_swarm/project/config.py`
+- Create: `src/devrel_origin/project/config.py`
 - Create: `tests/project/test_config.py`
 
 - [ ] **Step 1: Write failing tests**
@@ -343,7 +343,7 @@ from __future__ import annotations
 
 import pytest
 
-from devrel_swarm.project.config import (
+from devrel_origin.project.config import (
     BudgetConfig,
     ConfigError,
     ModelConfig,
@@ -433,11 +433,11 @@ def test_partial_model_section_uses_defaults(tmp_path):
 ```bash
 python -m pytest tests/project/test_config.py -v --no-cov 2>&1 | tail -5
 ```
-Expected: ImportError on `devrel_swarm.project.config`.
+Expected: ImportError on `devrel_origin.project.config`.
 
 - [ ] **Step 3: Implement `config.py`**
 
-Write `src/devrel_swarm/project/config.py`:
+Write `src/devrel_origin/project/config.py`:
 ```python
 """Load .devrel/config.toml into a typed ProjectConfig.
 
@@ -526,7 +526,7 @@ Expected: 6 passed.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/devrel_swarm/project/config.py tests/project/test_config.py
+git add src/devrel_origin/project/config.py tests/project/test_config.py
 git commit -m "feat(project): add ProjectConfig TOML loader with typed sections"
 ```
 
@@ -535,7 +535,7 @@ git commit -m "feat(project): add ProjectConfig TOML loader with typed sections"
 ## Task 4: `project/state.py` — SQLite schema + init
 
 **Files:**
-- Create: `src/devrel_swarm/project/state.py`
+- Create: `src/devrel_origin/project/state.py`
 - Create: `tests/project/test_state.py`
 
 - [ ] **Step 1: Write failing tests**
@@ -550,7 +550,7 @@ import sqlite3
 
 import pytest
 
-from devrel_swarm.project.state import (
+from devrel_origin.project.state import (
     SCHEMA_VERSION,
     get_schema_version,
     init_db,
@@ -638,11 +638,11 @@ def test_jobs_status_check_constraint_enforced(tmp_path):
 ```bash
 python -m pytest tests/project/test_state.py -v --no-cov 2>&1 | tail -5
 ```
-Expected: ImportError on `devrel_swarm.project.state`.
+Expected: ImportError on `devrel_origin.project.state`.
 
 - [ ] **Step 3: Implement `state.py`**
 
-Write `src/devrel_swarm/project/state.py`:
+Write `src/devrel_origin/project/state.py`:
 ```python
 """Project state DB: SQLite at .devrel/state.db.
 
@@ -753,7 +753,7 @@ Expected: 7 passed.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/devrel_swarm/project/state.py tests/project/test_state.py
+git add src/devrel_origin/project/state.py tests/project/test_state.py
 git commit -m "feat(project): add SQLite state DB schema + init"
 ```
 
@@ -762,29 +762,29 @@ git commit -m "feat(project): add SQLite state DB schema + init"
 ## Task 5: Templates (`project/templates/*`)
 
 **Files:**
-- Create: `src/devrel_swarm/project/templates/__init__.py`
-- Create: `src/devrel_swarm/project/templates/config.toml`
-- Create: `src/devrel_swarm/project/templates/voice.md`
-- Create: `src/devrel_swarm/project/templates/style.md`
-- Create: `src/devrel_swarm/project/templates/slop-blocklist.md`
-- Create: `src/devrel_swarm/project/templates/devrel.gitignore`
+- Create: `src/devrel_origin/project/templates/__init__.py`
+- Create: `src/devrel_origin/project/templates/config.toml`
+- Create: `src/devrel_origin/project/templates/voice.md`
+- Create: `src/devrel_origin/project/templates/style.md`
+- Create: `src/devrel_origin/project/templates/slop-blocklist.md`
+- Create: `src/devrel_origin/project/templates/devrel.gitignore`
 - Modify: `pyproject.toml` (add `[tool.setuptools.package-data]` entry to ship the templates inside the wheel)
 
 - [ ] **Step 1: Create templates package init**
 
-Write `src/devrel_swarm/project/templates/__init__.py`:
+Write `src/devrel_origin/project/templates/__init__.py`:
 ```python
 """Static template files copied into .devrel/ on `devrel init`.
 
-Access via `importlib.resources.files("devrel_swarm.project.templates")`.
+Access via `importlib.resources.files("devrel_origin.project.templates")`.
 """
 ```
 
 - [ ] **Step 2: Write `config.toml` template**
 
-Write `src/devrel_swarm/project/templates/config.toml`:
+Write `src/devrel_origin/project/templates/config.toml`:
 ```toml
-# devrel-swarm project config. Commit this file — it encodes editorial
+# devrel-origin project config. Commit this file — it encodes editorial
 # contract along with voice.md / style.md / slop-blocklist.md.
 
 # Project identity. Replace placeholders with real values; the github_repo
@@ -812,7 +812,7 @@ warn_at_pct = 80
 
 - [ ] **Step 3: Write `voice.md` template**
 
-Write `src/devrel_swarm/project/templates/voice.md`:
+Write `src/devrel_origin/project/templates/voice.md`:
 ```markdown
 # Voice profile
 
@@ -847,7 +847,7 @@ Beyond the global slop blocklist, anything specific to this product's voice that
 
 - [ ] **Step 4: Write `style.md` template**
 
-Write `src/devrel_swarm/project/templates/style.md`:
+Write `src/devrel_origin/project/templates/style.md`:
 ```markdown
 # House style
 
@@ -877,7 +877,7 @@ Targets are guidance, not pass/fail gates. The readability check in the quality 
 
 - [ ] **Step 5: Write `slop-blocklist.md` template**
 
-Write `src/devrel_swarm/project/templates/slop-blocklist.md`:
+Write `src/devrel_origin/project/templates/slop-blocklist.md`:
 ```markdown
 # Anti-slop blocklist
 
@@ -928,7 +928,7 @@ really
 
 - [ ] **Step 6: Write `devrel.gitignore` template**
 
-Write `src/devrel_swarm/project/templates/devrel.gitignore`:
+Write `src/devrel_origin/project/templates/devrel.gitignore`:
 ```
 # Auto-managed by `devrel init`. Edit only if you know what you're doing.
 # Generated outputs and runtime state are gitignored; the editorial
@@ -947,7 +947,7 @@ state.db
 In `pyproject.toml`, after the existing `[tool.setuptools.packages.find]` block, add:
 ```toml
 [tool.setuptools.package-data]
-"devrel_swarm.project.templates" = ["*.toml", "*.md", "*.gitignore"]
+"devrel_origin.project.templates" = ["*.toml", "*.md", "*.gitignore"]
 ```
 
 - [ ] **Step 8: Verify templates ship via `importlib.resources`**
@@ -956,7 +956,7 @@ In `pyproject.toml`, after the existing `[tool.setuptools.packages.find]` block,
 pip install -e '.[dev]' >/dev/null 2>&1 && \
 python -c "
 from importlib.resources import files
-pkg = files('devrel_swarm.project.templates')
+pkg = files('devrel_origin.project.templates')
 names = sorted(p.name for p in pkg.iterdir())
 print(names)
 "
@@ -966,7 +966,7 @@ Expected: `['__init__.py', '__pycache__'?, 'config.toml', 'devrel.gitignore', 's
 - [ ] **Step 9: Commit**
 
 ```bash
-git add src/devrel_swarm/project/templates/ pyproject.toml
+git add src/devrel_origin/project/templates/ pyproject.toml
 git commit -m "feat(project): add .devrel/ scaffold templates"
 ```
 
@@ -975,7 +975,7 @@ git commit -m "feat(project): add .devrel/ scaffold templates"
 ## Task 6: `project/init.py` — `init_project()` scaffolder
 
 **Files:**
-- Create: `src/devrel_swarm/project/init.py`
+- Create: `src/devrel_origin/project/init.py`
 - Create: `tests/project/test_init.py`
 
 - [ ] **Step 1: Write failing tests**
@@ -988,13 +988,13 @@ from __future__ import annotations
 
 import pytest
 
-from devrel_swarm.project.init import (
+from devrel_origin.project.init import (
     InitOptions,
     InitResult,
     init_project,
 )
-from devrel_swarm.project.paths import ProjectPaths
-from devrel_swarm.project.state import SCHEMA_VERSION, get_schema_version
+from devrel_origin.project.paths import ProjectPaths
+from devrel_origin.project.state import SCHEMA_VERSION, get_schema_version
 
 
 def test_init_creates_full_scaffold(tmp_path):
@@ -1072,11 +1072,11 @@ def test_init_creates_devrel_gitignore(tmp_path):
 ```bash
 python -m pytest tests/project/test_init.py -v --no-cov 2>&1 | tail -5
 ```
-Expected: ImportError on `devrel_swarm.project.init`.
+Expected: ImportError on `devrel_origin.project.init`.
 
 - [ ] **Step 3: Implement `init.py`**
 
-Write `src/devrel_swarm/project/init.py`:
+Write `src/devrel_origin/project/init.py`:
 ```python
 """Idempotent .devrel/ scaffolder.
 
@@ -1093,10 +1093,10 @@ from dataclasses import dataclass, field
 from importlib.resources import files
 from pathlib import Path
 
-from devrel_swarm.project.paths import ProjectPaths
-from devrel_swarm.project.state import init_db
+from devrel_origin.project.paths import ProjectPaths
+from devrel_origin.project.state import init_db
 
-_TEMPLATE_PKG = "devrel_swarm.project.templates"
+_TEMPLATE_PKG = "devrel_origin.project.templates"
 
 # Files that are committed and must NEVER be overwritten on re-init.
 _COMMITTED_FILES = ("config.toml", "voice.md", "style.md", "slop-blocklist.md", ".gitignore")
@@ -1194,7 +1194,7 @@ Expected: 6 passed.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/devrel_swarm/project/init.py tests/project/test_init.py
+git add src/devrel_origin/project/init.py tests/project/test_init.py
 git commit -m "feat(project): add idempotent init_project() scaffolder"
 ```
 
@@ -1203,17 +1203,17 @@ git commit -m "feat(project): add idempotent init_project() scaffolder"
 ## Task 7: CLI app skeleton + `devrel init` command
 
 **Files:**
-- Create: `src/devrel_swarm/cli/__init__.py`
-- Create: `src/devrel_swarm/cli/init.py`
+- Create: `src/devrel_origin/cli/__init__.py`
+- Create: `src/devrel_origin/cli/init.py`
 - Create: `tests/cli/__init__.py`
 - Create: `tests/cli/test_init_command.py`
 - Modify: `pyproject.toml` — add `[project.scripts]` entry
 
 - [ ] **Step 1: Create CLI package skeleton**
 
-Write `src/devrel_swarm/cli/__init__.py`:
+Write `src/devrel_origin/cli/__init__.py`:
 ```python
-"""Typer CLI app for devrel-swarm.
+"""Typer CLI app for devrel-origin.
 
 Phase 2 registers `init` and `doctor`. Later phases register additional
 verb groups (run, content, sales, marketing, etc.).
@@ -1223,8 +1223,8 @@ from __future__ import annotations
 
 import typer
 
-from devrel_swarm import __version__
-from devrel_swarm.cli.init import init_command
+from devrel_origin import __version__
+from devrel_origin.cli.init import init_command
 
 
 app = typer.Typer(
@@ -1237,7 +1237,7 @@ app = typer.Typer(
 
 def _version_callback(value: bool) -> None:
     if value:
-        typer.echo(f"devrel-swarm {__version__}")
+        typer.echo(f"devrel-origin {__version__}")
         raise typer.Exit()
 
 
@@ -1269,7 +1269,7 @@ Write `tests/cli/__init__.py`:
 
 - [ ] **Step 2: Write the `init` CLI command**
 
-Write `src/devrel_swarm/cli/init.py`:
+Write `src/devrel_origin/cli/init.py`:
 ```python
 """`devrel init` command — bootstrap .devrel/ in cwd."""
 
@@ -1280,7 +1280,7 @@ from pathlib import Path
 import typer
 from rich.console import Console
 
-from devrel_swarm.project.init import InitOptions, init_project
+from devrel_origin.project.init import InitOptions, init_project
 
 console = Console()
 
@@ -1290,7 +1290,7 @@ def init_command(
         ...,
         "--name",
         prompt="Project name (e.g., 'openclaw')",
-        help="The product this devrel-swarm instance covers.",
+        help="The product this devrel-origin instance covers.",
     ),
     url: str = typer.Option(
         "",
@@ -1347,7 +1347,7 @@ def init_command(
 In `pyproject.toml`, append after `[project.optional-dependencies]`:
 ```toml
 [project.scripts]
-devrel = "devrel_swarm.cli:app"
+devrel = "devrel_origin.cli:app"
 ```
 
 Then reinstall:
@@ -1356,7 +1356,7 @@ pip install -e '.[dev]' >/dev/null 2>&1
 which devrel
 devrel --version
 ```
-Expected: a path to `devrel` inside `.venv/bin/`, then `devrel-swarm 0.2.0`.
+Expected: a path to `devrel` inside `.venv/bin/`, then `devrel-origin 0.2.0`.
 
 - [ ] **Step 4: Write the failing CLI test**
 
@@ -1371,7 +1371,7 @@ import os
 import pytest
 from typer.testing import CliRunner
 
-from devrel_swarm.cli import app
+from devrel_origin.cli import app
 
 runner = CliRunner()
 
@@ -1434,7 +1434,7 @@ def test_init_dry_run_writes_nothing(tmp_path):
 def test_version_flag():
     result = runner.invoke(app, ["--version"])
     assert result.exit_code == 0
-    assert "devrel-swarm" in result.output
+    assert "devrel-origin" in result.output
 ```
 
 - [ ] **Step 5: Run tests to verify pass**
@@ -1447,7 +1447,7 @@ Expected: 4 passed.
 - [ ] **Step 6: Commit**
 
 ```bash
-git add src/devrel_swarm/cli/ tests/cli/__init__.py tests/cli/test_init_command.py pyproject.toml
+git add src/devrel_origin/cli/ tests/cli/__init__.py tests/cli/test_init_command.py pyproject.toml
 git commit -m "feat(cli): add Typer skeleton + 'devrel init' command"
 ```
 
@@ -1456,9 +1456,9 @@ git commit -m "feat(cli): add Typer skeleton + 'devrel init' command"
 ## Task 8: `devrel doctor` command
 
 **Files:**
-- Create: `src/devrel_swarm/cli/doctor.py`
+- Create: `src/devrel_origin/cli/doctor.py`
 - Create: `tests/cli/test_doctor_command.py`
-- Modify: `src/devrel_swarm/cli/__init__.py` (register the new command)
+- Modify: `src/devrel_origin/cli/__init__.py` (register the new command)
 
 - [ ] **Step 1: Write failing tests**
 
@@ -1474,7 +1474,7 @@ import os
 import pytest
 from typer.testing import CliRunner
 
-from devrel_swarm.cli import app
+from devrel_origin.cli import app
 
 runner = CliRunner()
 
@@ -1574,7 +1574,7 @@ Expected: ImportError or `No such command` because `doctor` isn't wired yet.
 
 - [ ] **Step 3: Implement `doctor.py`**
 
-Write `src/devrel_swarm/cli/doctor.py`:
+Write `src/devrel_origin/cli/doctor.py`:
 ```python
 """`devrel doctor` — health checks for the current project."""
 
@@ -1589,14 +1589,14 @@ from pathlib import Path
 import typer
 from rich.console import Console
 
-from devrel_swarm.project.config import ConfigError, ProjectConfig
-from devrel_swarm.project.paths import (
+from devrel_origin.project.config import ConfigError, ProjectConfig
+from devrel_origin.project.paths import (
     DEVREL_DIR_NAME,
     ProjectNotFoundError,
     ProjectPaths,
     find_devrel_root,
 )
-from devrel_swarm.project.state import SCHEMA_VERSION, get_schema_version
+from devrel_origin.project.state import SCHEMA_VERSION, get_schema_version
 
 console = Console()
 
@@ -1753,13 +1753,13 @@ def doctor_command(
 
 - [ ] **Step 4: Register `doctor` in the CLI app**
 
-In `src/devrel_swarm/cli/__init__.py`, add an import and a registration line. Find:
+In `src/devrel_origin/cli/__init__.py`, add an import and a registration line. Find:
 ```python
-from devrel_swarm.cli.init import init_command
+from devrel_origin.cli.init import init_command
 ```
 Add below it:
 ```python
-from devrel_swarm.cli.doctor import doctor_command
+from devrel_origin.cli.doctor import doctor_command
 ```
 
 Find:
@@ -1794,7 +1794,7 @@ Expected: init prints `Done.`, doctor prints all checks (some `!` warnings on op
 - [ ] **Step 7: Commit**
 
 ```bash
-git add src/devrel_swarm/cli/__init__.py src/devrel_swarm/cli/doctor.py tests/cli/test_doctor_command.py
+git add src/devrel_origin/cli/__init__.py src/devrel_origin/cli/doctor.py tests/cli/test_doctor_command.py
 git commit -m "feat(cli): add 'devrel doctor' health-check command"
 ```
 
@@ -1819,9 +1819,9 @@ If anything new fails, **stop and investigate** — Phase 2 must not regress Pha
 - [ ] **Step 2: Verify coverage of new packages meets the 80% bar**
 
 ```bash
-python -m pytest tests/project tests/cli --cov=devrel_swarm.project --cov=devrel_swarm.cli --cov-report=term-missing 2>&1 | tail -20
+python -m pytest tests/project tests/cli --cov=devrel_origin.project --cov=devrel_origin.cli --cov-report=term-missing 2>&1 | tail -20
 ```
-Expected: `TOTAL` line shows ≥80% for both `devrel_swarm.project` and `devrel_swarm.cli`. If either is below 80%, add tests for the uncovered branches before continuing.
+Expected: `TOTAL` line shows ≥80% for both `devrel_origin.project` and `devrel_origin.cli`. If either is below 80%, add tests for the uncovered branches before continuing.
 
 - [ ] **Step 3: Update CLAUDE.md with the new commands**
 
@@ -1836,12 +1836,12 @@ devrel doctor
 devrel doctor --json
 ```
 
-In `CLAUDE.md`'s File Map, add after the `src/devrel_swarm/tools/` block:
+In `CLAUDE.md`'s File Map, add after the `src/devrel_origin/tools/` block:
 
 ```
-src/devrel_swarm/cli/      Typer app + per-command modules. Phase 2 ships
+src/devrel_origin/cli/      Typer app + per-command modules. Phase 2 ships
                            init.py + doctor.py; Phase 4 expands.
-src/devrel_swarm/project/  Project bootstrap. paths.py walks cwd to find
+src/devrel_origin/project/  Project bootstrap. paths.py walks cwd to find
                            .devrel/. config.py loads config.toml. state.py
                            manages SQLite state DB. init.py scaffolds
                            .devrel/ idempotently. templates/ holds the
@@ -1862,7 +1862,7 @@ git commit -m "docs: add Phase 2 commands and File Map entries"
 git log --oneline main..HEAD
 devrel --version
 ```
-Expected: a stack of focused commits (one per Task) on `feat/cli-phase2-bootstrap`, and `devrel-swarm 0.2.0`.
+Expected: a stack of focused commits (one per Task) on `feat/cli-phase2-bootstrap`, and `devrel-origin 0.2.0`.
 
 ---
 

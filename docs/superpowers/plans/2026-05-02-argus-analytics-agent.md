@@ -16,14 +16,14 @@
 
 | File | Status | Responsibility |
 |------|--------|----------------|
-| `src/devrel_swarm/core/argus.py` | Create | Agent class, dataclass schemas, `_score_metrics`, `_generate_recommendations`, `to_markdown` / `to_json` |
-| `src/devrel_swarm/tools/analytics.py` | Create | Four collector classes (PostHog, GitHub, Instantly, Social) |
-| `src/devrel_swarm/project/state.py` | Modify | Bump `SCHEMA_VERSION` to 2, add `analytics_reports` table |
-| `src/devrel_swarm/cli/analytics.py` | Create | `analytics report` Typer subgroup |
-| `src/devrel_swarm/cli/__init__.py` | Modify | Register `analytics_app` |
-| `src/devrel_swarm/core/atlas.py` | Modify | Optional Argus call after Sentinel stage, gated by config |
-| `src/devrel_swarm/core/agent_config.py` | Modify | Add `analytics_in_run: bool = True` to `AgentConfig.orchestration` (or equivalent) |
-| `src/devrel_swarm/core/__init__.py` | Modify | Export `Argus` |
+| `src/devrel_origin/core/argus.py` | Create | Agent class, dataclass schemas, `_score_metrics`, `_generate_recommendations`, `to_markdown` / `to_json` |
+| `src/devrel_origin/tools/analytics.py` | Create | Four collector classes (PostHog, GitHub, Instantly, Social) |
+| `src/devrel_origin/project/state.py` | Modify | Bump `SCHEMA_VERSION` to 2, add `analytics_reports` table |
+| `src/devrel_origin/cli/analytics.py` | Create | `analytics report` Typer subgroup |
+| `src/devrel_origin/cli/__init__.py` | Modify | Register `analytics_app` |
+| `src/devrel_origin/core/atlas.py` | Modify | Optional Argus call after Sentinel stage, gated by config |
+| `src/devrel_origin/core/agent_config.py` | Modify | Add `analytics_in_run: bool = True` to `AgentConfig.orchestration` (or equivalent) |
+| `src/devrel_origin/core/__init__.py` | Modify | Export `Argus` |
 | `tests/test_argus.py` | Create | Unit tests for scorer, dataclass round-trip, LLM-mocked integration |
 | `tests/test_analytics_collectors.py` | Create | Per-collector tests with respx + sqlite mocks |
 | `tests/cli/test_analytics_command.py` | Create | CLI verb test |
@@ -35,7 +35,7 @@
 ## Task 1: Schemas — define dataclasses in `argus.py`
 
 **Files:**
-- Create: `src/devrel_swarm/core/argus.py`
+- Create: `src/devrel_origin/core/argus.py`
 - Test: `tests/test_argus.py`
 
 - [ ] **Step 1: Write the failing test for schema construction + serialization**
@@ -51,7 +51,7 @@ from datetime import datetime, timezone
 
 import pytest
 
-from devrel_swarm.core.argus import (
+from devrel_origin.core.argus import (
     PerformanceMetric,
     PerformanceReport,
     Recommendation,
@@ -127,15 +127,15 @@ def test_performance_report_round_trip():
 - [ ] **Step 2: Run the test and verify it fails**
 
 ```bash
-cd /Users/macmini/devrel-swarm && pytest tests/test_argus.py -v
+cd /Users/macmini/devrel-origin && pytest tests/test_argus.py -v
 ```
 
-Expected: `ImportError` / `ModuleNotFoundError: No module named 'devrel_swarm.core.argus'`.
+Expected: `ImportError` / `ModuleNotFoundError: No module named 'devrel_origin.core.argus'`.
 
 - [ ] **Step 3: Implement the schemas**
 
 ```python
-# src/devrel_swarm/core/argus.py
+# src/devrel_origin/core/argus.py
 """
 Argus — Content Performance Analyst Agent.
 
@@ -218,7 +218,7 @@ Expected: 3 PASSED.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/devrel_swarm/core/argus.py tests/test_argus.py
+git add src/devrel_origin/core/argus.py tests/test_argus.py
 git commit -m "feat(argus): schemas — PerformanceMetric, Recommendation, PerformanceReport"
 ```
 
@@ -227,7 +227,7 @@ git commit -m "feat(argus): schemas — PerformanceMetric, Recommendation, Perfo
 ## Task 2: Deterministic scorer (`_score_metrics`)
 
 **Files:**
-- Modify: `src/devrel_swarm/core/argus.py`
+- Modify: `src/devrel_origin/core/argus.py`
 - Test: `tests/test_argus.py`
 
 - [ ] **Step 1: Write failing tests for scoring**
@@ -235,7 +235,7 @@ git commit -m "feat(argus): schemas — PerformanceMetric, Recommendation, Perfo
 Append to `tests/test_argus.py`:
 
 ```python
-from devrel_swarm.core.argus import _score_metrics
+from devrel_origin.core.argus import _score_metrics
 
 
 def _metric(content_id: str, content_type: str, value: float) -> PerformanceMetric:
@@ -305,7 +305,7 @@ Expected: 4 FAIL with `ImportError: cannot import name '_score_metrics'`.
 
 - [ ] **Step 3: Implement the scorer**
 
-Append to `src/devrel_swarm/core/argus.py`:
+Append to `src/devrel_origin/core/argus.py`:
 
 ```python
 import statistics
@@ -387,7 +387,7 @@ Expected: 7 PASSED (3 from Task 1 + 4 from Task 2).
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/devrel_swarm/core/argus.py tests/test_argus.py
+git add src/devrel_origin/core/argus.py tests/test_argus.py
 git commit -m "feat(argus): deterministic scorer (percentile, wow_delta, anomaly_flag)"
 ```
 
@@ -396,7 +396,7 @@ git commit -m "feat(argus): deterministic scorer (percentile, wow_delta, anomaly
 ## Task 3: SQLite migration — `analytics_reports` table
 
 **Files:**
-- Modify: `src/devrel_swarm/project/state.py:1-50`
+- Modify: `src/devrel_origin/project/state.py:1-50`
 - Test: create `tests/project/test_state_analytics.py` (new file; the existing `tests/project/` may not have a `test_state.py`; use a dedicated file to avoid collisions)
 
 - [ ] **Step 1: Write the failing migration test**
@@ -409,7 +409,7 @@ from __future__ import annotations
 
 import sqlite3
 
-from devrel_swarm.project.state import (
+from devrel_origin.project.state import (
     SCHEMA_VERSION,
     get_schema_version,
     init_db,
@@ -486,7 +486,7 @@ Expected: 4 FAIL — `SCHEMA_VERSION == 1` and the table doesn't exist.
 
 - [ ] **Step 3: Apply the migration**
 
-In `src/devrel_swarm/project/state.py`:
+In `src/devrel_origin/project/state.py`:
 
 Replace `SCHEMA_VERSION = 1` with:
 
@@ -534,7 +534,7 @@ Expected: 4 PASSED in `test_state_analytics`, no failures in other `tests/projec
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/devrel_swarm/project/state.py tests/project/test_state_analytics.py
+git add src/devrel_origin/project/state.py tests/project/test_state_analytics.py
 git commit -m "feat(state): schema v2 — analytics_reports table for Argus"
 ```
 
@@ -543,7 +543,7 @@ git commit -m "feat(state): schema v2 — analytics_reports table for Argus"
 ## Task 4: PostHog collector
 
 **Files:**
-- Create: `src/devrel_swarm/tools/analytics.py`
+- Create: `src/devrel_origin/tools/analytics.py`
 - Test: `tests/test_analytics_collectors.py`
 
 - [ ] **Step 1: Write failing test for PostHogCollector**
@@ -559,8 +559,8 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from devrel_swarm.core.argus import PerformanceMetric
-from devrel_swarm.tools.analytics import PostHogCollector
+from devrel_origin.core.argus import PerformanceMetric
+from devrel_origin.tools.analytics import PostHogCollector
 
 
 def _utc_now() -> datetime:
@@ -630,12 +630,12 @@ async def test_posthog_collector_handles_empty():
 pytest tests/test_analytics_collectors.py -v
 ```
 
-Expected: 3 FAIL with `ModuleNotFoundError: No module named 'devrel_swarm.tools.analytics'`.
+Expected: 3 FAIL with `ModuleNotFoundError: No module named 'devrel_origin.tools.analytics'`.
 
 - [ ] **Step 3: Implement PostHogCollector**
 
 ```python
-# src/devrel_swarm/tools/analytics.py
+# src/devrel_origin/tools/analytics.py
 """Argus data collectors — one class per source.
 
 Each collector exposes a single async method ``collect(period)`` returning
@@ -651,10 +651,10 @@ from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from devrel_swarm.core.argus import ContentType, PerformanceMetric
+from devrel_origin.core.argus import ContentType, PerformanceMetric
 
 if TYPE_CHECKING:
-    from devrel_swarm.tools.api_client import PostHogClient
+    from devrel_origin.tools.api_client import PostHogClient
 
 logger = logging.getLogger(__name__)
 
@@ -724,7 +724,7 @@ class PostHogCollector:
         return metrics
 ```
 
-Note on the `PostHogClient` API: `fetch_events_by_url(start, end) -> list[dict]` is the contract Argus expects. If `PostHogClient` does not yet have this method, add it as a thin adapter in a follow-up commit (out-of-scope for v1; tests use a `MagicMock`). If the existing client has a different shape, write a one-line bridging method on the collector. Verify before merging by running `grep -n "fetch_events_by_url\|class PostHogClient" src/devrel_swarm/tools/api_client.py`.
+Note on the `PostHogClient` API: `fetch_events_by_url(start, end) -> list[dict]` is the contract Argus expects. If `PostHogClient` does not yet have this method, add it as a thin adapter in a follow-up commit (out-of-scope for v1; tests use a `MagicMock`). If the existing client has a different shape, write a one-line bridging method on the collector. Verify before merging by running `grep -n "fetch_events_by_url\|class PostHogClient" src/devrel_origin/tools/api_client.py`.
 
 - [ ] **Step 4: Run tests and verify they pass**
 
@@ -737,7 +737,7 @@ Expected: 3 PASSED.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/devrel_swarm/tools/analytics.py tests/test_analytics_collectors.py
+git add src/devrel_origin/tools/analytics.py tests/test_analytics_collectors.py
 git commit -m "feat(analytics): PostHogCollector — page views per URL"
 ```
 
@@ -746,7 +746,7 @@ git commit -m "feat(analytics): PostHogCollector — page views per URL"
 ## Task 5: GitHub collector
 
 **Files:**
-- Modify: `src/devrel_swarm/tools/analytics.py`
+- Modify: `src/devrel_origin/tools/analytics.py`
 - Test: `tests/test_analytics_collectors.py`
 
 - [ ] **Step 1: Write failing test**
@@ -754,7 +754,7 @@ git commit -m "feat(analytics): PostHogCollector — page views per URL"
 Append to `tests/test_analytics_collectors.py`:
 
 ```python
-from devrel_swarm.tools.analytics import GitHubCollector
+from devrel_origin.tools.analytics import GitHubCollector
 
 
 @pytest.mark.asyncio
@@ -802,7 +802,7 @@ Expected: 2 FAIL with `ImportError: cannot import name 'GitHubCollector'`.
 
 - [ ] **Step 3: Implement GitHubCollector**
 
-Append to `src/devrel_swarm/tools/analytics.py`:
+Append to `src/devrel_origin/tools/analytics.py`:
 
 ```python
 class GitHubCollector:
@@ -856,7 +856,7 @@ Expected: 5 PASSED.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/devrel_swarm/tools/analytics.py tests/test_analytics_collectors.py
+git add src/devrel_origin/tools/analytics.py tests/test_analytics_collectors.py
 git commit -m "feat(analytics): GitHubCollector — stars_delta + repo health"
 ```
 
@@ -865,7 +865,7 @@ git commit -m "feat(analytics): GitHubCollector — stars_delta + repo health"
 ## Task 6: Instantly collector
 
 **Files:**
-- Modify: `src/devrel_swarm/tools/analytics.py`
+- Modify: `src/devrel_origin/tools/analytics.py`
 - Test: `tests/test_analytics_collectors.py`
 
 - [ ] **Step 1: Write failing test**
@@ -873,7 +873,7 @@ git commit -m "feat(analytics): GitHubCollector — stars_delta + repo health"
 Append to `tests/test_analytics_collectors.py`:
 
 ```python
-from devrel_swarm.tools.analytics import InstantlyCollector
+from devrel_origin.tools.analytics import InstantlyCollector
 
 
 @pytest.mark.asyncio
@@ -918,7 +918,7 @@ Expected: 2 FAIL with `ImportError: cannot import name 'InstantlyCollector'`.
 
 - [ ] **Step 3: Implement InstantlyCollector**
 
-Append to `src/devrel_swarm/tools/analytics.py`:
+Append to `src/devrel_origin/tools/analytics.py`:
 
 ```python
 class InstantlyCollector:
@@ -979,7 +979,7 @@ Expected: 7 PASSED.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/devrel_swarm/tools/analytics.py tests/test_analytics_collectors.py
+git add src/devrel_origin/tools/analytics.py tests/test_analytics_collectors.py
 git commit -m "feat(analytics): InstantlyCollector — per-campaign reply_rate + open/click"
 ```
 
@@ -988,7 +988,7 @@ git commit -m "feat(analytics): InstantlyCollector — per-campaign reply_rate +
 ## Task 7: Social collector (reads Echo's `social_mentions` table)
 
 **Files:**
-- Modify: `src/devrel_swarm/tools/analytics.py`
+- Modify: `src/devrel_origin/tools/analytics.py`
 - Test: `tests/test_analytics_collectors.py`
 
 - [ ] **Step 1: Write failing test**
@@ -998,7 +998,7 @@ Append to `tests/test_analytics_collectors.py`:
 ```python
 import sqlite3 as _sqlite3
 
-from devrel_swarm.tools.analytics import SocialCollector
+from devrel_origin.tools.analytics import SocialCollector
 
 
 def _seed_social_mentions_db(db_path):
@@ -1031,7 +1031,7 @@ def _seed_social_mentions_db(db_path):
             [
                 ("reddit", "abc1", "Why CLI tools win", "https://reddit.com/r/programming/abc1",
                  "2026-04-30T10:00:00Z", 240, 35, 87.5, 1),
-                ("hackernews", "hn-9", "Show HN: devrel-swarm", "https://news.ycombinator.com/item?id=9",
+                ("hackernews", "hn-9", "Show HN: devrel-origin", "https://news.ycombinator.com/item?id=9",
                  "2026-04-29T14:00:00Z", 150, 42, 76.0, 1),
                 ("reddit", "noise-1", "Random unrelated post", "https://reddit.com/r/x/noise-1",
                  "2026-04-28T08:00:00Z", 5, 1, 6.0, 0),  # not own; collector excludes
@@ -1079,7 +1079,7 @@ Expected: 2 FAIL with `ImportError: cannot import name 'SocialCollector'`.
 
 - [ ] **Step 3: Implement SocialCollector**
 
-Append to `src/devrel_swarm/tools/analytics.py`:
+Append to `src/devrel_origin/tools/analytics.py`:
 
 ```python
 import sqlite3
@@ -1155,7 +1155,7 @@ Expected: 9 PASSED.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/devrel_swarm/tools/analytics.py tests/test_analytics_collectors.py
+git add src/devrel_origin/tools/analytics.py tests/test_analytics_collectors.py
 git commit -m "feat(analytics): SocialCollector — reads Echo's social_mentions for own posts"
 ```
 
@@ -1164,7 +1164,7 @@ git commit -m "feat(analytics): SocialCollector — reads Echo's social_mentions
 ## Task 8: Argus class — orchestration + execute()
 
 **Files:**
-- Modify: `src/devrel_swarm/core/argus.py`
+- Modify: `src/devrel_origin/core/argus.py`
 - Test: `tests/test_argus.py`
 
 - [ ] **Step 1: Write the failing integration test**
@@ -1175,7 +1175,7 @@ Append to `tests/test_argus.py`:
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
 
-from devrel_swarm.core.argus import Argus, PerformanceReport
+from devrel_origin.core.argus import Argus, PerformanceReport
 
 
 @pytest.mark.asyncio
@@ -1259,7 +1259,7 @@ Expected: 2 FAIL — `Argus` not yet defined.
 
 - [ ] **Step 3: Implement Argus class shell + run()**
 
-Append to `src/devrel_swarm/core/argus.py`:
+Append to `src/devrel_origin/core/argus.py`:
 
 ```python
 import asyncio
@@ -1413,7 +1413,7 @@ Replace the `_generate_recommendations` body so the test in this task passes (th
         can exercise the orchestration around the LLM call.
         """
         import json as _json
-        from devrel_swarm.core.base import strip_markdown_fences
+        from devrel_origin.core.base import strip_markdown_fences
 
         leaderboard_summary = "\n".join(
             f"- {m.content_id} ({m.content_type}): {m.primary_metric} {m.metric_name}"
@@ -1453,7 +1453,7 @@ Expected: 9 PASSED (3 schemas + 4 scorer + 2 argus_run).
 - [ ] **Step 6: Commit**
 
 ```bash
-git add src/devrel_swarm/core/argus.py tests/test_argus.py
+git add src/devrel_origin/core/argus.py tests/test_argus.py
 git commit -m "feat(argus): orchestration — collectors -> scorer -> stub recs"
 ```
 
@@ -1462,7 +1462,7 @@ git commit -m "feat(argus): orchestration — collectors -> scorer -> stub recs"
 ## Task 9: LLM interpreter — system prompt + structured output
 
 **Files:**
-- Modify: `src/devrel_swarm/core/argus.py`
+- Modify: `src/devrel_origin/core/argus.py`
 - Test: `tests/test_argus.py`
 
 - [ ] **Step 1: Write failing test for prompt content + parser robustness**
@@ -1545,7 +1545,7 @@ Expected: 2 FAIL — current stub doesn't include action vocab, doesn't handle p
 
 - [ ] **Step 3: Replace `_generate_recommendations` with the real implementation**
 
-In `src/devrel_swarm/core/argus.py`, replace the entire `_generate_recommendations` method:
+In `src/devrel_origin/core/argus.py`, replace the entire `_generate_recommendations` method:
 
 ```python
     _DEFAULT_SYSTEM_PROMPT = """You are Argus, a content performance analyst. \
@@ -1566,7 +1566,7 @@ Confidence below 0.5 means "investigate" — do not recommend a directional acti
 
     @property
     def SYSTEM_PROMPT(self) -> str:
-        from devrel_swarm.core.base import load_agent_prompt
+        from devrel_origin.core.base import load_agent_prompt
         return load_agent_prompt(
             "argus", "system_prompt.txt", self._DEFAULT_SYSTEM_PROMPT,
         )
@@ -1581,7 +1581,7 @@ Confidence below 0.5 means "investigate" — do not recommend a directional acti
         Output: JSON with ``recommendations`` and ``trend_signals`` arrays.
         """
         import json as _json
-        from devrel_swarm.core.base import strip_markdown_fences
+        from devrel_origin.core.base import strip_markdown_fences
 
         # Build per-type breakdown (top 10 + bottom 5 per type, capped 50 total)
         by_type: dict[str, list[PerformanceMetric]] = {}
@@ -1657,7 +1657,7 @@ Expected: 11 PASSED (9 prior + 2 new).
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/devrel_swarm/core/argus.py tests/test_argus.py
+git add src/devrel_origin/core/argus.py tests/test_argus.py
 git commit -m "feat(argus): LLM interpreter with cached system prompt + closed action vocab"
 ```
 
@@ -1666,7 +1666,7 @@ git commit -m "feat(argus): LLM interpreter with cached system prompt + closed a
 ## Task 10: Persistence + baselines + markdown rendering
 
 **Files:**
-- Modify: `src/devrel_swarm/core/argus.py`
+- Modify: `src/devrel_origin/core/argus.py`
 - Test: `tests/test_argus.py`
 
 - [ ] **Step 1: Write failing tests for persist + baselines + to_markdown**
@@ -1676,7 +1676,7 @@ Append to `tests/test_argus.py`:
 ```python
 import json as _json
 
-from devrel_swarm.project.state import init_db, open_db
+from devrel_origin.project.state import init_db, open_db
 
 
 @pytest.mark.asyncio
@@ -1798,7 +1798,7 @@ Expected: 3 FAIL — `_persist` is a stub, `_load_baselines` returns empty, `to_
 
 - [ ] **Step 3: Implement persistence, baseline loading, and markdown rendering**
 
-In `src/devrel_swarm/core/argus.py`:
+In `src/devrel_origin/core/argus.py`:
 
 Replace the existing `_persist` and `_load_baselines` stubs with:
 
@@ -1986,7 +1986,7 @@ Expected: 14 PASSED.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/devrel_swarm/core/argus.py tests/test_argus.py
+git add src/devrel_origin/core/argus.py tests/test_argus.py
 git commit -m "feat(argus): persistence, WoW baselines, markdown rendering"
 ```
 
@@ -1995,7 +1995,7 @@ git commit -m "feat(argus): persistence, WoW baselines, markdown rendering"
 ## Task 11: CLI verb — `devrel analytics report`
 
 **Files:**
-- Create: `src/devrel_swarm/cli/analytics.py`
+- Create: `src/devrel_origin/cli/analytics.py`
 - Test: `tests/cli/test_analytics_command.py`
 
 - [ ] **Step 1: Write failing CLI test**
@@ -2014,9 +2014,9 @@ from unittest.mock import AsyncMock, patch
 import pytest
 from typer.testing import CliRunner
 
-from devrel_swarm.cli import app
-from devrel_swarm.core.argus import PerformanceReport
-from devrel_swarm.project.state import init_db
+from devrel_origin.cli import app
+from devrel_origin.core.argus import PerformanceReport
+from devrel_origin.project.state import init_db
 
 
 runner = CliRunner()
@@ -2046,7 +2046,7 @@ def project_dir(tmp_path, monkeypatch):
 
 
 def test_analytics_report_writes_markdown_deliverable(project_dir):
-    with patch("devrel_swarm.cli.analytics._build_argus") as build:
+    with patch("devrel_origin.cli.analytics._build_argus") as build:
         argus = build.return_value
         argus.run = AsyncMock(return_value=_stub_report())
         result = runner.invoke(app, ["analytics", "report", "--since", "7d"])
@@ -2058,7 +2058,7 @@ def test_analytics_report_writes_markdown_deliverable(project_dir):
 
 
 def test_analytics_report_json_format_emits_json(project_dir):
-    with patch("devrel_swarm.cli.analytics._build_argus") as build:
+    with patch("devrel_origin.cli.analytics._build_argus") as build:
         argus = build.return_value
         argus.run = AsyncMock(return_value=_stub_report())
         result = runner.invoke(app, ["analytics", "report", "--format", "json"])
@@ -2080,7 +2080,7 @@ Expected: 2 FAIL — `analytics` is not a registered verb.
 - [ ] **Step 3: Implement the CLI verb**
 
 ```python
-# src/devrel_swarm/cli/analytics.py
+# src/devrel_origin/cli/analytics.py
 """`devrel analytics report` — Argus performance report.
 
 Pulls the last N days of metrics from PostHog, GitHub, Instantly, and
@@ -2099,8 +2099,8 @@ from pathlib import Path
 import typer
 from rich.console import Console
 
-from devrel_swarm.cli._common import find_paths_or_exit
-from devrel_swarm.core.argus import Argus, PerformanceReport
+from devrel_origin.cli._common import find_paths_or_exit
+from devrel_origin.core.argus import Argus, PerformanceReport
 
 console = Console()
 
@@ -2127,13 +2127,13 @@ def _parse_since(since: str) -> timedelta:
 def _build_argus(state_db_path: Path) -> Argus:
     """Construct Argus with real collectors. Patched in unit tests."""
     # Lazy imports keep the CLI fast when this verb is not used.
-    from devrel_swarm.core.llm import LLMClient
-    from devrel_swarm.tools.analytics import (
+    from devrel_origin.core.llm import LLMClient
+    from devrel_origin.tools.analytics import (
         GitHubCollector, InstantlyCollector, PostHogCollector, SocialCollector,
     )
-    from devrel_swarm.tools.api_client import PostHogClient
-    from devrel_swarm.tools.github_tools import GitHubTools
-    from devrel_swarm.tools.instantly_client import InstantlyClient
+    from devrel_origin.tools.api_client import PostHogClient
+    from devrel_origin.tools.github_tools import GitHubTools
+    from devrel_origin.tools.instantly_client import InstantlyClient
 
     posthog = PostHogCollector(PostHogClient())
     github = GitHubCollector(GitHubTools())
@@ -2190,7 +2190,7 @@ def report_command(
 
     if push:
         try:
-            from devrel_swarm.tools.notifications import NotificationService
+            from devrel_origin.tools.notifications import NotificationService
             NotificationService.from_env().send_digest(
                 subject=f"Argus report — {end.date().isoformat()}",
                 body=report.to_markdown(),
@@ -2199,16 +2199,16 @@ def report_command(
             console.print(f"[yellow]Push failed: {exc}[/yellow]")
 ```
 
-Note: `find_paths_or_exit` may not expose a `.deliverables` attribute. The fallback `paths.state_db.parent / "deliverables"` resolves to `.devrel/deliverables`, which matches the convention. Verify with `grep -n "deliverables" src/devrel_swarm/cli/_common.py src/devrel_swarm/project/paths.py` and replace the fallback with the proper attribute if one exists.
+Note: `find_paths_or_exit` may not expose a `.deliverables` attribute. The fallback `paths.state_db.parent / "deliverables"` resolves to `.devrel/deliverables`, which matches the convention. Verify with `grep -n "deliverables" src/devrel_origin/cli/_common.py src/devrel_origin/project/paths.py` and replace the fallback with the proper attribute if one exists.
 
 - [ ] **Step 4: Wire `analytics_app` into the root CLI**
 
-Edit `src/devrel_swarm/cli/__init__.py`:
+Edit `src/devrel_origin/cli/__init__.py`:
 
-Add after `from devrel_swarm.cli.video import video_app`:
+Add after `from devrel_origin.cli.video import video_app`:
 
 ```python
-from devrel_swarm.cli.analytics import analytics_app
+from devrel_origin.cli.analytics import analytics_app
 ```
 
 Add after `app.add_typer(video_app, name="video")`:
@@ -2228,7 +2228,7 @@ Expected: 2 PASSED.
 - [ ] **Step 6: Commit**
 
 ```bash
-git add src/devrel_swarm/cli/analytics.py src/devrel_swarm/cli/__init__.py tests/cli/test_analytics_command.py
+git add src/devrel_origin/cli/analytics.py src/devrel_origin/cli/__init__.py tests/cli/test_analytics_command.py
 git commit -m "feat(cli): devrel analytics report — verb wired into Typer app"
 ```
 
@@ -2237,11 +2237,11 @@ git commit -m "feat(cli): devrel analytics report — verb wired into Typer app"
 ## Task 12: Atlas integration — optional stage between Sentinel and OKR compilation
 
 **Files:**
-- Modify: `src/devrel_swarm/core/atlas.py`
-- Modify: `src/devrel_swarm/core/agent_config.py` (or wherever `AgentConfig` is defined — verify before editing)
+- Modify: `src/devrel_origin/core/atlas.py`
+- Modify: `src/devrel_origin/core/agent_config.py` (or wherever `AgentConfig` is defined — verify before editing)
 - Test: `tests/test_atlas.py`
 
-This task assumes `AgentConfig` already has an `orchestration` section (or similar) with at least one boolean. If it does not, add a minimal `orchestration_analytics_in_run: bool = True` field directly. Verify shape with `grep -n "class AgentConfig\|@dataclass" src/devrel_swarm/core/agent_config.py` first.
+This task assumes `AgentConfig` already has an `orchestration` section (or similar) with at least one boolean. If it does not, add a minimal `orchestration_analytics_in_run: bool = True` field directly. Verify shape with `grep -n "class AgentConfig\|@dataclass" src/devrel_origin/core/agent_config.py` first.
 
 - [ ] **Step 1: Write failing test**
 
@@ -2252,7 +2252,7 @@ Append to `tests/test_atlas.py`:
 async def test_atlas_calls_argus_when_analytics_in_run_true(monkeypatch):
     """When config has analytics_in_run=true, Atlas calls Argus.run() once
     after Sentinel and before OKR compilation."""
-    from devrel_swarm.core.atlas import Atlas
+    from devrel_origin.core.atlas import Atlas
 
     atlas = _make_atlas_with_minimal_stubs()  # see helper below
     atlas.config.orchestration_analytics_in_run = True
@@ -2267,7 +2267,7 @@ async def test_atlas_calls_argus_when_analytics_in_run_true(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_atlas_skips_argus_when_analytics_in_run_false(monkeypatch):
-    from devrel_swarm.core.atlas import Atlas
+    from devrel_origin.core.atlas import Atlas
     atlas = _make_atlas_with_minimal_stubs()
     atlas.config.orchestration_analytics_in_run = False
 
@@ -2282,7 +2282,7 @@ async def test_atlas_skips_argus_when_analytics_in_run_false(monkeypatch):
 @pytest.mark.asyncio
 async def test_atlas_continues_when_argus_fails(monkeypatch):
     """A raising Argus should not abort the cycle."""
-    from devrel_swarm.core.atlas import Atlas
+    from devrel_origin.core.atlas import Atlas
     atlas = _make_atlas_with_minimal_stubs()
     atlas.config.orchestration_analytics_in_run = True
 
@@ -2310,7 +2310,7 @@ Expected: 3 FAIL — `_build_argus` not present, config field missing.
 Verify the existing `AgentConfig` shape:
 
 ```bash
-grep -n "class AgentConfig\|@dataclass\|orchestration" src/devrel_swarm/core/agent_config.py
+grep -n "class AgentConfig\|@dataclass\|orchestration" src/devrel_origin/core/agent_config.py
 ```
 
 Add a new field. If `AgentConfig` is a dataclass, append to its body:
@@ -2323,17 +2323,17 @@ If `AgentConfig` is loaded from YAML, also wire the YAML key. Read 30 lines arou
 
 - [ ] **Step 4: Wire Argus into Atlas**
 
-In `src/devrel_swarm/core/atlas.py`:
+In `src/devrel_origin/core/atlas.py`:
 
 Add a top-level import:
 
 ```python
-from devrel_swarm.core.argus import Argus, PerformanceReport
+from devrel_origin.core.argus import Argus, PerformanceReport
 ```
 
-Add a `_build_argus(self) -> Argus` method on Atlas that constructs Argus with the same `LLMClient`/state DB Atlas already has (mirror how Sentinel is built — find with `grep -n "Sentinel(" src/devrel_swarm/core/atlas.py`).
+Add a `_build_argus(self) -> Argus` method on Atlas that constructs Argus with the same `LLMClient`/state DB Atlas already has (mirror how Sentinel is built — find with `grep -n "Sentinel(" src/devrel_origin/core/atlas.py`).
 
-In `run_weekly_cycle`, immediately after the Sentinel stage completes (find with `grep -n "Sentinel\|sentinel" src/devrel_swarm/core/atlas.py`), insert:
+In `run_weekly_cycle`, immediately after the Sentinel stage completes (find with `grep -n "Sentinel\|sentinel" src/devrel_origin/core/atlas.py`), insert:
 
 ```python
         # Stage 5b: Argus content performance analyst
@@ -2363,7 +2363,7 @@ Expected: 3 PASSED for the new tests, no regressions.
 - [ ] **Step 6: Commit**
 
 ```bash
-git add src/devrel_swarm/core/atlas.py src/devrel_swarm/core/agent_config.py tests/test_atlas.py
+git add src/devrel_origin/core/atlas.py src/devrel_origin/core/agent_config.py tests/test_atlas.py
 git commit -m "feat(atlas): optional Argus stage between Sentinel and OKR compilation"
 ```
 
@@ -2372,7 +2372,7 @@ git commit -m "feat(atlas): optional Argus stage between Sentinel and OKR compil
 ## Task 13: Export Argus + final wiring
 
 **Files:**
-- Modify: `src/devrel_swarm/core/__init__.py`
+- Modify: `src/devrel_origin/core/__init__.py`
 - Modify: `CLAUDE.md` (single-line update)
 
 - [ ] **Step 1: Add Argus to the core package exports**
@@ -2380,13 +2380,13 @@ git commit -m "feat(atlas): optional Argus stage between Sentinel and OKR compil
 Verify current shape, then append the export:
 
 ```bash
-grep -n "from devrel_swarm" src/devrel_swarm/core/__init__.py
+grep -n "from devrel_origin" src/devrel_origin/core/__init__.py
 ```
 
-In `src/devrel_swarm/core/__init__.py`, add (alongside the existing exports):
+In `src/devrel_origin/core/__init__.py`, add (alongside the existing exports):
 
 ```python
-from devrel_swarm.core.argus import (
+from devrel_origin.core.argus import (
     Argus,
     PerformanceMetric,
     PerformanceReport,
@@ -2398,10 +2398,10 @@ And add to the `__all__` list if one exists.
 
 - [ ] **Step 2: Update CLAUDE.md to mention the 13th agent**
 
-In `/Users/macmini/devrel-swarm/CLAUDE.md`, find the line:
+In `/Users/macmini/devrel-origin/CLAUDE.md`, find the line:
 
 ```
-This is **`devrel-swarm`**, a `pipx`-installable Python CLI that runs a 12-agent DevRel + Sales + Marketing system against any project repo.
+This is **`devrel-origin`**, a `pipx`-installable Python CLI that runs a 12-agent DevRel + Sales + Marketing system against any project repo.
 ```
 
 Replace `12-agent` with `13-agent`.
@@ -2413,7 +2413,7 @@ In the architecture diagram, under the Health Pipeline section, add a third bull
 │                   Instantly, social — structured Recommendation output)
 ```
 
-In the file map, under `src/devrel_swarm/core/`, add:
+In the file map, under `src/devrel_origin/core/`, add:
 
 ```
   argus.py      — Content Performance Analyst. PerformanceMetric/Recommendation/
@@ -2421,7 +2421,7 @@ In the file map, under `src/devrel_swarm/core/`, add:
                    single-call Sonnet recommender with closed action vocab.
 ```
 
-Under `src/devrel_swarm/tools/`, add:
+Under `src/devrel_origin/tools/`, add:
 
 ```
   analytics.py  — Argus collectors: PostHog, GitHub, Instantly, Social.
@@ -2431,7 +2431,7 @@ Under `src/devrel_swarm/tools/`, add:
 - [ ] **Step 3: Smoke test the whole CLI**
 
 ```bash
-cd /Users/macmini/devrel-swarm && python -c "from devrel_swarm.cli import app; print('OK')"
+cd /Users/macmini/devrel-origin && python -c "from devrel_origin.cli import app; print('OK')"
 pytest tests/ -q   # full suite — should match prior baseline + new passes
 ```
 
@@ -2440,7 +2440,7 @@ Expected: `OK` printed; pytest summary shows the established 744+ pass count plu
 - [ ] **Step 4: Commit**
 
 ```bash
-git add src/devrel_swarm/core/__init__.py CLAUDE.md
+git add src/devrel_origin/core/__init__.py CLAUDE.md
 git commit -m "feat(argus): export from core package + CLAUDE.md updated for 13-agent system"
 ```
 
@@ -2456,8 +2456,8 @@ This is the only purely-optional task. Skip if you're happy with the inline `_DE
 - [ ] **Step 1: Mirror the inline default to a file (optional)**
 
 ```bash
-mkdir -p /Users/macmini/devrel-swarm/optimize/argus
-cat > /Users/macmini/devrel-swarm/optimize/argus/system_prompt.txt <<'EOF'
+mkdir -p /Users/macmini/devrel-origin/optimize/argus
+cat > /Users/macmini/devrel-origin/optimize/argus/system_prompt.txt <<'EOF'
 You are Argus, a content performance analyst. Given a ranked leaderboard of content with engagement metrics, you produce structured optimization recommendations.
 
 Your action vocabulary is closed. Use exactly one of:
@@ -2478,7 +2478,7 @@ EOF
 
 ```bash
 python -c "
-from devrel_swarm.core.argus import Argus
+from devrel_origin.core.argus import Argus
 from unittest.mock import MagicMock
 a = Argus(MagicMock(), MagicMock(), MagicMock(), MagicMock())
 print(a.SYSTEM_PROMPT[:120])

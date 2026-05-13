@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from devrel_swarm.core.llm import LLMClient
+from devrel_origin.core.llm import LLMClient
 
 
 @pytest.mark.asyncio

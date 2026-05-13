@@ -6,15 +6,15 @@ from pathlib import Path
 
 import pytest
 
-from devrel_swarm.core.growth.recommendations import (
+from devrel_origin.core.growth.recommendations import (
     Recommendation,
     find_open_by_target,
     find_stale,
     mark_applied,
     persist_recommendation,
 )
-from devrel_swarm.core.growth.target_kinds import Pillar, TargetKind
-from devrel_swarm.project import state
+from devrel_origin.core.growth.target_kinds import Pillar, TargetKind
+from devrel_origin.project import state
 
 
 @pytest.fixture

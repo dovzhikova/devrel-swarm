@@ -5,11 +5,11 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from devrel_swarm.core.video import ScriptParser, TutorialStep, VideoTutorial
-from devrel_swarm.core.video.assembler import VideoAssembler
-from devrel_swarm.core.video.browser_recorder import BrowserAction, BrowserRecorder
-from devrel_swarm.core.video.overlay_renderer import OverlayConfig, OverlayRenderer
-from devrel_swarm.core.video.tts_engine import TTSEngine
+from devrel_origin.core.video import ScriptParser, TutorialStep, VideoTutorial
+from devrel_origin.core.video.assembler import VideoAssembler
+from devrel_origin.core.video.browser_recorder import BrowserAction, BrowserRecorder
+from devrel_origin.core.video.overlay_renderer import OverlayConfig, OverlayRenderer
+from devrel_origin.core.video.tts_engine import TTSEngine
 
 
 class TestTutorialStep:
@@ -316,7 +316,7 @@ class TestVideoAssembler:
 # Vox agent integration tests
 # ---------------------------------------------------------------------------
 
-from devrel_swarm.core.vox import Vox
+from devrel_origin.core.vox import Vox
 
 
 class TestVoxAgent:
@@ -417,21 +417,21 @@ class TestAtlasIntegration:
     """Test Vox integration with Atlas orchestrator."""
 
     def test_shared_context_has_vox_field(self):
-        from devrel_swarm.core.atlas import SharedContext
+        from devrel_origin.core.atlas import SharedContext
 
         ctx = SharedContext()
         assert hasattr(ctx, "vox_video")
         assert ctx.vox_video == {}
 
     def test_shared_context_to_dict_includes_vox(self):
-        from devrel_swarm.core.atlas import SharedContext
+        from devrel_origin.core.atlas import SharedContext
 
         ctx = SharedContext()
         d = ctx.to_dict()
         assert "vox_video" in d
 
     def test_atlas_has_vox_agent(self):
-        from devrel_swarm.core.atlas import Atlas
+        from devrel_origin.core.atlas import Atlas
 
         client = MagicMock()
         atlas = Atlas(
@@ -447,7 +447,7 @@ class TestAtlasIntegration:
 
 import os
 
-from devrel_swarm.core.video.desktop_recorder import (
+from devrel_origin.core.video.desktop_recorder import (
     DesktopAction,
     DesktopRecorder,
     _get_ffmpeg_input_format,
@@ -538,7 +538,7 @@ class TestVoxSlug:
     """Tests for the _slug helper that builds safe filenames."""
 
     def test_slug_handles_unsafe_chars(self):
-        from devrel_swarm.core.vox import _slug
+        from devrel_origin.core.vox import _slug
 
         # Spaces, slashes, punctuation, and emoji-style chars all collapse
         # to single hyphens; result is filesystem-safe.
@@ -552,7 +552,7 @@ class TestVoxSlug:
         assert len(long) == 32
 
     def test_slug_uniqueness_across_distinct_tasks(self):
-        from devrel_swarm.core.vox import _slug
+        from devrel_origin.core.vox import _slug
 
         # Different inputs produce different slugs — the timestamp prefix
         # added at the call site provides full uniqueness, but the slug

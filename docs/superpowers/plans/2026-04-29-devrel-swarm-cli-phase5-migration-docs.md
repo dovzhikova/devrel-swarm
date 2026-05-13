@@ -1,4 +1,4 @@
-# devrel-swarm CLI — Phase 5: Migration + Docs — Implementation Plan
+# devrel-origin CLI — Phase 5: Migration + Docs — Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -8,7 +8,7 @@
 
 **Tech Stack:** git tagging + worktree management; markdown rewrite.
 
-**Spec:** `docs/superpowers/specs/2026-04-29-devrel-swarm-cli-design.md` §"Migration path"
+**Spec:** `docs/superpowers/specs/2026-04-29-devrel-origin-cli-design.md` §"Migration path"
 **Phases 1-4 (prerequisites, all merged):** `be971bd`, `121187e`, `bfb3bb5`, `86c2747` on `main`.
 
 ---
@@ -33,7 +33,7 @@ Plus added:
 - [ ] **Step 1: Verify `main` is at Phase 4 head and worktree-clean**
 
 ```bash
-cd /Users/macmini/devrel-swarm
+cd /Users/macmini/devrel-origin
 git rev-parse --abbrev-ref HEAD
 git log --oneline -3
 git status --short
@@ -82,7 +82,7 @@ Expected: empty `git status` output. The branch HEAD stays at `e378bbc` — only
 - [ ] **Step 3: Return to main, create the archive tag**
 
 ```bash
-cd /Users/macmini/devrel-swarm
+cd /Users/macmini/devrel-origin
 git tag archive/v0-agentic-alpha product/v0-agentic-alpha -m "Archive: SaaS direction (per-instance Fly + Next.js central app), superseded by CLI direction in 2026-04-29 spec. Phase A code (SQLite storage, BudgetGate, HTTP bridge) preserved for reference."
 git tag --list 'archive/*'
 ```
@@ -111,7 +111,7 @@ Expected: shows `e378bbc` (the HTTP bridge commit) and the two below it.
 
 Tags don't need a commit. But for discoverability, add a short note to the spec's migration section pointing at the tag.
 
-In `docs/superpowers/specs/2026-04-29-devrel-swarm-cli-design.md`, find the §"Migration from current state" subsection (it's near the bottom). Locate the bullet:
+In `docs/superpowers/specs/2026-04-29-devrel-origin-cli-design.md`, find the §"Migration from current state" subsection (it's near the bottom). Locate the bullet:
 ```
 1. Tag-and-archive the SaaS branch: `git tag archive/v0-agentic-alpha product/v0-agentic-alpha`, then leave the branch in place but stop building on it.
 ```
@@ -123,7 +123,7 @@ Replace with:
 - [ ] **Step 7: Commit the spec annotation**
 
 ```bash
-git add docs/superpowers/specs/2026-04-29-devrel-swarm-cli-design.md
+git add docs/superpowers/specs/2026-04-29-devrel-origin-cli-design.md
 git commit -m "docs(spec): mark v0-agentic-alpha archive done (Phase 5)"
 ```
 
@@ -131,7 +131,7 @@ git commit -m "docs(spec): mark v0-agentic-alpha archive done (Phase 5)"
 
 ## Task 2: Rewrite `README.md` to lead with the CLI
 
-The current `README.md` opens with **"12 autonomous AI agents that replace a full developer advocacy and sales team"** and walks through the agent-cycle narrative. That framing made sense in v0 (and lingered through Phases 1-4 because we didn't touch user-facing docs much). For the CLI product, the front door is `pipx install devrel-swarm` and `devrel init`. The agents are an implementation detail behind verbs.
+The current `README.md` opens with **"12 autonomous AI agents that replace a full developer advocacy and sales team"** and walks through the agent-cycle narrative. That framing made sense in v0 (and lingered through Phases 1-4 because we didn't touch user-facing docs much). For the CLI product, the front door is `pipx install devrel-origin` and `devrel init`. The agents are an implementation detail behind verbs.
 
 The rewrite leads with install + first run; the agent narrative drops to a later section.
 
@@ -150,11 +150,11 @@ sed -n '1,30p' README.md
 Use the Write tool to replace the file entirely. The new content:
 
 ```markdown
-# devrel-swarm
+# devrel-origin
 
 **A developer-first CLI for AI-powered DevRel, sales, and marketing.**
 
-`devrel-swarm` is a `pipx`-installable command-line tool that runs a 12-agent system against any project — community triage, social listening, theme extraction, growth experiments, content production, video tutorials, documentation, competitive intel, sales outreach, and brand-consistent campaigns. Operates on a project repo the way `git`, `npm`, and `cargo` do.
+`devrel-origin` is a `pipx`-installable command-line tool that runs a 12-agent system against any project — community triage, social listening, theme extraction, growth experiments, content production, video tutorials, documentation, competitive intel, sales outreach, and brand-consistent campaigns. Operates on a project repo the way `git`, `npm`, and `cargo` do.
 
 Every piece of content the system produces flows through an 8-stage editorial pipeline (developmental edit → line edit → copy edit → anti-slop → reader-persona test → readability check → brand audit) so output reads like senior-editor work, not generic AI prose.
 
@@ -165,7 +165,7 @@ Every piece of content the system produces flows through an 8-stage editorial pi
 ## Quick start
 
 ```bash
-pipx install devrel-swarm
+pipx install devrel-origin
 
 cd /path/to/your/project
 devrel init --name myproject --url https://myproject.dev --github-repo me/myproject
@@ -390,7 +390,7 @@ MIT License
 wc -l README.md
 head -30 README.md
 ```
-Expected: ~250 lines (similar to before), title now `devrel-swarm`, opens with the CLI framing.
+Expected: ~250 lines (similar to before), title now `devrel-origin`, opens with the CLI framing.
 
 - [ ] **Step 4: Commit**
 
@@ -423,7 +423,7 @@ Replace with:
 ```
 ## Identity
 
-This is **`devrel-swarm`**, a `pipx`-installable Python CLI that runs a 12-agent DevRel + Sales + Marketing system against any project repo. Operates on `cwd` like `git` / `npm` — `devrel init` scaffolds a `.devrel/` directory with config, voice/style/slop files, knowledge base, and state DB. Every CLI verb (`devrel run`, `devrel content draft`, `devrel triage`, etc.) wraps a single-agent or pipeline call.
+This is **`devrel-origin`**, a `pipx`-installable Python CLI that runs a 12-agent DevRel + Sales + Marketing system against any project repo. Operates on `cwd` like `git` / `npm` — `devrel init` scaffolds a `.devrel/` directory with config, voice/style/slop files, knowledge base, and state DB. Every CLI verb (`devrel run`, `devrel content draft`, `devrel triage`, etc.) wraps a single-agent or pipeline call.
 
 Every piece of content flows through an 8-stage editorial quality pipeline (`quality.editorial.run_pipeline`) before being shipped: developmental edit → line edit → copy edit → anti-slop → reader-persona → readability → brand audit.
 
@@ -453,7 +453,7 @@ Final commit that documents the shipped surface for anyone discovering the repo.
 
 ## 0.2.0 — 2026-04-29
 
-The CLI direction. `devrel-swarm` is now a `pipx`-installable Python CLI that operates on a project repo (`.devrel/` per project, like `git`/`npm`/`cargo`).
+The CLI direction. `devrel-origin` is now a `pipx`-installable Python CLI that operates on a project repo (`.devrel/` per project, like `git`/`npm`/`cargo`).
 
 ### Added
 
@@ -462,11 +462,11 @@ The CLI direction. `devrel-swarm` is now a `pipx`-installable Python CLI that op
 - **Project bootstrap** (`devrel init`): `.devrel/` scaffold with `config.toml`, `voice.md`, `style.md`, `slop-blocklist.md`, `kb/`, `deliverables/`, `state.db`.
 - **Cost ledger**: every LLM call records token usage + USD into `.devrel/state.db`'s `costs` table; `devrel cost [--month YYYY-MM]` aggregates.
 - **`devrel doctor`**: project + env health checks with `--json` mode.
-- **Console script entry-point**: `devrel = "devrel_swarm.cli:app"` in `pyproject.toml`.
+- **Console script entry-point**: `devrel = "devrel_origin.cli:app"` in `pyproject.toml`.
 
 ### Changed
 
-- **Repo restructure**: `agents/` → `src/devrel_swarm/core/`, `tools/` → `src/devrel_swarm/tools/`. `agents/config.py` renamed to `core/agent_config.py`.
+- **Repo restructure**: `agents/` → `src/devrel_origin/core/`, `tools/` → `src/devrel_origin/tools/`. `agents/config.py` renamed to `core/agent_config.py`.
 - **Content agents** (Kai, Mox, Pax): replaced single `generate_with_revision` call with `quality.editorial.run_pipeline`. Falls back to legacy revision when no `.devrel/` project exists.
 - **Dependencies**: added Typer, Rich, tomli-w. `pyproject.toml` deps now match `requirements.txt`.
 
@@ -548,4 +548,4 @@ Expected: a stack of focused commits including all Phases 1-5.
 - Fixing the 22 pre-existing failing tests — separate cleanup project. The CHANGELOG documents them as a known issue.
 - BudgetGate cap enforcement — recorded but not enforced; left as a deferred follow-up.
 - `devrel ask` natural-language router — spec defers to v1.1.
-- Publishing to PyPI — `pipx install devrel-swarm` won't work end-to-end until the package is on PyPI; that's a release operation, not a phase task.
+- Publishing to PyPI — `pipx install devrel-origin` won't work end-to-end until the package is on PyPI; that's a release operation, not a phase task.

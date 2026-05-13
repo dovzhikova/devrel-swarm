@@ -6,7 +6,7 @@ import httpx
 import pytest
 import respx
 
-from devrel_swarm.tools.api_client import InsightQuery, PostHogClient
+from devrel_origin.tools.api_client import InsightQuery, PostHogClient
 
 
 class TestInsightQuerySerialization:

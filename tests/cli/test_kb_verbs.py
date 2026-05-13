@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 from typer.testing import CliRunner
 
-from devrel_swarm.cli import app
+from devrel_origin.cli import app
 
 runner = CliRunner()
 
@@ -36,7 +36,7 @@ def _run(tmp_path, args):
 def test_kb_add_invokes_harvester(tmp_path):
     _init(tmp_path)
     fake_doc = MagicMock(filename="page.md", category="docs")
-    with patch("devrel_swarm.cli.kb.KBHarvester") as M:
+    with patch("devrel_origin.cli.kb.KBHarvester") as M:
         inst = M.return_value
         inst.harvest_url = AsyncMock(return_value=fake_doc)
         inst.close = AsyncMock(return_value=None)
@@ -51,7 +51,7 @@ def test_kb_add_invokes_harvester(tmp_path):
 
 def test_kb_add_failure_exits_nonzero(tmp_path):
     _init(tmp_path)
-    with patch("devrel_swarm.cli.kb.KBHarvester") as M:
+    with patch("devrel_origin.cli.kb.KBHarvester") as M:
         inst = M.return_value
         inst.harvest_url = AsyncMock(return_value=None)
         inst.close = AsyncMock(return_value=None)
@@ -84,7 +84,7 @@ def test_kb_refresh_calls_harvest_all(tmp_path):
             {"name": "c", "status": "failed", "error": "boom"},
         ],
     }
-    with patch("devrel_swarm.cli.kb.KBHarvester") as M:
+    with patch("devrel_origin.cli.kb.KBHarvester") as M:
         inst = M.return_value
         inst.harvest_all = AsyncMock(return_value=report)
         inst.close = AsyncMock(return_value=None)

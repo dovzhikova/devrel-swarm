@@ -32,12 +32,12 @@ OUTPUT_DIR = Path(__file__).parent / "deliverables"
 
 
 async def main():
-    from devrel_swarm.core.llm import LLMClient
-    from devrel_swarm.core.mox import Mox
-    from devrel_swarm.core.pax import Pax
-    from devrel_swarm.core.rex import Rex
-    from devrel_swarm.tools.api_client import PostHogClient
-    from devrel_swarm.tools.search_tools import SearchTools
+    from devrel_origin.core.llm import LLMClient
+    from devrel_origin.core.mox import Mox
+    from devrel_origin.core.pax import Pax
+    from devrel_origin.core.rex import Rex
+    from devrel_origin.tools.api_client import PostHogClient
+    from devrel_origin.tools.search_tools import SearchTools
 
     anthropic_key = os.environ.get("ANTHROPIC_API_KEY", "")
     if not anthropic_key:
@@ -56,7 +56,7 @@ async def main():
     apollo_client = None
     apollo_key = os.environ.get("APOLLO_API_KEY")
     if apollo_key:
-        from devrel_swarm.tools.apollo_client import ApolloClient
+        from devrel_origin.tools.apollo_client import ApolloClient
         apollo_client = ApolloClient(api_key=apollo_key)
         logger.info("Apollo client configured")
 
@@ -64,7 +64,7 @@ async def main():
     instantly_client = None
     instantly_key = os.environ.get("INSTANTLY_API_KEY")
     if instantly_key:
-        from devrel_swarm.tools.instantly_client import InstantlyClient
+        from devrel_origin.tools.instantly_client import InstantlyClient
         instantly_client = InstantlyClient(api_key=instantly_key)
         logger.info("Instantly client configured")
 

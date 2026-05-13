@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-from devrel_swarm.project.init import (
+from devrel_origin.project.init import (
     InitOptions,
     InitResult,
     init_project,
 )
-from devrel_swarm.project.paths import ProjectPaths
-from devrel_swarm.project.state import SCHEMA_VERSION, get_schema_version
+from devrel_origin.project.paths import ProjectPaths
+from devrel_origin.project.state import SCHEMA_VERSION, get_schema_version
 
 
 def test_init_creates_full_scaffold(tmp_path):

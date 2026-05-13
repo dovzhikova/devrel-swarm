@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from devrel_swarm.core.pax import Pax
+from devrel_origin.core.pax import Pax
 
 
 @pytest.fixture

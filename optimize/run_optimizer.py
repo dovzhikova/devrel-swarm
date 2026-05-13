@@ -72,7 +72,7 @@ Return your response as JSON:
 
 async def get_current_scores() -> dict:
     """Run the eval harness and return JSON scores."""
-    from devrel_swarm.core.llm import LLMClient
+    from devrel_origin.core.llm import LLMClient
     from optimize.eval_harness import generate_email, score_email
 
     api_key = os.environ.get("ANTHROPIC_API_KEY", "")
@@ -117,8 +117,8 @@ async def propose_modification(
     target: str,
 ) -> dict | None:
     """Ask the LLM to propose a prompt modification."""
-    from devrel_swarm.core.base import strip_markdown_fences
-    from devrel_swarm.core.llm import LLMClient
+    from devrel_origin.core.base import strip_markdown_fences
+    from devrel_origin.core.llm import LLMClient
 
     api_key = os.environ.get("ANTHROPIC_API_KEY", "")
     llm = LLMClient(api_key=api_key)

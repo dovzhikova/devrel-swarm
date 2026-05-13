@@ -1,26 +1,26 @@
-# devrel-swarm CLI — Phase 3: Quality Pipeline — Implementation Plan
+# devrel-origin CLI — Phase 3: Quality Pipeline — Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Build the 8-stage editorial quality pipeline that turns AI-written drafts into senior-editor-quality content, integrate it into the three content-producing agents (Kai, Mox, Pax), and expose it via two new CLI verbs (`devrel content draft` and `devrel content audit`). Every piece of content the system produces flows through this pipeline.
 
-**Architecture:** Six new modules under `src/devrel_swarm/quality/` (voice, style, slop, persona, readability, editorial). The `editorial.run_pipeline` function orchestrates the 8 stages and is the single entry point the agents call. Stages 2–4 (developmental → line → copy edit) run as discrete `generate_with_revision` loops with `min_score=7, max_rounds=2`. Stage 5 (anti-slop) self-corrects once. Stages 6–7 (persona, readability) are scoring-only on the stage-5 output; if either fails, control returns to stage 4 once. Stage 8 reuses the existing Sentinel brand audit unchanged. Cheap stages (5–7) run on Haiku; editorial stages (2–4) run on Sonnet. Cost ≈ 2.5–4× a single revision loop, with prompt caching pulling it toward the lower bound.
+**Architecture:** Six new modules under `src/devrel_origin/quality/` (voice, style, slop, persona, readability, editorial). The `editorial.run_pipeline` function orchestrates the 8 stages and is the single entry point the agents call. Stages 2–4 (developmental → line → copy edit) run as discrete `generate_with_revision` loops with `min_score=7, max_rounds=2`. Stage 5 (anti-slop) self-corrects once. Stages 6–7 (persona, readability) are scoring-only on the stage-5 output; if either fails, control returns to stage 4 once. Stage 8 reuses the existing Sentinel brand audit unchanged. Cheap stages (5–7) run on Haiku; editorial stages (2–4) run on Sonnet. Cost ≈ 2.5–4× a single revision loop, with prompt caching pulling it toward the lower bound.
 
 **Tech Stack:** Python 3.12+, the existing `LLMClient` (which already supports `model="haiku"` overrides via `MODELS` dict), `re` stdlib for slop matching, pure-Python Flesch Reading Ease + sentence statistics for readability, pytest + respx for prompt-mocked tests.
 
-**Spec:** `docs/superpowers/specs/2026-04-29-devrel-swarm-cli-design.md`
+**Spec:** `docs/superpowers/specs/2026-04-29-devrel-origin-cli-design.md`
 **Phase 1 + 2 (prerequisites, both merged):** `be971bd` and `121187e` on `main`.
 
 ---
 
 ## Spec correction (locked here)
 
-The spec lists "Kai, Mox, Pax, and Vox's script generator" as the four content-producing agents. Inspection of `src/devrel_swarm/core/vox.py` and `src/devrel_swarm/core/video/script_parser.py` shows neither uses an LLM — Vox is a deterministic markdown-to-video parser that consumes Kai's output and runs Playwright/FFmpeg/TTS. There is no script-generator LLM call to integrate with. **Phase 3 integrates the quality pipeline into Kai, Mox, and Pax only — three agents, not four.** If a future phase adds an LLM-driven script generator inside Vox, that call site should also use `quality.editorial.run_pipeline` for parity.
+The spec lists "Kai, Mox, Pax, and Vox's script generator" as the four content-producing agents. Inspection of `src/devrel_origin/core/vox.py` and `src/devrel_origin/core/video/script_parser.py` shows neither uses an LLM — Vox is a deterministic markdown-to-video parser that consumes Kai's output and runs Playwright/FFmpeg/TTS. There is no script-generator LLM call to integrate with. **Phase 3 integrates the quality pipeline into Kai, Mox, and Pax only — three agents, not four.** If a future phase adds an LLM-driven script generator inside Vox, that call site should also use `quality.editorial.run_pipeline` for parity.
 
 ## File structure after Phase 3
 
 ```
-src/devrel_swarm/
+src/devrel_origin/
   quality/                          NEW
     __init__.py                     # public exports: run_pipeline, EditorialResult
     voice.py                        # load_voice(paths) -> str
@@ -66,7 +66,7 @@ Use **superpowers:using-git-worktrees** to create a worktree at `.worktrees/cli-
 ```bash
 git rev-parse --abbrev-ref HEAD
 git log --oneline -1
-test -d src/devrel_swarm/project && test -d src/devrel_swarm/cli && echo "Phase 2 layout present"
+test -d src/devrel_origin/project && test -d src/devrel_origin/cli && echo "Phase 2 layout present"
 ```
 Expected: branch `feat/cli-phase3-quality`, HEAD at `121187e` (or later), `Phase 2 layout present` printed.
 
@@ -87,12 +87,12 @@ Expected: `exit=0`, `598 passed, 22 failed`, `22` lines.
 ## Task 1: `quality/__init__.py` skeleton
 
 **Files:**
-- Create: `src/devrel_swarm/quality/__init__.py`
+- Create: `src/devrel_origin/quality/__init__.py`
 - Create: `tests/quality/__init__.py`
 
 - [ ] **Step 1: Create the empty package init files**
 
-Write `src/devrel_swarm/quality/__init__.py`:
+Write `src/devrel_origin/quality/__init__.py`:
 ```python
 """8-stage editorial quality pipeline for content-producing agents.
 
@@ -110,7 +110,7 @@ Write `tests/quality/__init__.py` (empty):
 - [ ] **Step 2: Commit**
 
 ```bash
-git add src/devrel_swarm/quality/__init__.py tests/quality/__init__.py
+git add src/devrel_origin/quality/__init__.py tests/quality/__init__.py
 git commit -m "feat(quality): add quality/ package skeleton"
 ```
 
@@ -119,7 +119,7 @@ git commit -m "feat(quality): add quality/ package skeleton"
 ## Task 2: `quality/voice.py` — load voice.md
 
 **Files:**
-- Create: `src/devrel_swarm/quality/voice.py`
+- Create: `src/devrel_origin/quality/voice.py`
 - Create: `tests/quality/test_voice.py`
 
 - [ ] **Step 1: Write failing test**
@@ -130,8 +130,8 @@ Write `tests/quality/test_voice.py`:
 
 from __future__ import annotations
 
-from devrel_swarm.project.paths import ProjectPaths
-from devrel_swarm.quality.voice import load_voice
+from devrel_origin.project.paths import ProjectPaths
+from devrel_origin.quality.voice import load_voice
 
 
 def _make_paths(tmp_path):
@@ -165,17 +165,17 @@ def test_strips_no_content(tmp_path):
 ```bash
 python -m pytest tests/quality/test_voice.py -v --no-cov 2>&1 | tail -5
 ```
-Expected: ImportError on `devrel_swarm.quality.voice`.
+Expected: ImportError on `devrel_origin.quality.voice`.
 
 - [ ] **Step 3: Implement `voice.py`**
 
-Write `src/devrel_swarm/quality/voice.py`:
+Write `src/devrel_origin/quality/voice.py`:
 ```python
 """Load voice.md as a single string for prompt injection."""
 
 from __future__ import annotations
 
-from devrel_swarm.project.paths import ProjectPaths
+from devrel_origin.project.paths import ProjectPaths
 
 
 def load_voice(paths: ProjectPaths) -> str:
@@ -198,7 +198,7 @@ Expected: 3 passed.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/devrel_swarm/quality/voice.py tests/quality/test_voice.py
+git add src/devrel_origin/quality/voice.py tests/quality/test_voice.py
 git commit -m "feat(quality): add voice profile loader"
 ```
 
@@ -207,7 +207,7 @@ git commit -m "feat(quality): add voice profile loader"
 ## Task 3: `quality/style.py` — load + parse targets table
 
 **Files:**
-- Create: `src/devrel_swarm/quality/style.py`
+- Create: `src/devrel_origin/quality/style.py`
 - Create: `tests/quality/test_style.py`
 
 - [ ] **Step 1: Write failing test**
@@ -220,8 +220,8 @@ from __future__ import annotations
 
 import pytest
 
-from devrel_swarm.project.paths import ProjectPaths
-from devrel_swarm.quality.style import (
+from devrel_origin.project.paths import ProjectPaths
+from devrel_origin.quality.style import (
     DEFAULT_TARGETS,
     ContentTypeTargets,
     load_style,
@@ -307,7 +307,7 @@ Expected: ImportError.
 
 - [ ] **Step 3: Implement `style.py`**
 
-Write `src/devrel_swarm/quality/style.py`:
+Write `src/devrel_origin/quality/style.py`:
 ```python
 """Load style.md and parse the per-content-type targets table.
 
@@ -322,7 +322,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
-from devrel_swarm.project.paths import ProjectPaths
+from devrel_origin.project.paths import ProjectPaths
 
 
 @dataclass(frozen=True)
@@ -430,7 +430,7 @@ Expected: 6 passed.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/devrel_swarm/quality/style.py tests/quality/test_style.py
+git add src/devrel_origin/quality/style.py tests/quality/test_style.py
 git commit -m "feat(quality): add style loader + targets table parser"
 ```
 
@@ -439,7 +439,7 @@ git commit -m "feat(quality): add style loader + targets table parser"
 ## Task 4: `quality/slop.py` — blocklist matching + LLM lint + force-rewrite
 
 **Files:**
-- Create: `src/devrel_swarm/quality/slop.py`
+- Create: `src/devrel_origin/quality/slop.py`
 - Create: `tests/quality/test_slop.py`
 
 - [ ] **Step 1: Write failing test**
@@ -454,7 +454,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from devrel_swarm.quality.slop import (
+from devrel_origin.quality.slop import (
     SlopHit,
     find_slop,
     force_rewrite,
@@ -563,7 +563,7 @@ Expected: ImportError.
 
 - [ ] **Step 3: Implement `slop.py`**
 
-Write `src/devrel_swarm/quality/slop.py`:
+Write `src/devrel_origin/quality/slop.py`:
 ```python
 """Anti-slop pipeline stage 5.
 
@@ -696,7 +696,7 @@ Expected: 10 passed.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/devrel_swarm/quality/slop.py tests/quality/test_slop.py
+git add src/devrel_origin/quality/slop.py tests/quality/test_slop.py
 git commit -m "feat(quality): add anti-slop matcher + LLM lint + force-rewrite"
 ```
 
@@ -705,7 +705,7 @@ git commit -m "feat(quality): add anti-slop matcher + LLM lint + force-rewrite"
 ## Task 5: `quality/readability.py` — Flesch + sentence variance + jargon
 
 **Files:**
-- Create: `src/devrel_swarm/quality/readability.py`
+- Create: `src/devrel_origin/quality/readability.py`
 - Create: `tests/quality/test_readability.py`
 
 - [ ] **Step 1: Write failing test**
@@ -718,13 +718,13 @@ from __future__ import annotations
 
 import pytest
 
-from devrel_swarm.quality.readability import (
+from devrel_origin.quality.readability import (
     ReadabilityScores,
     check_against_target,
     compute_readability,
     count_syllables,
 )
-from devrel_swarm.quality.style import ContentTypeTargets
+from devrel_origin.quality.style import ContentTypeTargets
 
 
 def test_count_syllables_basic():
@@ -835,7 +835,7 @@ Expected: ImportError.
 
 - [ ] **Step 3: Implement `readability.py`**
 
-Write `src/devrel_swarm/quality/readability.py`:
+Write `src/devrel_origin/quality/readability.py`:
 ```python
 """Pure-Python readability scoring: Flesch Reading Ease, sentence-length
 statistics, jargon density. No LLM calls. Used as stage 7 of the
@@ -862,7 +862,7 @@ import re
 import statistics
 from dataclasses import dataclass
 
-from devrel_swarm.quality.style import ContentTypeTargets
+from devrel_origin.quality.style import ContentTypeTargets
 
 DRIFT_TOLERANCE = 10  # Flesch points
 
@@ -989,7 +989,7 @@ Expected: 10 passed.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/devrel_swarm/quality/readability.py tests/quality/test_readability.py
+git add src/devrel_origin/quality/readability.py tests/quality/test_readability.py
 git commit -m "feat(quality): add Flesch + sentence-stats + jargon-density scoring"
 ```
 
@@ -998,7 +998,7 @@ git commit -m "feat(quality): add Flesch + sentence-stats + jargon-density scori
 ## Task 6: `quality/persona.py` — skeptical-dev reader test
 
 **Files:**
-- Create: `src/devrel_swarm/quality/persona.py`
+- Create: `src/devrel_origin/quality/persona.py`
 - Create: `tests/quality/test_persona.py`
 
 - [ ] **Step 1: Write failing test**
@@ -1013,7 +1013,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from devrel_swarm.quality.persona import (
+from devrel_origin.quality.persona import (
     PersonaResult,
     test_against_persona,
 )
@@ -1089,7 +1089,7 @@ Expected: ImportError.
 
 - [ ] **Step 3: Implement `persona.py`**
 
-Write `src/devrel_swarm/quality/persona.py`:
+Write `src/devrel_origin/quality/persona.py`:
 ```python
 """Stage 6 of the editorial pipeline.
 
@@ -1181,7 +1181,7 @@ Expected: 5 passed.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/devrel_swarm/quality/persona.py tests/quality/test_persona.py
+git add src/devrel_origin/quality/persona.py tests/quality/test_persona.py
 git commit -m "feat(quality): add skeptical-dev persona scorer"
 ```
 
@@ -1190,7 +1190,7 @@ git commit -m "feat(quality): add skeptical-dev persona scorer"
 ## Task 7: `quality/editorial.py` — 8-stage orchestrator
 
 **Files:**
-- Create: `src/devrel_swarm/quality/editorial.py`
+- Create: `src/devrel_origin/quality/editorial.py`
 - Create: `tests/quality/test_editorial.py`
 
 This is the largest module in Phase 3. It composes every primitive built so far into a single async pipeline.
@@ -1208,8 +1208,8 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from devrel_swarm.project.paths import ProjectPaths
-from devrel_swarm.quality.editorial import (
+from devrel_origin.project.paths import ProjectPaths
+from devrel_origin.quality.editorial import (
     AbortLoud,
     EditorialResult,
     StageResult,
@@ -1437,11 +1437,11 @@ async def test_revision_trace_is_serializable(tmp_path):
 ```bash
 python -m pytest tests/quality/test_editorial.py -v --no-cov 2>&1 | tail -5
 ```
-Expected: ImportError on `devrel_swarm.quality.editorial`.
+Expected: ImportError on `devrel_origin.quality.editorial`.
 
 - [ ] **Step 3: Implement `editorial.py`**
 
-Write `src/devrel_swarm/quality/editorial.py`:
+Write `src/devrel_origin/quality/editorial.py`:
 ```python
 """8-stage editorial pipeline orchestrator.
 
@@ -1472,12 +1472,12 @@ import time
 from dataclasses import asdict, dataclass, field
 from typing import Any
 
-from devrel_swarm.project.paths import ProjectPaths
-from devrel_swarm.quality.persona import test_against_persona
-from devrel_swarm.quality.readability import check_against_target, compute_readability
-from devrel_swarm.quality.slop import find_slop, force_rewrite, llm_lint, parse_blocklist
-from devrel_swarm.quality.style import get_targets, load_style
-from devrel_swarm.quality.voice import load_voice
+from devrel_origin.project.paths import ProjectPaths
+from devrel_origin.quality.persona import test_against_persona
+from devrel_origin.quality.readability import check_against_target, compute_readability
+from devrel_origin.quality.slop import find_slop, force_rewrite, llm_lint, parse_blocklist
+from devrel_origin.quality.style import get_targets, load_style
+from devrel_origin.quality.voice import load_voice
 
 
 class AbortLoud(Exception):
@@ -1781,7 +1781,7 @@ Expected: 7 passed.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/devrel_swarm/quality/editorial.py tests/quality/test_editorial.py
+git add src/devrel_origin/quality/editorial.py tests/quality/test_editorial.py
 git commit -m "feat(quality): add 8-stage editorial pipeline orchestrator"
 ```
 
@@ -1790,7 +1790,7 @@ git commit -m "feat(quality): add 8-stage editorial pipeline orchestrator"
 ## Task 8: Integrate quality pipeline into Kai
 
 **Files:**
-- Modify: `src/devrel_swarm/core/kai.py:295-312` (the `generate_with_revision` call site)
+- Modify: `src/devrel_origin/core/kai.py:295-312` (the `generate_with_revision` call site)
 - Modify: `tests/test_kai.py` (the existing test that mocks the call)
 
 The existing call site in `kai.py`:
@@ -1808,7 +1808,7 @@ The new call replaces this with `run_pipeline`. Trace usage changes — we use `
 - [ ] **Step 1: Read the existing call site**
 
 ```bash
-sed -n '280,330p' src/devrel_swarm/core/kai.py
+sed -n '280,330p' src/devrel_origin/core/kai.py
 ```
 Locate the `generate_with_revision` invocation around line 295. Read the surrounding ~30 lines to understand what `trace.critiques[-1]` is consumed for (likely populating a `ContentPiece` dataclass).
 
@@ -1821,7 +1821,7 @@ The replacement needs to:
 
 - [ ] **Step 3: Apply the edit**
 
-In `src/devrel_swarm/core/kai.py`, around line 295, replace the `generate_with_revision` call with a fallback-aware `run_pipeline` call. The exact replacement (preserving surrounding code as-is, only the LLM-call block changes):
+In `src/devrel_origin/core/kai.py`, around line 295, replace the `generate_with_revision` call with a fallback-aware `run_pipeline` call. The exact replacement (preserving surrounding code as-is, only the LLM-call block changes):
 
 ```python
 # Find the existing block:
@@ -1832,8 +1832,8 @@ In `src/devrel_swarm/core/kai.py`, around line 295, replace the `generate_with_r
 #     )
 # Replace ENTIRELY with:
 
-from devrel_swarm.project.paths import ProjectNotFoundError, find_devrel_root, ProjectPaths
-from devrel_swarm.quality.editorial import AbortLoud, run_pipeline
+from devrel_origin.project.paths import ProjectNotFoundError, find_devrel_root, ProjectPaths
+from devrel_origin.quality.editorial import AbortLoud, run_pipeline
 
 # Determine content_type from the kai task (defaults to tutorial).
 content_type = getattr(self, "_content_type", "tutorial")
@@ -1875,7 +1875,7 @@ except (ProjectNotFoundError, AbortLoud) as e:
 
 Use the Edit tool to apply this. The exact `old_string` and `new_string` depend on what's currently in `kai.py:295-312`; capture the existing block first via `Read`, then `Edit`.
 
-The `from ... import` lines should be moved to the top of the file with the other imports — do not leave them inline. After the edit, `from devrel_swarm.project.paths` and `from devrel_swarm.quality.editorial` should appear in the import block at the top of `kai.py`.
+The `from ... import` lines should be moved to the top of the file with the other imports — do not leave them inline. After the edit, `from devrel_origin.project.paths` and `from devrel_origin.quality.editorial` should appear in the import block at the top of `kai.py`.
 
 - [ ] **Step 4: Update `tests/test_kai.py` to match the new call surface**
 
@@ -1906,7 +1906,7 @@ If new failures appear (anything beyond the locked 22), fix them by updating the
 - [ ] **Step 6: Commit**
 
 ```bash
-git add src/devrel_swarm/core/kai.py tests/test_kai.py
+git add src/devrel_origin/core/kai.py tests/test_kai.py
 git commit -m "feat(kai): integrate quality pipeline into content generation"
 ```
 
@@ -1915,7 +1915,7 @@ git commit -m "feat(kai): integrate quality pipeline into content generation"
 ## Task 9: Integrate quality pipeline into Mox
 
 **Files:**
-- Modify: `src/devrel_swarm/core/mox.py:425` (the `generate_with_revision` call site)
+- Modify: `src/devrel_origin/core/mox.py:425` (the `generate_with_revision` call site)
 - Modify: `tests/test_mox.py`
 
 Mirror Task 8 exactly, but for Mox. The call site in `mox.py:425` is:
@@ -1928,7 +1928,7 @@ Apply the same surgical replacement pattern. Mox has multiple content types (`bl
 - [ ] **Step 1: Inspect call site + content-type variants**
 
 ```bash
-grep -n "def execute_\|generate_with_revision\|content_type" src/devrel_swarm/core/mox.py | head -20
+grep -n "def execute_\|generate_with_revision\|content_type" src/devrel_origin/core/mox.py | head -20
 ```
 
 Determine which method is calling `generate_with_revision` and what content type it produces. Mox has methods like `_generate_blog_post`, `_generate_landing_page`, etc. — each should pass its own `content_type`.
@@ -1948,8 +1948,8 @@ async def _generate_with_pipeline(
 ) -> tuple[str, list[str], list[str]]:
     """Returns (final_text, strengths, issues). Falls back to legacy
     revision loop when no .devrel/ project or pipeline aborts."""
-    from devrel_swarm.project.paths import ProjectNotFoundError, find_devrel_root, ProjectPaths
-    from devrel_swarm.quality.editorial import AbortLoud, run_pipeline
+    from devrel_origin.project.paths import ProjectNotFoundError, find_devrel_root, ProjectPaths
+    from devrel_origin.quality.editorial import AbortLoud, run_pipeline
 
     draft, _ = await self.llm_client.generate(
         system_prompt=system_prompt, user_prompt=user_prompt,
@@ -1995,7 +1995,7 @@ Expected: empty diff (still 22 known failures).
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/devrel_swarm/core/mox.py tests/test_mox.py
+git add src/devrel_origin/core/mox.py tests/test_mox.py
 git commit -m "feat(mox): integrate quality pipeline via _generate_with_pipeline helper"
 ```
 
@@ -2004,7 +2004,7 @@ git commit -m "feat(mox): integrate quality pipeline via _generate_with_pipeline
 ## Task 10: Integrate quality pipeline into Pax
 
 **Files:**
-- Modify: `src/devrel_swarm/core/pax.py:1089`
+- Modify: `src/devrel_origin/core/pax.py:1089`
 - Modify: `tests/test_pax.py`
 
 Apply the same pattern as Mox. Pax has multiple content surfaces too (`outreach_email`, `battle_card`, `nurture_sequence`); pass the right `content_type` per call site.
@@ -2012,7 +2012,7 @@ Apply the same pattern as Mox. Pax has multiple content surfaces too (`outreach_
 - [ ] **Step 1: Inspect**
 
 ```bash
-grep -n "def \|generate_with_revision\|content_type" src/devrel_swarm/core/pax.py | head -30
+grep -n "def \|generate_with_revision\|content_type" src/devrel_origin/core/pax.py | head -30
 ```
 
 - [ ] **Step 2: Apply surgical edit using the same `_generate_with_pipeline` helper pattern**
@@ -2032,7 +2032,7 @@ Expected: empty diff.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/devrel_swarm/core/pax.py tests/test_pax.py
+git add src/devrel_origin/core/pax.py tests/test_pax.py
 git commit -m "feat(pax): integrate quality pipeline via _generate_with_pipeline helper"
 ```
 
@@ -2041,9 +2041,9 @@ git commit -m "feat(pax): integrate quality pipeline via _generate_with_pipeline
 ## Task 11: `devrel content draft` CLI command
 
 **Files:**
-- Create: `src/devrel_swarm/cli/content.py`
+- Create: `src/devrel_origin/cli/content.py`
 - Create: `tests/cli/test_content_command.py`
-- Modify: `src/devrel_swarm/cli/__init__.py` (register the `content` typer subapp)
+- Modify: `src/devrel_origin/cli/__init__.py` (register the `content` typer subapp)
 
 `devrel content draft <prompt>` is the human-facing entry point to the quality pipeline. It generates an initial draft via a single LLM call, runs `run_pipeline`, writes the final text to `.devrel/deliverables/`, writes the revision trace to `.devrel/deliverables/<slug>-trace.json`, and prints a Rich summary.
 
@@ -2062,7 +2062,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from typer.testing import CliRunner
 
-from devrel_swarm.cli import app
+from devrel_origin.cli import app
 
 runner = CliRunner()
 
@@ -2079,8 +2079,8 @@ def _init_project(tmp_path):
         os.chdir(cwd)
 
 
-@patch("devrel_swarm.cli.content._build_llm_client")
-@patch("devrel_swarm.cli.content.run_pipeline")
+@patch("devrel_origin.cli.content._build_llm_client")
+@patch("devrel_origin.cli.content.run_pipeline")
 def test_draft_writes_deliverable_and_trace(mock_pipeline, mock_client, tmp_path):
     _init_project(tmp_path)
     mock_pipeline.return_value = MagicMock(
@@ -2093,7 +2093,7 @@ def test_draft_writes_deliverable_and_trace(mock_pipeline, mock_client, tmp_path
     # Make run_pipeline awaitable
     async def _runner(**kwargs):
         return mock_pipeline.return_value
-    import devrel_swarm.cli.content as content_mod
+    import devrel_origin.cli.content as content_mod
     content_mod.run_pipeline = AsyncMock(return_value=mock_pipeline.return_value)
     mock_client.return_value = MagicMock(generate=AsyncMock(return_value=("initial draft", None)))
 
@@ -2141,12 +2141,12 @@ def test_audit_runs_pipeline_against_existing_file(tmp_path):
     cwd = os.getcwd()
     os.chdir(tmp_path)
     try:
-        with patch("devrel_swarm.cli.content.run_pipeline", new=AsyncMock(return_value=MagicMock(
+        with patch("devrel_origin.cli.content.run_pipeline", new=AsyncMock(return_value=MagicMock(
             final_text="rewritten",
             flagged=False, stages=[],
             revision_trace={"content_type": "tutorial", "stages": []},
         ))):
-            with patch("devrel_swarm.cli.content._build_llm_client", return_value=MagicMock(
+            with patch("devrel_origin.cli.content._build_llm_client", return_value=MagicMock(
                 generate=AsyncMock(return_value=("x", None))
             )):
                 result = runner.invoke(
@@ -2169,7 +2169,7 @@ Expected: ImportError (no `cli/content.py` yet).
 
 - [ ] **Step 3: Implement `cli/content.py`**
 
-Write `src/devrel_swarm/cli/content.py`:
+Write `src/devrel_origin/cli/content.py`:
 ```python
 """`devrel content draft|audit` — primary entry points to the editorial pipeline."""
 
@@ -2185,9 +2185,9 @@ from pathlib import Path
 import typer
 from rich.console import Console
 
-from devrel_swarm.core.llm import LLMClient
-from devrel_swarm.project.paths import ProjectNotFoundError, ProjectPaths, find_devrel_root
-from devrel_swarm.quality.editorial import AbortLoud, run_pipeline
+from devrel_origin.core.llm import LLMClient
+from devrel_origin.project.paths import ProjectNotFoundError, ProjectPaths, find_devrel_root
+from devrel_origin.quality.editorial import AbortLoud, run_pipeline
 
 console = Console()
 
@@ -2302,9 +2302,9 @@ def audit_command(
 
 - [ ] **Step 4: Register the `content` subapp in `cli/__init__.py`**
 
-In `src/devrel_swarm/cli/__init__.py`, add:
+In `src/devrel_origin/cli/__init__.py`, add:
 ```python
-from devrel_swarm.cli.content import content_app
+from devrel_origin.cli.content import content_app
 ```
 And after the `app.command(name="doctor")(doctor_command)` line:
 ```python
@@ -2333,7 +2333,7 @@ Expected: prints `init scaffold ready`. (We don't run the actual `content draft`
 - [ ] **Step 7: Commit**
 
 ```bash
-git add src/devrel_swarm/cli/content.py src/devrel_swarm/cli/__init__.py tests/cli/test_content_command.py
+git add src/devrel_origin/cli/content.py src/devrel_origin/cli/__init__.py tests/cli/test_content_command.py
 git commit -m "feat(cli): add 'devrel content draft|audit' commands"
 ```
 
@@ -2357,10 +2357,10 @@ Expected: empty diff. The summary line should read approximately **`643 passed, 
 
 ```bash
 python -m pytest tests/quality tests/cli/test_content_command.py \
-  --cov=devrel_swarm.quality --cov=devrel_swarm.cli.content \
+  --cov=devrel_origin.quality --cov=devrel_origin.cli.content \
   --cov-report=term-missing 2>&1 | tail -25
 ```
-Expected: ≥80% on `devrel_swarm.quality` and on `devrel_swarm.cli.content`. If anything is below, add tests for the uncovered branches.
+Expected: ≥80% on `devrel_origin.quality` and on `devrel_origin.cli.content`. If anything is below, add tests for the uncovered branches.
 
 - [ ] **Step 3: Update `CLAUDE.md`**
 
@@ -2373,9 +2373,9 @@ devrel content draft "tutorial on feature flags" --type tutorial
 devrel content audit ./draft.md --type blog_post
 ```
 
-In the File Map, add after the `src/devrel_swarm/project/` block:
+In the File Map, add after the `src/devrel_origin/project/` block:
 ```
-src/devrel_swarm/quality/  8-stage editorial pipeline. voice.py loads
+src/devrel_origin/quality/  8-stage editorial pipeline. voice.py loads
                            voice.md; style.py loads + parses targets;
                            slop.py runs regex + LLM lint + force-rewrite;
                            persona.py scores via skeptical-dev persona;
@@ -2405,7 +2405,7 @@ git commit -m "docs: add Phase 3 commands and quality/ File Map entry"
 git log --oneline main..HEAD
 devrel --version
 ```
-Expected: a stack of focused commits on `feat/cli-phase3-quality`, `devrel-swarm 0.2.0`.
+Expected: a stack of focused commits on `feat/cli-phase3-quality`, `devrel-origin 0.2.0`.
 
 ---
 

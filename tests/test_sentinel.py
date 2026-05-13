@@ -5,8 +5,8 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from devrel_swarm.core.atlas import SharedContext
-from devrel_swarm.core.sentinel import Sentinel
+from devrel_origin.core.atlas import SharedContext
+from devrel_origin.core.sentinel import Sentinel
 
 
 def _make_sentinel() -> Sentinel:

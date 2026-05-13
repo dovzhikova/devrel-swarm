@@ -1,6 +1,6 @@
 # Security
 
-`devrel-swarm` is a CLI that runs on your machine and reads/writes your repo.
+`devrel-origin` is a CLI that runs on your machine and reads/writes your repo.
 This document covers what it touches, what it doesn't, and how to report issues.
 
 ## Data handling
@@ -20,7 +20,7 @@ This document covers what it touches, what it doesn't, and how to report issues.
   recommendations. It contains your inputs and the LLM outputs derived from
   them. Treat it like any other project artifact — it is yours to keep, share,
   or delete.
-- **Deletion.** `rm -rf .devrel/` removes everything `devrel-swarm` ever wrote
+- **Deletion.** `rm -rf .devrel/` removes everything `devrel-origin` ever wrote
   for that project. There is nothing to unsubscribe from.
 
 ## Third-party providers

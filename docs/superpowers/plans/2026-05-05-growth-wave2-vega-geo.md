@@ -17,14 +17,14 @@
 
 | File | Status | Responsibility |
 |------|--------|----------------|
-| `src/devrel_swarm/tools/perplexity_client.py` | Create | Net-new httpx-based Perplexity API client |
-| `src/devrel_swarm/tools/ai_search_adapters.py` | Create | OpenAI Responses-API + Anthropic web-search + Brave AI adapters; common `EngineResponse` shape |
-| `src/devrel_swarm/tools/serpapi_client.py` | Create | Opt-in SerpAPI wrapper (loaded only when `[geo].include_google_ai_overviews=true`) |
-| `src/devrel_swarm/core/vega.py` | Create | Vega agent — orchestrator + dataclasses + persistence + brief generation |
-| `src/devrel_swarm/core/vega_parsing.py` | Create | Mention parser, citation extractor, position scorer, quality judge (small functions) |
-| `src/devrel_swarm/core/__init__.py` | Modify | Export `Vega` |
-| `src/devrel_swarm/cli/geo.py` | Create | Typer `geo_app` with `report`/`history`/`diff`/`calibration`/`refresh-prompts` |
-| `src/devrel_swarm/cli/__init__.py` | Modify | Register `geo_app` |
+| `src/devrel_origin/tools/perplexity_client.py` | Create | Net-new httpx-based Perplexity API client |
+| `src/devrel_origin/tools/ai_search_adapters.py` | Create | OpenAI Responses-API + Anthropic web-search + Brave AI adapters; common `EngineResponse` shape |
+| `src/devrel_origin/tools/serpapi_client.py` | Create | Opt-in SerpAPI wrapper (loaded only when `[geo].include_google_ai_overviews=true`) |
+| `src/devrel_origin/core/vega.py` | Create | Vega agent — orchestrator + dataclasses + persistence + brief generation |
+| `src/devrel_origin/core/vega_parsing.py` | Create | Mention parser, citation extractor, position scorer, quality judge (small functions) |
+| `src/devrel_origin/core/__init__.py` | Modify | Export `Vega` |
+| `src/devrel_origin/cli/geo.py` | Create | Typer `geo_app` with `report`/`history`/`diff`/`calibration`/`refresh-prompts` |
+| `src/devrel_origin/cli/__init__.py` | Modify | Register `geo_app` |
 | `tests/test_perplexity_client.py` | Create | Per-engine respx tests |
 | `tests/test_ai_search_adapters.py` | Create | OpenAI/Anthropic/Brave adapter respx tests |
 | `tests/test_vega_parsing.py` | Create | Mention/citation/position/quality unit tests |
@@ -36,7 +36,7 @@
 ## Task 1: Perplexity client
 
 **Files:**
-- Create: `src/devrel_swarm/tools/perplexity_client.py`
+- Create: `src/devrel_origin/tools/perplexity_client.py`
 - Test: `tests/test_perplexity_client.py`
 
 - [ ] **Step 1: Write the failing test**
@@ -50,7 +50,7 @@ import pytest
 import respx
 from httpx import Response
 
-from devrel_swarm.tools.perplexity_client import EngineResponse, PerplexityClient
+from devrel_origin.tools.perplexity_client import EngineResponse, PerplexityClient
 
 
 @pytest.fixture
@@ -108,7 +108,7 @@ Expected: ImportError.
 
 - [ ] **Step 3: Implement the client**
 
-Create `src/devrel_swarm/tools/perplexity_client.py`:
+Create `src/devrel_origin/tools/perplexity_client.py`:
 
 ```python
 """Perplexity API client. Returns the standard `EngineResponse` shape so
@@ -227,7 +227,7 @@ Expected: 2 PASSED.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/devrel_swarm/tools/perplexity_client.py tests/test_perplexity_client.py
+git add src/devrel_origin/tools/perplexity_client.py tests/test_perplexity_client.py
 git commit -m "feat(perplexity): async client with EngineResponse normalization"
 ```
 
@@ -236,7 +236,7 @@ git commit -m "feat(perplexity): async client with EngineResponse normalization"
 ## Task 2: AI search adapters (OpenAI + Anthropic + Brave)
 
 **Files:**
-- Create: `src/devrel_swarm/tools/ai_search_adapters.py`
+- Create: `src/devrel_origin/tools/ai_search_adapters.py`
 - Test: `tests/test_ai_search_adapters.py`
 
 OpenAI exposes web search via Responses API (`tools=[{"type": "web_search"}]`). Anthropic exposes web search via the Messages API web-search tool. Brave AI is the existing Brave client with a different endpoint that returns AI-summarized results.
@@ -252,12 +252,12 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from devrel_swarm.tools.ai_search_adapters import (
+from devrel_origin.tools.ai_search_adapters import (
     AnthropicSearchAdapter,
     BraveAISearchAdapter,
     OpenAISearchAdapter,
 )
-from devrel_swarm.tools.perplexity_client import EngineResponse
+from devrel_origin.tools.perplexity_client import EngineResponse
 
 
 class TestOpenAIAdapter:
@@ -337,7 +337,7 @@ Expected: ImportError.
 
 - [ ] **Step 3: Implement the adapters**
 
-Create `src/devrel_swarm/tools/ai_search_adapters.py`:
+Create `src/devrel_origin/tools/ai_search_adapters.py`:
 
 ```python
 """Web-search adapters for OpenAI, Anthropic, and Brave AI engines.
@@ -353,7 +353,7 @@ import logging
 import time
 from typing import Any, Optional
 
-from devrel_swarm.tools.perplexity_client import EngineResponse
+from devrel_origin.tools.perplexity_client import EngineResponse
 
 logger = logging.getLogger(__name__)
 
@@ -470,7 +470,7 @@ class BraveAISearchAdapter:
         )
 ```
 
-Also extend `src/devrel_swarm/tools/search_tools.py` with an `ai_search` method on the existing `BraveSearch` class:
+Also extend `src/devrel_origin/tools/search_tools.py` with an `ai_search` method on the existing `BraveSearch` class:
 
 ```python
     async def ai_search(self, query: str) -> dict:
@@ -498,7 +498,7 @@ Expected: 3 PASSED.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/devrel_swarm/tools/ai_search_adapters.py src/devrel_swarm/tools/search_tools.py tests/test_ai_search_adapters.py
+git add src/devrel_origin/tools/ai_search_adapters.py src/devrel_origin/tools/search_tools.py tests/test_ai_search_adapters.py
 git commit -m "feat(geo): OpenAI/Anthropic/Brave web-search adapters"
 ```
 
@@ -507,7 +507,7 @@ git commit -m "feat(geo): OpenAI/Anthropic/Brave web-search adapters"
 ## Task 3: Vega parsing helpers (mention + citation + position + quality)
 
 **Files:**
-- Create: `src/devrel_swarm/core/vega_parsing.py`
+- Create: `src/devrel_origin/core/vega_parsing.py`
 - Test: `tests/test_vega_parsing.py`
 
 - [ ] **Step 1: Write the failing tests**
@@ -521,7 +521,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from devrel_swarm.core.vega_parsing import (
+from devrel_origin.core.vega_parsing import (
     MentionResult,
     extract_brand_mentions,
     extract_competitor_mentions,
@@ -617,7 +617,7 @@ Expected: ImportError.
 
 - [ ] **Step 3: Implement the parsers**
 
-Create `src/devrel_swarm/core/vega_parsing.py`:
+Create `src/devrel_origin/core/vega_parsing.py`:
 
 ```python
 """Parsing helpers for Vega — mention detection, citation extraction,
@@ -797,7 +797,7 @@ Expected: all PASSED.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/devrel_swarm/core/vega_parsing.py tests/test_vega_parsing.py
+git add src/devrel_origin/core/vega_parsing.py tests/test_vega_parsing.py
 git commit -m "feat(vega): mention/citation/position/quality parsing helpers"
 ```
 
@@ -806,7 +806,7 @@ git commit -m "feat(vega): mention/citation/position/quality parsing helpers"
 ## Task 4: Vega dataclasses
 
 **Files:**
-- Create: `src/devrel_swarm/core/vega.py`
+- Create: `src/devrel_origin/core/vega.py`
 - Test: `tests/test_vega.py`
 
 - [ ] **Step 1: Write the failing test**
@@ -820,7 +820,7 @@ from pathlib import Path
 
 import pytest
 
-from devrel_swarm.core.vega import (
+from devrel_origin.core.vega import (
     BrandQuery,
     EngineVisibility,
     GeoReport,
@@ -857,7 +857,7 @@ Expected: ImportError.
 
 - [ ] **Step 3: Create `core/vega.py` with dataclasses**
 
-Create `src/devrel_swarm/core/vega.py`:
+Create `src/devrel_origin/core/vega.py`:
 
 ```python
 """Vega — GEO (AI-search) auditor.
@@ -876,13 +876,13 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any, Optional
 
-from devrel_swarm.core.growth import (
+from devrel_origin.core.growth import (
     Pillar,
     Recommendation,
     TargetKind,
     persist_recommendation,
 )
-from devrel_swarm.core.vega_parsing import (
+from devrel_origin.core.vega_parsing import (
     MentionResult,
     compute_citation_share,
     extract_brand_mentions,
@@ -890,7 +890,7 @@ from devrel_swarm.core.vega_parsing import (
     judge_quality,
     score_position,
 )
-from devrel_swarm.tools.perplexity_client import EngineResponse
+from devrel_origin.tools.perplexity_client import EngineResponse
 
 logger = logging.getLogger(__name__)
 
@@ -953,7 +953,7 @@ Expected: PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/devrel_swarm/core/vega.py tests/test_vega.py
+git add src/devrel_origin/core/vega.py tests/test_vega.py
 git commit -m "feat(vega): dataclasses (BrandQuery, PromptResult, EngineVisibility, GeoReport)"
 ```
 
@@ -962,7 +962,7 @@ git commit -m "feat(vega): dataclasses (BrandQuery, PromptResult, EngineVisibili
 ## Task 5: Vega prompt seeding (load + refresh from Iris/Rex)
 
 **Files:**
-- Modify: `src/devrel_swarm/core/vega.py`
+- Modify: `src/devrel_origin/core/vega.py`
 - Modify: `tests/test_vega.py`
 
 - [ ] **Step 1: Write the failing test**
@@ -1101,7 +1101,7 @@ Expected: PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/devrel_swarm/core/vega.py tests/test_vega.py
+git add src/devrel_origin/core/vega.py tests/test_vega.py
 git commit -m "feat(vega): prompt loader + writer with auto-classification"
 ```
 
@@ -1110,7 +1110,7 @@ git commit -m "feat(vega): prompt loader + writer with auto-classification"
 ## Task 6: Engine orchestrator (per-prompt × per-engine fanout)
 
 **Files:**
-- Modify: `src/devrel_swarm/core/vega.py`
+- Modify: `src/devrel_origin/core/vega.py`
 - Modify: `tests/test_vega.py`
 
 - [ ] **Step 1: Write the failing test**
@@ -1125,7 +1125,7 @@ class TestEngineOrchestration:
     @pytest.mark.asyncio
     async def test_run_one_prompt_across_engines(self, tmp_path):
         # Mock each engine to return a synthetic EngineResponse
-        from devrel_swarm.tools.perplexity_client import EngineResponse
+        from devrel_origin.tools.perplexity_client import EngineResponse
 
         def make_response(engine: str) -> EngineResponse:
             return EngineResponse(
@@ -1251,7 +1251,7 @@ Expected: PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/devrel_swarm/core/vega.py tests/test_vega.py
+git add src/devrel_origin/core/vega.py tests/test_vega.py
 git commit -m "feat(vega): per-prompt × per-engine orchestrator with semaphore"
 ```
 
@@ -1260,7 +1260,7 @@ git commit -m "feat(vega): per-prompt × per-engine orchestrator with semaphore"
 ## Task 7: Aggregation (per-engine visibility + competitor SoV)
 
 **Files:**
-- Modify: `src/devrel_swarm/core/vega.py`
+- Modify: `src/devrel_origin/core/vega.py`
 - Modify: `tests/test_vega.py`
 
 - [ ] **Step 1: Write the failing test**
@@ -1384,7 +1384,7 @@ Expected: PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/devrel_swarm/core/vega.py tests/test_vega.py
+git add src/devrel_origin/core/vega.py tests/test_vega.py
 git commit -m "feat(vega): per-engine + competitor SoV aggregation"
 ```
 
@@ -1393,7 +1393,7 @@ git commit -m "feat(vega): per-engine + competitor SoV aggregation"
 ## Task 8: Persistence (`geo_visibility` + Recommendations)
 
 **Files:**
-- Modify: `src/devrel_swarm/core/vega.py`
+- Modify: `src/devrel_origin/core/vega.py`
 - Modify: `tests/test_vega.py`
 
 - [ ] **Step 1: Write the failing test**
@@ -1402,7 +1402,7 @@ Append to `tests/test_vega.py`:
 
 ```python
 import sqlite3
-from devrel_swarm.project import state
+from devrel_origin.project import state
 
 
 @pytest.fixture
@@ -1587,7 +1587,7 @@ Expected: PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/devrel_swarm/core/vega.py tests/test_vega.py
+git add src/devrel_origin/core/vega.py tests/test_vega.py
 git commit -m "feat(vega): persist geo_visibility + emit Recommendations"
 ```
 
@@ -1596,7 +1596,7 @@ git commit -m "feat(vega): persist geo_visibility + emit Recommendations"
 ## Task 9: Brief generation
 
 **Files:**
-- Modify: `src/devrel_swarm/core/vega.py`
+- Modify: `src/devrel_origin/core/vega.py`
 - Modify: `tests/test_vega.py`
 
 - [ ] **Step 1: Write the failing test**
@@ -1716,7 +1716,7 @@ Expected: PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/devrel_swarm/core/vega.py tests/test_vega.py
+git add src/devrel_origin/core/vega.py tests/test_vega.py
 git commit -m "feat(vega): Mox-ready brief generation per recommendation"
 ```
 
@@ -1725,7 +1725,7 @@ git commit -m "feat(vega): Mox-ready brief generation per recommendation"
 ## Task 10: `Vega.execute()` end-to-end
 
 **Files:**
-- Modify: `src/devrel_swarm/core/vega.py`
+- Modify: `src/devrel_origin/core/vega.py`
 - Modify: `tests/test_vega.py`
 
 - [ ] **Step 1: Write the failing test**
@@ -1736,7 +1736,7 @@ Append to `tests/test_vega.py`:
 class TestExecute:
     @pytest.mark.asyncio
     async def test_execute_full_cycle(self, init_db, tmp_path):
-        from devrel_swarm.tools.perplexity_client import EngineResponse
+        from devrel_origin.tools.perplexity_client import EngineResponse
 
         # Seed prompt file
         prompts = tmp_path / "prompts.txt"
@@ -1845,7 +1845,7 @@ Expected: all PASS; full suite green.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/devrel_swarm/core/vega.py tests/test_vega.py
+git add src/devrel_origin/core/vega.py tests/test_vega.py
 git commit -m "feat(vega): Vega.execute end-to-end orchestration"
 ```
 
@@ -1854,8 +1854,8 @@ git commit -m "feat(vega): Vega.execute end-to-end orchestration"
 ## Task 11: `cli/geo.py` — `report` + `history` + `diff`
 
 **Files:**
-- Create: `src/devrel_swarm/cli/geo.py`
-- Modify: `src/devrel_swarm/cli/__init__.py`
+- Create: `src/devrel_origin/cli/geo.py`
+- Modify: `src/devrel_origin/cli/__init__.py`
 - Test: `tests/cli/test_geo_command.py`
 
 - [ ] **Step 1: Write the failing tests**
@@ -1867,7 +1867,7 @@ Create `tests/cli/test_geo_command.py`:
 
 from typer.testing import CliRunner
 
-from devrel_swarm.cli import app
+from devrel_origin.cli import app
 
 
 def test_geo_help_lists_subcommands():
@@ -1894,7 +1894,7 @@ Expected: `geo` not registered → fail.
 
 - [ ] **Step 3: Create `cli/geo.py`**
 
-Create `src/devrel_swarm/cli/geo.py`:
+Create `src/devrel_origin/cli/geo.py`:
 
 ```python
 """`devrel geo ...` — GEO auditor verbs (Vega)."""
@@ -1912,17 +1912,17 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
-from devrel_swarm.cli._common import find_paths_or_exit
-from devrel_swarm.core.growth.target_kinds import Pillar
-from devrel_swarm.core.llm import LLMClient
-from devrel_swarm.core.vega import Vega
-from devrel_swarm.tools.ai_search_adapters import (
+from devrel_origin.cli._common import find_paths_or_exit
+from devrel_origin.core.growth.target_kinds import Pillar
+from devrel_origin.core.llm import LLMClient
+from devrel_origin.core.vega import Vega
+from devrel_origin.tools.ai_search_adapters import (
     AnthropicSearchAdapter,
     BraveAISearchAdapter,
     OpenAISearchAdapter,
 )
-from devrel_swarm.tools.perplexity_client import PerplexityClient
-from devrel_swarm.tools.search_tools import BraveSearch
+from devrel_origin.tools.perplexity_client import PerplexityClient
+from devrel_origin.tools.search_tools import BraveSearch
 
 geo_app = typer.Typer(
     name="geo",
@@ -1955,7 +1955,7 @@ def _build_engines(config: dict) -> dict:
         engines["brave"] = BraveAISearchAdapter(brave_client=BraveSearch())
 
     if config.get("include_google_ai_overviews") and os.getenv("SERPAPI_API_KEY"):
-        from devrel_swarm.tools.serpapi_client import SerpAPIClient
+        from devrel_origin.tools.serpapi_client import SerpAPIClient
         engines["google_aio"] = SerpAPIClient()
 
     return engines
@@ -2095,10 +2095,10 @@ def diff(
     _console.print(table)
 ```
 
-Update `src/devrel_swarm/cli/__init__.py`:
+Update `src/devrel_origin/cli/__init__.py`:
 
 ```python
-from devrel_swarm.cli.geo import geo_app
+from devrel_origin.cli.geo import geo_app
 # ...
 app.add_typer(geo_app, name="geo")
 ```
@@ -2125,7 +2125,7 @@ Expected: PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/devrel_swarm/cli/geo.py src/devrel_swarm/cli/__init__.py tests/cli/test_geo_command.py
+git add src/devrel_origin/cli/geo.py src/devrel_origin/cli/__init__.py tests/cli/test_geo_command.py
 git commit -m "feat(cli): devrel geo {report,history,diff}"
 ```
 
@@ -2134,7 +2134,7 @@ git commit -m "feat(cli): devrel geo {report,history,diff}"
 ## Task 12: `cli/geo.py` — `calibration` + `refresh-prompts`
 
 **Files:**
-- Modify: `src/devrel_swarm/cli/geo.py`
+- Modify: `src/devrel_origin/cli/geo.py`
 - Modify: `tests/cli/test_geo_command.py`
 
 - [ ] **Step 1: Add the failing tests**
@@ -2191,7 +2191,7 @@ def calibration() -> None:
         _console.print("[yellow]No state.db yet.[/yellow]")
         raise typer.Exit(code=0)
 
-    from devrel_swarm.core.growth.recommendations import calibrate
+    from devrel_origin.core.growth.recommendations import calibrate
 
     def _score_outcome(rec) -> str:
         """Did mention_rate rise after the rec was applied?"""
@@ -2277,7 +2277,7 @@ Expected: all PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/devrel_swarm/cli/geo.py tests/cli/test_geo_command.py
+git add src/devrel_origin/cli/geo.py tests/cli/test_geo_command.py
 git commit -m "feat(cli): devrel geo {calibration,refresh-prompts}"
 ```
 
@@ -2286,7 +2286,7 @@ git commit -m "feat(cli): devrel geo {calibration,refresh-prompts}"
 ## Task 13: SerpAPI client (opt-in 5th engine)
 
 **Files:**
-- Create: `src/devrel_swarm/tools/serpapi_client.py`
+- Create: `src/devrel_origin/tools/serpapi_client.py`
 - Test: `tests/test_serpapi_client.py`
 
 - [ ] **Step 1: Write the failing test**
@@ -2298,13 +2298,13 @@ Create `tests/test_serpapi_client.py`:
 
 import pytest
 
-from devrel_swarm.tools.perplexity_client import EngineResponse
+from devrel_origin.tools.perplexity_client import EngineResponse
 
 
 @pytest.fixture
 def serpapi_client():
     pytest.importorskip("serpapi")  # skip if optional dep not installed
-    from devrel_swarm.tools.serpapi_client import SerpAPIClient
+    from devrel_origin.tools.serpapi_client import SerpAPIClient
     return SerpAPIClient(api_key="serp-test")
 
 
@@ -2346,7 +2346,7 @@ Expected: ImportError on the module (or skipped if `serpapi` not installed).
 
 - [ ] **Step 3: Implement the client**
 
-Create `src/devrel_swarm/tools/serpapi_client.py`:
+Create `src/devrel_origin/tools/serpapi_client.py`:
 
 ```python
 """SerpAPI client for Google AI Overviews.
@@ -2363,7 +2363,7 @@ import os
 import time
 from typing import Optional
 
-from devrel_swarm.tools.perplexity_client import EngineResponse
+from devrel_origin.tools.perplexity_client import EngineResponse
 
 logger = logging.getLogger(__name__)
 
@@ -2386,7 +2386,7 @@ class SerpAPIClient:
             from serpapi import GoogleSearch
         except ImportError as e:
             raise ImportError(
-                "SerpAPI engine requires `pip install 'devrel-swarm[geo-google]'`"
+                "SerpAPI engine requires `pip install 'devrel-origin[geo-google]'`"
             ) from e
 
         start = time.monotonic()
@@ -2431,7 +2431,7 @@ Expected: PASS or SKIPPED.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/devrel_swarm/tools/serpapi_client.py tests/test_serpapi_client.py
+git add src/devrel_origin/tools/serpapi_client.py tests/test_serpapi_client.py
 git commit -m "feat(geo): SerpAPI client for opt-in Google AI Overviews engine"
 ```
 
@@ -2440,7 +2440,7 @@ git commit -m "feat(geo): SerpAPI client for opt-in Google AI Overviews engine"
 ## Task 14: Atlas Stage 5c registration (Vega)
 
 **Files:**
-- Modify: `src/devrel_swarm/core/atlas.py`
+- Modify: `src/devrel_origin/core/atlas.py`
 - Test: `tests/test_atlas.py`
 
 Mirrors Wave 1 Task 15 (Cyra). Adds a Vega branch gated by `geo_in_run`.
@@ -2469,12 +2469,12 @@ Expected: AssertionError.
 
 - [ ] **Step 3: Wire Vega into Atlas Stage 5c**
 
-In `src/devrel_swarm/core/atlas.py`, after the Cyra block from Wave 1, add:
+In `src/devrel_origin/core/atlas.py`, after the Cyra block from Wave 1, add:
 
 ```python
 if self.config.orchestration.geo_in_run:
     try:
-        from devrel_swarm.cli.geo import _build_vega
+        from devrel_origin.cli.geo import _build_vega
         # _build_vega expects `paths` (the bootstrap result). We have project_paths.
         # Refactor: extract a public Atlas helper that constructs Vega from self.config.
         vega = self._build_vega()
@@ -2497,8 +2497,8 @@ Add a `_build_vega()` helper on Atlas that mirrors `cli/geo.py:_build_vega` but 
 
 ```python
     def _build_vega(self):
-        from devrel_swarm.core.vega import Vega
-        from devrel_swarm.cli.geo import _build_engines
+        from devrel_origin.core.vega import Vega
+        from devrel_origin.cli.geo import _build_engines
 
         geo_cfg = getattr(self.config, "geo", {}) or {}
         growth_cfg = getattr(self.config, "growth", {}) or {}
@@ -2529,7 +2529,7 @@ Expected: Vega-Atlas test PASS; full suite green.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/devrel_swarm/core/atlas.py tests/test_atlas.py
+git add src/devrel_origin/core/atlas.py tests/test_atlas.py
 git commit -m "feat(atlas): Stage 5c (Vega) gated by geo_in_run config"
 ```
 
@@ -2538,13 +2538,13 @@ git commit -m "feat(atlas): Stage 5c (Vega) gated by geo_in_run config"
 ## Task 15: Export Vega + reverify lint/format/build
 
 **Files:**
-- Modify: `src/devrel_swarm/core/__init__.py`
+- Modify: `src/devrel_origin/core/__init__.py`
 
 - [ ] **Step 1: Export Vega**
 
 ```python
 # core/__init__.py
-from devrel_swarm.core.vega import Vega
+from devrel_origin.core.vega import Vega
 # add "Vega" to __all__
 ```
 
@@ -2562,7 +2562,7 @@ Expected: full suite green; ruff clean; build clean; twine PASSED.
 - [ ] **Step 3: Commit**
 
 ```bash
-git add src/devrel_swarm/core/__init__.py
+git add src/devrel_origin/core/__init__.py
 git commit -m "feat(vega): export Vega from core"
 ```
 

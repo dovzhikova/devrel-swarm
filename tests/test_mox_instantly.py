@@ -5,8 +5,8 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from devrel_swarm.core.mox import Mox
-from devrel_swarm.tools.instantly_client import CampaignAnalytics, InstantlyCampaign
+from devrel_origin.core.mox import Mox
+from devrel_origin.tools.instantly_client import CampaignAnalytics, InstantlyCampaign
 
 
 @pytest.fixture

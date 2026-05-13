@@ -14,7 +14,7 @@ don't, install [pipx](https://pipx.pypa.io/) first.
 ## TL;DR
 
 ```bash
-pipx install devrel-swarm
+pipx install devrel-origin
 cd /path/to/your/project
 devrel init             # interactive wizard, scaffold through first draft
 ```
@@ -25,13 +25,13 @@ you want to run the steps manually instead.
 ## 1. Install
 
 ```bash
-pipx install devrel-swarm
+pipx install devrel-origin
 devrel --version
 ```
 
 ## 2. Bootstrap a project
 
-`devrel-swarm` operates on the current working directory the way `git`
+`devrel-origin` operates on the current working directory the way `git`
 does. `cd` into the project repo you want to apply it to (or any new
 directory) and run:
 

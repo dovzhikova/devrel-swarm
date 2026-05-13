@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import sqlite3
 
-from devrel_swarm.project.state import (
+from devrel_origin.project.state import (
     SCHEMA_VERSION,
     get_schema_version,
     init_db,

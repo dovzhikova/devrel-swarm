@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 
 import pytest
 
-from devrel_swarm.core.argus import (
+from devrel_origin.core.argus import (
     PerformanceMetric,
     PerformanceReport,
     Recommendation,
@@ -193,7 +193,7 @@ def test_scorer_computes_wow_delta_against_baseline():
 
 from unittest.mock import AsyncMock, MagicMock  # noqa: E402
 
-from devrel_swarm.core.argus import Argus  # noqa: E402
+from devrel_origin.core.argus import Argus  # noqa: E402
 
 
 @pytest.mark.asyncio
@@ -362,7 +362,7 @@ async def test_argus_prompt_surfaces_truncation_when_over_50_items():
     # Tiny 5th type that should get fully dropped
     metrics.append(
         PerformanceMetric(
-            content_id="repo/devrel-swarm",
+            content_id="repo/devrel-origin",
             content_type="repo",
             title="repo",
             url=None,
@@ -431,7 +431,7 @@ async def test_argus_handles_unparseable_llm_output_gracefully():
 
 import json as _json  # noqa: E402
 
-from devrel_swarm.project.state import init_db, open_db  # noqa: E402
+from devrel_origin.project.state import init_db, open_db  # noqa: E402
 
 
 @pytest.mark.asyncio
@@ -749,7 +749,7 @@ async def test_argus_two_runs_use_metric_history_for_wow(tmp_path):
 def test_write_recommendation_briefs_skips_non_actionable(tmp_path):
     """Briefs are only written for double_down / amplify / rewrite —
     retire/investigate/retest do not become content tasks."""
-    from devrel_swarm.core.argus import write_recommendation_briefs
+    from devrel_origin.core.argus import write_recommendation_briefs
 
     report = PerformanceReport(
         period_start=_utc(2026, 4, 25),

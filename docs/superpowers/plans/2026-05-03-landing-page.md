@@ -151,7 +151,7 @@ Create `landing/index.html` with just enough structure to pass the validator's "
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>devrel-swarm — a 13-agent DevRel team that lives in your repo</title>
+  <title>devrel-origin — a 13-agent DevRel team that lives in your repo</title>
   <meta name="description" content="A pipx-installable CLI that runs content, sales, and analytics for devtools founders. Bring your own Anthropic key.">
   <style>
     /* Filled in Task 2 */
@@ -413,11 +413,11 @@ Insert as the first child of `<main>`:
   <p style="font-size: 1.15rem; color: var(--muted); margin-bottom: 2rem;">
     Run content, sales, and analytics from a single CLI. Bring your own Anthropic key.
   </p>
-  <div class="install" data-copy="pipx install devrel-swarm">
-    pipx install devrel-swarm<button type="button" aria-label="Copy install command">copy</button>
+  <div class="install" data-copy="pipx install devrel-origin">
+    pipx install devrel-origin<button type="button" aria-label="Copy install command">copy</button>
   </div>
   <p style="font-size: 0.9rem; color: var(--muted);">
-    or <a href="https://github.com/dovzhikova/devrel-swarm">read the source on GitHub</a>.
+    or <a href="https://github.com/dovzhikova/devrel-origin">read the source on GitHub</a>.
   </p>
 </section>
 ```
@@ -610,7 +610,7 @@ Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>"
 <section aria-labelledby="pipeline">
   <h2 id="pipeline">Eight critique stages, not one prompt</h2>
   <p>
-    Most AI marketing tools generate a draft and ship it. <code>devrel-swarm</code>
+    Most AI marketing tools generate a draft and ship it. <code>devrel-origin</code>
     routes every piece through eight stages before it leaves the pipeline.
   </p>
   <div class="pipeline">
@@ -726,7 +726,7 @@ Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>"
 ```html
 <section aria-labelledby="session">
   <h2 id="session">A real session</h2>
-<pre><code>$ pipx install devrel-swarm
+<pre><code>$ pipx install devrel-origin
 $ cd ~/projects/myproduct
 $ devrel init --name myproduct --url https://myproduct.dev --github-repo me/myproduct
 $ export ANTHROPIC_API_KEY=sk-ant-...
@@ -816,7 +816,7 @@ Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>"
   <details>
     <summary>What if I already use HubSpot or Buffer?</summary>
     <p>
-      <code>devrel-swarm</code> produces the content. Paste it where you
+      <code>devrel-origin</code> produces the content. Paste it where you
       already work. The point isn't to replace your distribution stack —
       it's to replace the part where you sit down to write the post in the
       first place.
@@ -842,8 +842,8 @@ Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>"
 
 <section aria-labelledby="install">
   <h2 id="install">Install</h2>
-  <div class="install" data-copy="pipx install devrel-swarm">
-    pipx install devrel-swarm<button type="button" aria-label="Copy install command">copy</button>
+  <div class="install" data-copy="pipx install devrel-origin">
+    pipx install devrel-origin<button type="button" aria-label="Copy install command">copy</button>
   </div>
 </section>
 ```
@@ -856,7 +856,7 @@ Right before `</body>`:
 <footer>
   <main>
     <p>
-      <a href="https://github.com/dovzhikova/devrel-swarm">github.com/dovzhikova/devrel-swarm</a>
+      <a href="https://github.com/dovzhikova/devrel-origin">github.com/dovzhikova/devrel-origin</a>
       · MIT licensed · v0.2.4
     </p>
     <p>
@@ -928,7 +928,7 @@ SERVER_PID=$!
 sleep 1
 # Open http://localhost:8123 in a browser, click both copy buttons,
 # confirm the button text flashes "copied" and the clipboard contains
-# "pipx install devrel-swarm".
+# "pipx install devrel-origin".
 kill $SERVER_PID
 ```
 

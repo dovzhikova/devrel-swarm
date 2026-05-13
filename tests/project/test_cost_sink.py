@@ -6,8 +6,8 @@ import sqlite3
 
 import pytest
 
-from devrel_swarm.project.cost_sink import _compute_cost_usd, make_sqlite_sink
-from devrel_swarm.project.state import init_db
+from devrel_origin.project.cost_sink import _compute_cost_usd, make_sqlite_sink
+from devrel_origin.project.state import init_db
 
 
 def test_compute_cost_usd_sonnet():

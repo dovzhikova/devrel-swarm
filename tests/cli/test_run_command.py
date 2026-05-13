@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 from typer.testing import CliRunner
 
-from devrel_swarm.cli import app
+from devrel_origin.cli import app
 
 runner = CliRunner()
 
@@ -28,7 +28,7 @@ def test_run_health_calls_watchdog(tmp_path):
     cwd = os.getcwd()
     os.chdir(tmp_path)
     try:
-        with patch("devrel_swarm.cli._common.Atlas") as MockAtlas:
+        with patch("devrel_origin.cli._common.Atlas") as MockAtlas:
             inst = MockAtlas.return_value
             inst.run_single_task = AsyncMock(
                 return_value=MagicMock(
@@ -49,7 +49,7 @@ def test_run_agent_dispatches_named_agent(tmp_path):
     cwd = os.getcwd()
     os.chdir(tmp_path)
     try:
-        with patch("devrel_swarm.cli._common.Atlas") as MockAtlas:
+        with patch("devrel_origin.cli._common.Atlas") as MockAtlas:
             inst = MockAtlas.return_value
             inst.run_single_task = AsyncMock(
                 return_value=MagicMock(success=True, agent="kai", result="ok", error=None)
@@ -72,7 +72,7 @@ def test_run_default_calls_weekly_cycle(tmp_path):
     cwd = os.getcwd()
     os.chdir(tmp_path)
     try:
-        with patch("devrel_swarm.cli._common.Atlas") as MockAtlas:
+        with patch("devrel_origin.cli._common.Atlas") as MockAtlas:
             inst = MockAtlas.return_value
             inst.run_weekly_cycle = AsyncMock(return_value=MagicMock(week_of="2026-W18"))
             result = runner.invoke(app, ["run"], env={"ANTHROPIC_API_KEY": "x", **os.environ})

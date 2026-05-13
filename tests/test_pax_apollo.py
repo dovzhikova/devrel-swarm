@@ -6,8 +6,8 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from devrel_swarm.core.pax import Pax
-from devrel_swarm.tools.apollo_client import ApolloContact, PeopleSearchResult
+from devrel_origin.core.pax import Pax
+from devrel_origin.tools.apollo_client import ApolloContact, PeopleSearchResult
 
 
 @pytest.fixture

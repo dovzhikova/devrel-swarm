@@ -1,6 +1,6 @@
 # Cookbook
 
-Recipes for getting useful work out of `devrel-swarm`. Each recipe is short and self-contained — copy, paste, adapt.
+Recipes for getting useful work out of `devrel-origin`. Each recipe is short and self-contained — copy, paste, adapt.
 
 ## 1. Run a weekly cycle on cron
 
@@ -111,7 +111,7 @@ Top movers between two periods. Reading order: biggest gainers and losers first,
 
 ## 9. Cross-project portfolio view
 
-If you run `devrel-swarm` across multiple products:
+If you run `devrel-origin` across multiple products:
 
 ```bash
 devrel analytics summary --root ~/projects
@@ -174,7 +174,7 @@ If you upgrade Echo and the `social_mentions` schema changes, `SocialCollector` 
 SocialCollector: Echo's social_mentions table is missing required columns: ['engagement_score']. Argus will return no social metrics until the schema is updated.
 ```
 
-Either roll back the Echo version or rename the column back. The contract is documented at the top of `src/devrel_swarm/tools/analytics.py` (`SocialCollector._REQUIRED_COLUMNS`).
+Either roll back the Echo version or rename the column back. The contract is documented at the top of `src/devrel_origin/tools/analytics.py` (`SocialCollector._REQUIRED_COLUMNS`).
 
 ## 15. Test the system before pointing it at production
 
@@ -182,7 +182,7 @@ Either roll back the Echo version or rename the column back. The contract is doc
 .venv/bin/pytest tests/ -q -o addopts=""
 ```
 
-Expected baseline: **800 passing / 21 baseline failing** (the 21 are pre-existing infrastructure tests that fail without external API credentials — unrelated to `devrel-swarm`'s logic). New work should not change those numbers.
+Expected baseline: **800 passing / 21 baseline failing** (the 21 are pre-existing infrastructure tests that fail without external API credentials — unrelated to `devrel-origin`'s logic). New work should not change those numbers.
 
 ## See also
 

@@ -1,4 +1,4 @@
-# devrel-swarm CLI — Phase 6: Wave 1 Bug Sweep — Implementation Plan
+# devrel-origin CLI — Phase 6: Wave 1 Bug Sweep — Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -20,7 +20,7 @@
 13 agent files modified, plus `core/llm.py` for the cost-attribution race fix. 4-6 test files added or modified. No file moves, no new modules, no schema changes.
 
 ```
-src/devrel_swarm/core/
+src/devrel_origin/core/
   llm.py               MODIFY   add `agent` kwarg to generate() for race-safe attribution
   atlas.py             MODIFY   pass agent= instead of mutating _current_agent
   watchdog.py          MODIFY   fix Firecrawl probe + dead alert condition
@@ -50,7 +50,7 @@ Use **superpowers:using-git-worktrees** to create `.worktrees/cli-phase6-bug-swe
 - [ ] **Step 2: Confirm starting state + baseline test count**
 
 ```bash
-cd /Users/macmini/devrel-swarm/.worktrees/cli-phase6-bug-sweep
+cd /Users/macmini/devrel-origin/.worktrees/cli-phase6-bug-sweep
 /opt/homebrew/bin/python3.13 -m venv .venv 2>/dev/null || true
 source .venv/bin/activate
 pip install -e '.[dev]' >/tmp/install.preflight.log 2>&1 && echo "exit=$?"
@@ -67,15 +67,15 @@ The 22 known failures are pre-existing test drift unrelated to this work. Phase 
 ## Task 1: Atlas — race-free per-agent cost attribution
 
 **Files:**
-- Modify: `src/devrel_swarm/core/llm.py`
-- Modify: `src/devrel_swarm/core/atlas.py`
+- Modify: `src/devrel_origin/core/llm.py`
+- Modify: `src/devrel_origin/core/atlas.py`
 - Modify: `tests/core/test_llm_cost_sink.py` (extend with race test)
 
 **Bug:** `Atlas.delegate()` calls `self.llm_client.set_agent(agent_name)` before dispatching, but every parallel stage (`Sage+Echo+Dex`, `Rex+Iris`, `Nova+Kai`) shares one `LLMClient`. The last `set_agent` to fire before any `generate()` wins, silently misattributing cost. The fix: thread `agent` through `generate()` itself so each call carries its own attribution, no shared mutable state.
 
 - [ ] **Step 1: Add `agent` parameter to `LLMClient.generate()`**
 
-In `src/devrel_swarm/core/llm.py`, find the `generate` signature and the `_emit_cost` block. Change the signature so `agent: str | None = None` is accepted; resolve it inside the function as `effective_agent = agent or self._current_agent or "unknown"`; pass `effective_agent` (not `self._current_agent`) to `_emit_cost`.
+In `src/devrel_origin/core/llm.py`, find the `generate` signature and the `_emit_cost` block. Change the signature so `agent: str | None = None` is accepted; resolve it inside the function as `effective_agent = agent or self._current_agent or "unknown"`; pass `effective_agent` (not `self._current_agent`) to `_emit_cost`.
 
 The exact diff: change `generate(self, ..., model: str | None = None, ...)` to `generate(self, ..., model: str | None = None, agent: str | None = None, ...)`. Inside the method body, where `_emit_cost(...)` is currently called, replace any reference to `self._current_agent` with the resolved `effective_agent`.
 
@@ -87,7 +87,7 @@ This keeps backwards compatibility: existing callers that don't pass `agent=` ge
 
 - [ ] **Step 2: Update `Atlas.delegate()` to pass `agent=`**
 
-In `src/devrel_swarm/core/atlas.py`, find the line:
+In `src/devrel_origin/core/atlas.py`, find the line:
 ```python
 self.llm_client.set_agent(agent_name)
 ```
@@ -130,7 +130,7 @@ ContextVars are async-task-local. Concurrent `gather()` tasks each see their own
 
 - [ ] **Step 3: Implement the ContextVar approach**
 
-In `src/devrel_swarm/core/llm.py`, near the top imports, add:
+In `src/devrel_origin/core/llm.py`, near the top imports, add:
 ```python
 from contextlib import contextmanager
 from contextvars import ContextVar
@@ -138,7 +138,7 @@ from contextvars import ContextVar
 
 Add a module-level ContextVar:
 ```python
-_current_agent_var: ContextVar[str] = ContextVar("devrel_swarm_current_agent", default="")
+_current_agent_var: ContextVar[str] = ContextVar("devrel_origin_current_agent", default="")
 ```
 
 Add a method to `LLMClient`:
@@ -167,7 +167,7 @@ to:
 _current_agent_var.get() or self._current_agent or "unknown"
 ```
 
-In `src/devrel_swarm/core/atlas.py::delegate()`, find the existing `set_agent` call and replace the `await asyncio.wait_for(...)` block with a `with` block:
+In `src/devrel_origin/core/atlas.py::delegate()`, find the existing `set_agent` call and replace the `await asyncio.wait_for(...)` block with a `with` block:
 
 ```python
 # Tag LLM calls with the agent name for cost tracking.
@@ -239,7 +239,7 @@ Expected: 6 passed in cost_sink (was 5, +1 new); existing Atlas tests still pass
 - [ ] **Step 6: Commit**
 
 ```bash
-git add src/devrel_swarm/core/llm.py src/devrel_swarm/core/atlas.py \
+git add src/devrel_origin/core/llm.py src/devrel_origin/core/atlas.py \
         tests/core/test_llm_cost_sink.py
 git commit -m "fix(cost): race-safe agent attribution under asyncio.gather (Wave 1)"
 ```
@@ -249,7 +249,7 @@ git commit -m "fix(cost): race-safe agent attribution under asyncio.gather (Wave
 ## Task 2: Watchdog — fix dead alert + Firecrawl probe
 
 **Files:**
-- Modify: `src/devrel_swarm/core/watchdog.py`
+- Modify: `src/devrel_origin/core/watchdog.py`
 
 **Bugs:**
 1. Integration alert at line 236 checks for status `"unknown"` which `_check_integrations` never emits — dead code, alert is permanently silent.
@@ -257,7 +257,7 @@ git commit -m "fix(cost): race-safe agent attribution under asyncio.gather (Wave
 
 - [ ] **Step 1: Fix the integration alert condition**
 
-In `src/devrel_swarm/core/watchdog.py`, find `_generate_alerts` (around line 235-237). Locate the loop that checks `for k, v in status.items(): if v == "unknown":` and change the condition to:
+In `src/devrel_origin/core/watchdog.py`, find `_generate_alerts` (around line 235-237). Locate the loop that checks `for k, v in status.items(): if v == "unknown":` and change the condition to:
 
 ```python
 for k, v in status.items():
@@ -269,7 +269,7 @@ This now correctly fires when `_check_integrations` returns `error_405`, `error_
 
 - [ ] **Step 2: Fix the Firecrawl probe URL**
 
-In `src/devrel_swarm/core/watchdog.py`, find the `INTEGRATION_PROBES` dict or wherever the Firecrawl probe URL is defined (search for `firecrawl.dev`). Replace `https://api.firecrawl.dev/v1/scrape` with a GET-able health endpoint.
+In `src/devrel_origin/core/watchdog.py`, find the `INTEGRATION_PROBES` dict or wherever the Firecrawl probe URL is defined (search for `firecrawl.dev`). Replace `https://api.firecrawl.dev/v1/scrape` with a GET-able health endpoint.
 
 Inspect what Firecrawl provides — most likely `https://api.firecrawl.dev/v1/team` returns 200 on GET with valid auth, or `https://api.firecrawl.dev/` for an unauthenticated health check. Use whichever endpoint accepts GET and reflects auth health.
 
@@ -303,7 +303,7 @@ Skip the probe-URL change verification by HTTP — the URL change is a config up
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/devrel_swarm/core/watchdog.py
+git add src/devrel_origin/core/watchdog.py
 git commit -m "fix(watchdog): dead integration alert + Firecrawl POST-only probe (Wave 1)"
 ```
 
@@ -312,13 +312,13 @@ git commit -m "fix(watchdog): dead integration alert + Firecrawl POST-only probe
 ## Task 3: Sentinel — fix `_collect_content` per-agent key mapping
 
 **Files:**
-- Modify: `src/devrel_swarm/core/sentinel.py`
+- Modify: `src/devrel_origin/core/sentinel.py`
 
 **Bug:** `_collect_content` only reads each agent's `"content"` key. Mox stores under `"blog_post"`, Pax under `"body"`, Rex under `"profiles"`. Sentinel silently audits 1-2 of 9 agents most weeks.
 
 - [ ] **Step 1: Add a per-agent content-key mapping**
 
-In `src/devrel_swarm/core/sentinel.py`, before the `_collect_content` method, add:
+In `src/devrel_origin/core/sentinel.py`, before the `_collect_content` method, add:
 
 ```python
 # Per-agent map of (context_key, content_field) tuples. The content_field
@@ -375,8 +375,8 @@ In `tests/test_atlas.py` or a new test file `tests/test_sentinel.py` (whichever 
 ```python
 def test_collect_content_pulls_from_each_agents_primary_field(tmp_path):
     """Sentinel must read from each agent's actual primary key, not a universal 'content'."""
-    from devrel_swarm.core.sentinel import Sentinel
-    from devrel_swarm.core.atlas import SharedContext
+    from devrel_origin.core.sentinel import Sentinel
+    from devrel_origin.core.atlas import SharedContext
 
     ctx = SharedContext(week_of="2026-W18")
     ctx.kai_content = {"content": "Kai prose."}
@@ -399,7 +399,7 @@ If `tests/test_sentinel.py` doesn't exist, create it with the standard imports a
 
 ```bash
 python -m pytest tests/test_sentinel.py tests/test_atlas.py -q --no-cov 2>&1 | tail -5
-git add src/devrel_swarm/core/sentinel.py tests/test_sentinel.py
+git add src/devrel_origin/core/sentinel.py tests/test_sentinel.py
 git commit -m "fix(sentinel): collect content from each agent's primary field, not a universal 'content' (Wave 1)"
 ```
 
@@ -408,7 +408,7 @@ git commit -m "fix(sentinel): collect content from each agent's primary field, n
 ## Task 4: Sage — wire `champion_signal` + add CHURNING response branch
 
 **Files:**
-- Modify: `src/devrel_swarm/core/sage.py`
+- Modify: `src/devrel_origin/core/sage.py`
 - Modify: `tests/test_sage.py`
 
 **Bugs:**
@@ -417,7 +417,7 @@ git commit -m "fix(sentinel): collect content from each agent's primary field, n
 
 - [ ] **Step 1: Implement `_detect_champion_signal`**
 
-In `src/devrel_swarm/core/sage.py`, after the existing `_analyze_sentiment` method, add:
+In `src/devrel_origin/core/sage.py`, after the existing `_analyze_sentiment` method, add:
 
 ```python
 CHAMPION_THRESHOLDS = {
@@ -448,7 +448,7 @@ The `getattr` fallback handles any `GitHubIssue` shape that doesn't expose `comm
 
 - [ ] **Step 2: Call `_detect_champion_signal` inside `triage_issue`**
 
-In `src/devrel_swarm/core/sage.py`, find the `triage_issue` method that constructs a `TriagedIssue`. Add the line:
+In `src/devrel_origin/core/sage.py`, find the `triage_issue` method that constructs a `TriagedIssue`. Add the line:
 
 ```python
 champion_signal=self._detect_champion_signal(issue),
@@ -458,7 +458,7 @@ inside the `TriagedIssue(...)` constructor call, alongside `priority=`, `sentime
 
 - [ ] **Step 3: Add a `CHURNING` branch in `_draft_response`**
 
-In `src/devrel_swarm/core/sage.py`, find `_draft_response` and add a new branch *before* the existing `CRITICAL` branch (so churning users with critical priority get the empathetic response, not the generic critical one):
+In `src/devrel_origin/core/sage.py`, find `_draft_response` and add a new branch *before* the existing `CRITICAL` branch (so churning users with critical priority get the empathetic response, not the generic critical one):
 
 ```python
 if sentiment == SentimentScore.CHURNING:
@@ -517,7 +517,7 @@ Match the existing test scaffolding (look at the current `test_sage.py` for the 
 
 ```bash
 python -m pytest tests/test_sage.py -v --no-cov 2>&1 | tail -10
-git add src/devrel_swarm/core/sage.py tests/test_sage.py
+git add src/devrel_origin/core/sage.py tests/test_sage.py
 git commit -m "fix(sage): wire champion_signal detection + CHURNING response branch (Wave 1)"
 ```
 
@@ -526,7 +526,7 @@ git commit -m "fix(sage): wire champion_signal detection + CHURNING response bra
 ## Task 5: Echo — parse `posted_at`, name `QUESTION_SIGNALS`, fix typo
 
 **Files:**
-- Modify: `src/devrel_swarm/core/echo.py`
+- Modify: `src/devrel_origin/core/echo.py`
 - Modify: `tests/test_echo.py`
 
 **Bugs:**
@@ -536,12 +536,12 @@ git commit -m "fix(sage): wire champion_signal detection + CHURNING response bra
 
 - [ ] **Step 1: Parse `posted_at` from the search result**
 
-In `src/devrel_swarm/core/echo.py`, find the `_parse_search_result` method (around line 251). Currently `posted_at` is hardcoded to `datetime.now()`.
+In `src/devrel_origin/core/echo.py`, find the `_parse_search_result` method (around line 251). Currently `posted_at` is hardcoded to `datetime.now()`.
 
 Search results from `tools/search_tools.py` typically include a date in fields like `published_date`, `date`, or `posted_at`. Inspect the actual `SearchResult` dataclass:
 
 ```bash
-grep -n "class SearchResult\|published\|posted\|date" src/devrel_swarm/tools/search_tools.py | head -10
+grep -n "class SearchResult\|published\|posted\|date" src/devrel_origin/tools/search_tools.py | head -10
 ```
 
 Based on what's available, replace:
@@ -580,7 +580,7 @@ If `tools/search_tools.py`'s `SearchResult` doesn't expose any date field, chang
 
 - [ ] **Step 2: Replace `ENGAGEMENT_SIGNALS[:8]` with `QUESTION_SIGNALS`**
 
-In `src/devrel_swarm/core/echo.py`, near the existing `ENGAGEMENT_SIGNALS` constant, add:
+In `src/devrel_origin/core/echo.py`, near the existing `ENGAGEMENT_SIGNALS` constant, add:
 
 ```python
 # Subset of ENGAGEMENT_SIGNALS that specifically indicates a question
@@ -604,7 +604,7 @@ Find the `is_question` line that does `any(s in text_lower for s in ENGAGEMENT_S
 
 - [ ] **Step 3: Fix the `OpenClaw'` typo**
 
-In `src/devrel_swarm/core/echo.py:500`, find the `"OpenClaw'"` literal and change it to `"OpenClaw"`. There may be more than one occurrence — `grep -n "OpenClaw'" src/devrel_swarm/core/echo.py` to confirm.
+In `src/devrel_origin/core/echo.py:500`, find the `"OpenClaw'"` literal and change it to `"OpenClaw"`. There may be more than one occurrence — `grep -n "OpenClaw'" src/devrel_origin/core/echo.py` to confirm.
 
 Also: the `OpenClaw` literal is hardcoded but should ideally use `self.product_name`. If `self.product_name` is available in `_suggest_engagement_action`, change `"OpenClaw"` to `self.product_name`.
 
@@ -615,14 +615,14 @@ In `tests/test_echo.py`, add:
 ```python
 def test_question_signals_named_constant_used():
     """is_question should use the dedicated QUESTION_SIGNALS, not a slice."""
-    from devrel_swarm.core.echo import QUESTION_SIGNALS
+    from devrel_origin.core.echo import QUESTION_SIGNALS
     assert "?" in QUESTION_SIGNALS
     assert "how do" in QUESTION_SIGNALS
 
 
 def test_posted_at_parsed_from_result(monkeypatch):
     """A search result with a published_date should produce that date in the mention."""
-    from devrel_swarm.core.echo import Echo, _parse_result_date
+    from devrel_origin.core.echo import Echo, _parse_result_date
 
     class FakeResult:
         published_date = "2026-04-10T14:00:00Z"
@@ -639,7 +639,7 @@ def test_posted_at_parsed_from_result(monkeypatch):
 def test_no_openclaw_typo_in_engagement_action():
     """The 'OpenClaw' literal should not contain a stray apostrophe."""
     import inspect
-    from devrel_swarm.core import echo
+    from devrel_origin.core import echo
     source = inspect.getsource(echo)
     assert "OpenClaw'" not in source
 ```
@@ -648,7 +648,7 @@ def test_no_openclaw_typo_in_engagement_action():
 
 ```bash
 python -m pytest tests/test_echo.py -v --no-cov 2>&1 | tail -10
-git add src/devrel_swarm/core/echo.py tests/test_echo.py
+git add src/devrel_origin/core/echo.py tests/test_echo.py
 git commit -m "fix(echo): parse real posted_at; QUESTION_SIGNALS constant; typo (Wave 1)"
 ```
 
@@ -657,7 +657,7 @@ git commit -m "fix(echo): parse real posted_at; QUESTION_SIGNALS constant; typo 
 ## Task 6: Iris — add "other" journey stage + log early-return
 
 **Files:**
-- Modify: `src/devrel_swarm/core/iris.py`
+- Modify: `src/devrel_origin/core/iris.py`
 
 **Bugs:**
 1. Unmatched themes default to `"onboarding"` stage — systematically inflates onboarding friction for mature products.
@@ -665,7 +665,7 @@ git commit -m "fix(echo): parse real posted_at; QUESTION_SIGNALS constant; typo 
 
 - [ ] **Step 1: Add an "other" journey stage**
 
-In `src/devrel_swarm/core/iris.py`, find `_map_to_journey` (around line 410-435). The stage_data dict currently has keys like `"awareness"`, `"onboarding"`, `"adoption"`, etc. Add `"other"` to the dict initialization.
+In `src/devrel_origin/core/iris.py`, find `_map_to_journey` (around line 410-435). The stage_data dict currently has keys like `"awareness"`, `"onboarding"`, `"adoption"`, etc. Add `"other"` to the dict initialization.
 
 Find the fallback line that currently appends to `stage_data["onboarding"]` and change it to `stage_data["other"]`. Add a log line:
 
@@ -721,7 +721,7 @@ def test_unmatched_theme_routed_to_other_stage(caplog):
 
 ```bash
 python -m pytest tests/test_iris.py -v --no-cov 2>&1 | tail -10
-git add src/devrel_swarm/core/iris.py tests/test_iris.py
+git add src/devrel_origin/core/iris.py tests/test_iris.py
 git commit -m "fix(iris): add 'other' journey stage + log early-return distinguishing no-input vs no-llm (Wave 1)"
 ```
 
@@ -730,7 +730,7 @@ git commit -m "fix(iris): add 'other' journey stage + log early-return distingui
 ## Task 7: Nova — sha256 stable IDs + `DAILY_SIGNUPS` guard
 
 **Files:**
-- Modify: `src/devrel_swarm/core/nova.py`
+- Modify: `src/devrel_origin/core/nova.py`
 - Modify: `tests/test_nova.py`
 
 **Bugs:**
@@ -739,7 +739,7 @@ git commit -m "fix(iris): add 'other' journey stage + log early-return distingui
 
 - [ ] **Step 1: Replace `hash()` with `hashlib.sha256`**
 
-In `src/devrel_swarm/core/nova.py`, near the top of the imports:
+In `src/devrel_origin/core/nova.py`, near the top of the imports:
 ```python
 import hashlib
 ```
@@ -807,7 +807,7 @@ def test_zero_daily_signups_does_not_raise(monkeypatch):
 
 ```bash
 python -m pytest tests/test_nova.py -v --no-cov 2>&1 | tail -10
-git add src/devrel_swarm/core/nova.py tests/test_nova.py
+git add src/devrel_origin/core/nova.py tests/test_nova.py
 git commit -m "fix(nova): sha256 stable experiment IDs + DAILY_SIGNUPS floor guard (Wave 1)"
 ```
 
@@ -816,7 +816,7 @@ git commit -m "fix(nova): sha256 stable experiment IDs + DAILY_SIGNUPS floor gua
 ## Task 8: Kai — per-call content_type + fix issue filter
 
 **Files:**
-- Modify: `src/devrel_swarm/core/kai.py`
+- Modify: `src/devrel_origin/core/kai.py`
 - Modify: `tests/test_kai.py`
 
 **Bugs:**
@@ -825,7 +825,7 @@ git commit -m "fix(nova): sha256 stable experiment IDs + DAILY_SIGNUPS floor gua
 
 - [ ] **Step 1: Add `content_type` parameter to public methods**
 
-In `src/devrel_swarm/core/kai.py`, find the `execute`, `write_tutorial`, and `write_changelog` method signatures. Add an optional `content_type` parameter to each:
+In `src/devrel_origin/core/kai.py`, find the `execute`, `write_tutorial`, and `write_changelog` method signatures. Add an optional `content_type` parameter to each:
 
 - `execute(self, task, context=None, content_type="tutorial")`
 - `write_tutorial(self, ..., content_type="tutorial")`
@@ -841,7 +841,7 @@ Inside each method, where the existing hardcoded `content_type = "tutorial"` lin
 
 - [ ] **Step 2: Fix the broken issue filter**
 
-In `src/devrel_swarm/core/kai.py:306-309`, find:
+In `src/devrel_origin/core/kai.py:306-309`, find:
 
 ```python
 remaining_issues = [
@@ -869,16 +869,16 @@ In `tests/test_kai.py`, add:
 async def test_changelog_uses_landing_page_content_type():
     """write_changelog should default to landing_page targets, not tutorial."""
     from unittest.mock import AsyncMock, patch
-    from devrel_swarm.core.kai import Kai
+    from devrel_origin.core.kai import Kai
     kai = Kai(...)  # match fixture
-    with patch("devrel_swarm.core.kai.generate_with_pipeline", new=AsyncMock(return_value=("changelog body", [], []))) as m:
+    with patch("devrel_origin.core.kai.generate_with_pipeline", new=AsyncMock(return_value=("changelog body", [], []))) as m:
         await kai.write_changelog(version="1.0.0", highlights=["feat A"])
         assert m.call_args.kwargs["content_type"] == "landing_page"
 
 
 def test_pipeline_issue_filter_preserves_strings():
     """remaining_issues must include string issues from the editorial pipeline."""
-    from devrel_swarm.core.kai import Kai
+    from devrel_origin.core.kai import Kai
     issues = ["Persona score 5 < 7", "Readability flags drift"]
     kai = Kai(...)
     # Either via a private helper or inline filter; mirror what kai.py does.
@@ -890,7 +890,7 @@ def test_pipeline_issue_filter_preserves_strings():
 
 ```bash
 python -m pytest tests/test_kai.py -v --no-cov 2>&1 | tail -10
-git add src/devrel_swarm/core/kai.py tests/test_kai.py
+git add src/devrel_origin/core/kai.py tests/test_kai.py
 git commit -m "fix(kai): per-call content_type + str-aware pipeline issue filter (Wave 1)"
 ```
 
@@ -899,7 +899,7 @@ git commit -m "fix(kai): per-call content_type + str-aware pipeline issue filter
 ## Task 9: Mox — fix email_campaign fallback + complete content_type map
 
 **Files:**
-- Modify: `src/devrel_swarm/core/mox.py`
+- Modify: `src/devrel_origin/core/mox.py`
 - Modify: `tests/test_mox.py`
 
 **Bugs:**
@@ -908,7 +908,7 @@ git commit -m "fix(kai): per-call content_type + str-aware pipeline issue filter
 
 - [ ] **Step 1: Fix the email_campaign fallback prompt**
 
-In `src/devrel_swarm/core/mox.py` (around line 379-415), find the `email_campaign` block. The structure is roughly:
+In `src/devrel_origin/core/mox.py` (around line 379-415), find the `email_campaign` block. The structure is roughly:
 
 ```python
 email_prompt = base_prompt + "\n## Output Format\nReturn ONLY JSON\n..."
@@ -987,7 +987,7 @@ In `tests/test_mox.py`:
 ```python
 def test_pipeline_content_type_map_covers_all_routed_types():
     """Every CONTENT_KEYWORDS routed type must have an explicit pipeline mapping."""
-    from devrel_swarm.core.mox import CONTENT_KEYWORDS, PIPELINE_CONTENT_TYPE_MAP
+    from devrel_origin.core.mox import CONTENT_KEYWORDS, PIPELINE_CONTENT_TYPE_MAP
     for content_type in CONTENT_KEYWORDS:
         assert content_type in PIPELINE_CONTENT_TYPE_MAP, (
             f"Mox content_type '{content_type}' missing from PIPELINE_CONTENT_TYPE_MAP"
@@ -1008,7 +1008,7 @@ async def test_email_campaign_fallback_uses_clean_prose_prompt(monkeypatch):
 
 ```bash
 python -m pytest tests/test_mox.py -v --no-cov 2>&1 | tail -10
-git add src/devrel_swarm/core/mox.py tests/test_mox.py
+git add src/devrel_origin/core/mox.py tests/test_mox.py
 git commit -m "fix(mox): clean prose fallback prompt + complete content_type pipeline map (Wave 1)"
 ```
 
@@ -1017,14 +1017,14 @@ git commit -m "fix(mox): clean prose fallback prompt + complete content_type pip
 ## Task 10: Pax — extract shared `_extract_icp_criteria` helper
 
 **Files:**
-- Modify: `src/devrel_swarm/core/pax.py`
+- Modify: `src/devrel_origin/core/pax.py`
 - Modify: `tests/test_pax.py`
 
 **Bug:** ICP extraction prompt + normalization logic is copy-pasted between `_execute_prospect` (lines 901-937) and `_execute_prospect_personalize` (lines 601-634), with subtly different `except` handling. Active correctness divergence risk.
 
 - [ ] **Step 1: Add the shared helper**
 
-In `src/devrel_swarm/core/pax.py`, before either of the duplicated paths, add:
+In `src/devrel_origin/core/pax.py`, before either of the duplicated paths, add:
 
 ```python
 async def _extract_icp_criteria(self, task: str) -> dict[str, list[str]]:
@@ -1117,7 +1117,7 @@ async def test_extract_icp_criteria_empty_on_parse_failure():
 
 ```bash
 python -m pytest tests/test_pax.py -v --no-cov 2>&1 | tail -10
-git add src/devrel_swarm/core/pax.py tests/test_pax.py
+git add src/devrel_origin/core/pax.py tests/test_pax.py
 git commit -m "fix(pax): extract _extract_icp_criteria helper, dedup two prospect paths (Wave 1)"
 ```
 
@@ -1126,9 +1126,9 @@ git commit -m "fix(pax): extract _extract_icp_criteria helper, dedup two prospec
 ## Task 11: Vox — slugged output filename + FFmpeg subprocess timeouts
 
 **Files:**
-- Modify: `src/devrel_swarm/core/vox.py`
-- Modify: `src/devrel_swarm/core/video/assembler.py`
-- Modify: `src/devrel_swarm/core/video/overlay_renderer.py`
+- Modify: `src/devrel_origin/core/vox.py`
+- Modify: `src/devrel_origin/core/video/assembler.py`
+- Modify: `src/devrel_origin/core/video/overlay_renderer.py`
 - Modify: `tests/test_vox.py`
 
 **Bugs:**
@@ -1137,7 +1137,7 @@ git commit -m "fix(pax): extract _extract_icp_criteria helper, dedup two prospec
 
 - [ ] **Step 1: Slug the output filename**
 
-In `src/devrel_swarm/core/vox.py:133`, find the hardcoded `tutorial.mp4`. Replace with a slug derived from `task` plus a timestamp:
+In `src/devrel_origin/core/vox.py:133`, find the hardcoded `tutorial.mp4`. Replace with a slug derived from `task` plus a timestamp:
 
 ```python
 import re
@@ -1156,7 +1156,7 @@ Place `_slug` as a module-level function near the other helpers in vox.py.
 
 - [ ] **Step 2: Add FFmpeg subprocess timeouts in the assembler**
 
-In `src/devrel_swarm/core/video/assembler.py`, find the `await process.communicate()` calls (around line 49). Wrap each in `asyncio.wait_for`:
+In `src/devrel_origin/core/video/assembler.py`, find the `await process.communicate()` calls (around line 49). Wrap each in `asyncio.wait_for`:
 
 ```python
 FFMPEG_TIMEOUT_S = 300  # 5 minutes — generous for a tutorial-length video
@@ -1177,9 +1177,9 @@ Add `import asyncio` if not already imported.
 
 - [ ] **Step 3: Same change in `overlay_renderer.py`**
 
-Mirror the timeout/kill pattern in `src/devrel_swarm/core/video/overlay_renderer.py:58`.
+Mirror the timeout/kill pattern in `src/devrel_origin/core/video/overlay_renderer.py:58`.
 
-Use the same `FFMPEG_TIMEOUT_S = 300` constant — define it once in a shared module (e.g., add to `src/devrel_swarm/core/video/__init__.py` if it makes sense) or duplicate the constant in both files with a comment noting the shared value.
+Use the same `FFMPEG_TIMEOUT_S = 300` constant — define it once in a shared module (e.g., add to `src/devrel_origin/core/video/__init__.py` if it makes sense) or duplicate the constant in both files with a comment noting the shared value.
 
 - [ ] **Step 4: Add tests**
 
@@ -1188,14 +1188,14 @@ In `tests/test_vox.py`:
 ```python
 def test_output_filename_unique_across_calls():
     """Two Vox runs in the same dir must produce different output filenames."""
-    from devrel_swarm.core.vox import _slug
+    from devrel_origin.core.vox import _slug
     name1 = _slug("First tutorial about widgets")
     name2 = _slug("Second tutorial about gadgets")
     assert name1 != name2
 
 
 def test_output_filename_handles_unsafe_chars():
-    from devrel_swarm.core.vox import _slug
+    from devrel_origin.core.vox import _slug
     out = _slug("../../../etc/passwd")
     assert "/" not in out and ".." not in out
     assert out
@@ -1207,7 +1207,7 @@ def test_output_filename_handles_unsafe_chars():
 
 ```bash
 python -m pytest tests/test_vox.py -v --no-cov 2>&1 | tail -10
-git add src/devrel_swarm/core/vox.py src/devrel_swarm/core/video/ tests/test_vox.py
+git add src/devrel_origin/core/vox.py src/devrel_origin/core/video/ tests/test_vox.py
 git commit -m "fix(vox): slug output filename + FFmpeg subprocess timeouts (Wave 1)"
 ```
 
@@ -1216,14 +1216,14 @@ git commit -m "fix(vox): slug output filename + FFmpeg subprocess timeouts (Wave
 ## Task 12: Dex — visit `ast.AnnAssign` for annotated constants
 
 **Files:**
-- Modify: `src/devrel_swarm/core/dex.py`
+- Modify: `src/devrel_origin/core/dex.py`
 - Modify: `tests/test_dex.py`
 
 **Bug:** Dex captures `ast.Assign` for `ALL_CAPS` constants but never visits `ast.AnnAssign`. Modern annotated constants (`MY_CONST: int = 42`) are silently invisible to the docs output.
 
 - [ ] **Step 1: Add an `AnnAssign` branch**
 
-In `src/devrel_swarm/core/dex.py:229-239`, find the existing `ast.Assign` constant capture. Add a parallel `elif` branch:
+In `src/devrel_origin/core/dex.py:229-239`, find the existing `ast.Assign` constant capture. Add a parallel `elif` branch:
 
 ```python
 elif isinstance(node, ast.AnnAssign):
@@ -1253,7 +1253,7 @@ def test_dex_captures_annotated_constants(tmp_path):
         "OTHER_CONST: str = 'hello'\n"
         "lowercase_var: int = 1\n"  # should NOT be captured
     )
-    from devrel_swarm.core.dex import Dex
+    from devrel_origin.core.dex import Dex
     dex = Dex()
     parsed = dex._parse_python_file(src)
     constant_names = [s.name for s in parsed.constants]
@@ -1266,7 +1266,7 @@ def test_dex_captures_annotated_constants(tmp_path):
 
 ```bash
 python -m pytest tests/test_dex.py -v --no-cov 2>&1 | tail -10
-git add src/devrel_swarm/core/dex.py tests/test_dex.py
+git add src/devrel_origin/core/dex.py tests/test_dex.py
 git commit -m "fix(dex): visit ast.AnnAssign for annotated module-level constants (Wave 1)"
 ```
 
@@ -1275,7 +1275,7 @@ git commit -m "fix(dex): visit ast.AnnAssign for annotated module-level constant
 ## Task 13: Rex — search semaphore + Apollo domain guard
 
 **Files:**
-- Modify: `src/devrel_swarm/core/rex.py`
+- Modify: `src/devrel_origin/core/rex.py`
 - Modify: `tests/test_rex.py`
 
 **Bugs:**
@@ -1284,7 +1284,7 @@ git commit -m "fix(dex): visit ast.AnnAssign for annotated module-level constant
 
 - [ ] **Step 1: Add semaphore-bounded search**
 
-In `src/devrel_swarm/core/rex.py`, near the top:
+In `src/devrel_origin/core/rex.py`, near the top:
 
 ```python
 SEARCH_CONCURRENCY = 3  # bound parallel web search to avoid rate-limit 429s
@@ -1306,7 +1306,7 @@ Apply the same pattern to the parallel Apollo enrichment if it lives in a separa
 
 - [ ] **Step 2: Guard the Apollo domain guess**
 
-In `src/devrel_swarm/core/rex.py:331`, find the Apollo domain construction. Replace:
+In `src/devrel_origin/core/rex.py:331`, find the Apollo domain construction. Replace:
 
 ```python
 domain = comp.lower().replace(" ", "") + ".com"
@@ -1335,7 +1335,7 @@ In `tests/test_rex.py`:
 
 ```python
 def test_guess_domain_preserves_existing_tld():
-    from devrel_swarm.core.rex import _guess_domain
+    from devrel_origin.core.rex import _guess_domain
     assert _guess_domain("Pendo.io") == "pendo.io"
     assert _guess_domain("FullStory") == "fullstory.com"
     assert _guess_domain("Acme Corp") == "acmecorp.com"
@@ -1345,7 +1345,7 @@ def test_guess_domain_preserves_existing_tld():
 @pytest.mark.asyncio
 async def test_search_is_semaphore_bounded(monkeypatch):
     """Concurrent searches must not exceed SEARCH_CONCURRENCY."""
-    from devrel_swarm.core.rex import Rex, SEARCH_CONCURRENCY
+    from devrel_origin.core.rex import Rex, SEARCH_CONCURRENCY
     rex = Rex(...)
     in_flight = 0
     max_seen = 0
@@ -1370,7 +1370,7 @@ async def test_search_is_semaphore_bounded(monkeypatch):
 
 ```bash
 python -m pytest tests/test_rex.py tests/test_rex_apollo.py -v --no-cov 2>&1 | tail -10
-git add src/devrel_swarm/core/rex.py tests/test_rex.py
+git add src/devrel_origin/core/rex.py tests/test_rex.py
 git commit -m "fix(rex): semaphore-bounded parallel search + Apollo domain TLD guard (Wave 1)"
 ```
 
@@ -1392,7 +1392,7 @@ If the diff shows previously-passing tests now failing, **stop and fix** — Pha
 - [ ] **Step 2: Coverage check (informational)**
 
 ```bash
-python -m pytest tests/ --cov=devrel_swarm.core --cov-report=term 2>&1 | tail -25
+python -m pytest tests/ --cov=devrel_origin.core --cov-report=term 2>&1 | tail -25
 ```
 
 No hard threshold; just verify no agent's coverage dropped substantially.

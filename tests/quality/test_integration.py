@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from devrel_swarm.quality import generate_with_pipeline
+from devrel_origin.quality import generate_with_pipeline
 
 
 @pytest.mark.asyncio
@@ -46,7 +46,7 @@ async def test_uses_pipeline_when_devrel_project_present(tmp_path, monkeypatch):
         stages=[MagicMock(detail="stage detail", issues=["pipeline issue"])],
     )
     with patch(
-        "devrel_swarm.quality.editorial.run_pipeline", new=AsyncMock(return_value=fake_result)
+        "devrel_origin.quality.editorial.run_pipeline", new=AsyncMock(return_value=fake_result)
     ):
         text, strengths, issues = await generate_with_pipeline(
             llm_client=client,
@@ -73,10 +73,10 @@ async def test_propagates_abort_loud(tmp_path, monkeypatch):
     client.generate = AsyncMock(return_value="initial draft")
     legacy_trace = MagicMock(critiques=[MagicMock(strengths=[], issues=[])])
     client.generate_with_revision = AsyncMock(return_value=("legacy fallback", legacy_trace))
-    from devrel_swarm.quality.editorial import AbortLoud
+    from devrel_origin.quality.editorial import AbortLoud
 
     with patch(
-        "devrel_swarm.quality.editorial.run_pipeline",
+        "devrel_origin.quality.editorial.run_pipeline",
         new=AsyncMock(side_effect=AbortLoud("slop persisted: delve")),
     ):
         with pytest.raises(AbortLoud, match="slop persisted: delve"):

@@ -2,7 +2,7 @@
 
 **Status:** Approved (2026-05-02)
 **Author:** Daria Dovzhikova
-**Scope:** New agent (13th in the devrel-swarm pantheon)
+**Scope:** New agent (13th in the devrel-origin pantheon)
 
 ## Why this exists
 
@@ -12,7 +12,7 @@ The current 12-agent system has three watchers — none of which measure post-pu
 - **Sentinel** audits content quality *before* publish.
 - **Echo** listens for *external* brand mentions on social.
 
-Nothing measures how content devrel-swarm itself ships actually performs in the wild, nor does anything close the loop with optimization recommendations. Atlas can produce content week after week without any signal on which themes, headlines, or channels are working. Argus fills that gap.
+Nothing measures how content devrel-origin itself ships actually performs in the wild, nor does anything close the loop with optimization recommendations. Atlas can produce content week after week without any signal on which themes, headlines, or channels are working. Argus fills that gap.
 
 ## Role and scope
 
@@ -25,8 +25,8 @@ This is a **B-mode agent** in the brainstorming taxonomy: reporter + recommender
 ### Module layout
 
 ```
-src/devrel_swarm/core/argus.py         # agent class, scorer, LLM interpreter, schemas
-src/devrel_swarm/tools/analytics.py    # data collectors (one class per source)
+src/devrel_origin/core/argus.py         # agent class, scorer, LLM interpreter, schemas
+src/devrel_origin/tools/analytics.py    # data collectors (one class per source)
 prompts/argus_system.md                # system prompt (cached, Phase 8 pattern)
 tests/test_argus.py                    # unit + integration tests
 ```
@@ -294,8 +294,8 @@ None remaining at spec-approval time. Implementation decisions deferred to the p
 
 ## References
 
-- `docs/superpowers/specs/2026-04-29-devrel-swarm-cli-design.md` — parent CLI spec
-- `src/devrel_swarm/core/sentinel.py` — pattern for audit-style agent
-- `src/devrel_swarm/core/nova.py` — pattern for analyst-style agent with structured output
-- `src/devrel_swarm/core/watchdog.py` — pattern for monitoring agent + notifications
-- Memory: `project_devrel_swarm.md` — Phase 8 system-prompt caching pattern, Phase 7 per-agent checkpoint flags, Phase 7 JSON-vs-API error split
+- `docs/superpowers/specs/2026-04-29-devrel-origin-cli-design.md` — parent CLI spec
+- `src/devrel_origin/core/sentinel.py` — pattern for audit-style agent
+- `src/devrel_origin/core/nova.py` — pattern for analyst-style agent with structured output
+- `src/devrel_origin/core/watchdog.py` — pattern for monitoring agent + notifications
+- Memory: `project_devrel_origin.md` — Phase 8 system-prompt caching pattern, Phase 7 per-agent checkpoint flags, Phase 7 JSON-vs-API error split

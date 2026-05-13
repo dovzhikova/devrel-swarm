@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from devrel_swarm.core.agent_config import AgentConfig, load_config
+from devrel_origin.core.agent_config import AgentConfig, load_config
 
 
 class TestLoadConfig:

@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from devrel_swarm.core.rex import (
+from devrel_origin.core.rex import (
     SEARCH_CONCURRENCY,
     CompetitiveReport,
     CompetitorProfile,
@@ -15,7 +15,7 @@ from devrel_swarm.core.rex import (
     Threat,
     _guess_domain,
 )
-from devrel_swarm.tools.search_tools import SearchResult, SearchTools
+from devrel_origin.tools.search_tools import SearchResult, SearchTools
 
 
 @pytest.fixture

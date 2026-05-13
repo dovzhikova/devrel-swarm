@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>devrel-swarm — a 13-agent DevRel team that lives in your repo</title>
+  <title>devrel-origin — a 13-agent DevRel team that lives in your repo</title>
   <meta name="description" content="A pipx-installable CLI that runs content, sales, and analytics for devtools founders. Bring your own Anthropic key.">
   <style>
     :root {
@@ -163,11 +163,11 @@
         no contact-sales tier. The day you stop wanting it, you delete
         a folder.
       </p>
-      <div class="install" data-copy="pipx install devrel-swarm">
-        pipx install devrel-swarm<button type="button" aria-label="Copy install command">copy</button>
+      <div class="install" data-copy="pipx install devrel-origin">
+        pipx install devrel-origin<button type="button" aria-label="Copy install command">copy</button>
       </div>
       <p style="font-size: 0.9rem; color: var(--muted);">
-        or <a href="https://github.com/dovzhikova/devrel-swarm">read the source on GitHub</a>.
+        or <a href="https://github.com/dovzhikova/devrel-origin">read the source on GitHub</a>.
       </p>
     </section>
 
@@ -184,7 +184,7 @@
       <p>
         The standard answer to &ldquo;the AI is off-voice&rdquo; is to keep
         editing the system prompt until you forget what was in there last
-        week. devrel-swarm puts the editorial contract in three small files
+        week. devrel-origin puts the editorial contract in three small files
         — <code>voice.md</code>, <code>style.md</code>,
         <code>slop-blocklist.md</code> — that live in <code>.devrel/</code>
         next to your source. Diff them. Branch them. Review them like a PR.
@@ -263,7 +263,7 @@ Done. Edit voice.md / style.md / slop-blocklist.md, then run devrel doctor.</cod
       <p>
         ChatGPT-style content tools generate a draft, ask the model
         &ldquo;is this good?&rdquo;, accept the answer, and ship.
-        devrel-swarm routes every piece through eight discrete stages
+        devrel-origin routes every piece through eight discrete stages
         with explicit pass/fail criteria, force-rewrite loops on failure,
         and a complete revision trace.
       </p>
@@ -340,7 +340,7 @@ Done. Edit voice.md / style.md / slop-blocklist.md, then run devrel doctor.</cod
 
     <section aria-labelledby="session">
       <h2 id="session">A real session</h2>
-<pre><code>$ pipx install devrel-swarm
+<pre><code>$ pipx install devrel-origin
 $ cd ~/projects/myproduct
 $ devrel init --name myproduct --url https://myproduct.dev --github-repo me/myproduct
 $ export ANTHROPIC_API_KEY=sk-ant-...
@@ -417,7 +417,7 @@ Pushed to Telegram + email.</code></pre>
       <details>
         <summary>What if I already use HubSpot or Buffer?</summary>
         <p>
-          <code>devrel-swarm</code> produces the content. Paste it where you
+          <code>devrel-origin</code> produces the content. Paste it where you
           already work. The point isn't to replace your distribution stack —
           it's to replace the part where you sit down to write the post in the
           first place.
@@ -461,15 +461,15 @@ Pushed to Telegram + email.</code></pre>
 
     <section aria-labelledby="install-cta">
       <h2 id="install-cta">Install</h2>
-      <div class="install" data-copy="pipx install devrel-swarm">
-        pipx install devrel-swarm<button type="button" aria-label="Copy install command">copy</button>
+      <div class="install" data-copy="pipx install devrel-origin">
+        pipx install devrel-origin<button type="button" aria-label="Copy install command">copy</button>
       </div>
     </section>
   </main>
 
   <footer>
     <p>
-      <a href="https://github.com/dovzhikova/devrel-swarm">github.com/dovzhikova/devrel-swarm</a>
+      <a href="https://github.com/dovzhikova/devrel-origin">github.com/dovzhikova/devrel-origin</a>
       · MIT licensed · v0.2.4
     </p>
     <p>

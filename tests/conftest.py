@@ -1,12 +1,12 @@
-"""Shared pytest fixtures for devrel-swarm tests."""
+"""Shared pytest fixtures for devrel-origin tests."""
 
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from devrel_swarm.core.llm import LLMClient
-from devrel_swarm.tools.api_client import PostHogClient
-from devrel_swarm.tools.github_tools import GitHubIssue, GitHubTools
+from devrel_origin.core.llm import LLMClient
+from devrel_origin.tools.api_client import PostHogClient
+from devrel_origin.tools.github_tools import GitHubIssue, GitHubTools
 
 # The 21-test baseline-xfail set was retired in v0.2.7 dogfood follow-on;
 # every entry is now either renamed-and-passing or asserts the new behavior

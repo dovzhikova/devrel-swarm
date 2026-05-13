@@ -6,7 +6,7 @@ import sqlite3
 
 import pytest
 
-from devrel_swarm.project.state import (
+from devrel_origin.project.state import (
     SCHEMA_VERSION,
     get_schema_version,
     init_db,

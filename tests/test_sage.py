@@ -2,7 +2,7 @@
 
 import pytest
 
-from devrel_swarm.core.sage import IssuePriority, Sage, SentimentScore
+from devrel_origin.core.sage import IssuePriority, Sage, SentimentScore
 
 
 @pytest.fixture

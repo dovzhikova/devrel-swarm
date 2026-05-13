@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-from devrel_swarm.quality.readability import (
+from devrel_origin.quality.readability import (
     ReadabilityScores,
     check_against_target,
     compute_readability,
     count_syllables,
 )
-from devrel_swarm.quality.style import ContentTypeTargets
+from devrel_origin.quality.style import ContentTypeTargets
 
 
 def test_count_syllables_basic():

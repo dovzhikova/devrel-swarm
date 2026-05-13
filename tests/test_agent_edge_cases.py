@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from devrel_swarm.core.base import KnowledgeBaseSearch, strip_markdown_fences
+from devrel_origin.core.base import KnowledgeBaseSearch, strip_markdown_fences
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -172,7 +172,7 @@ class TestAtlasDelegationEdgeCases:
     async def test_delegate_unknown_agent(
         self, posthog_client, knowledge_base_path, mock_llm_client
     ):
-        from devrel_swarm.core.atlas import Atlas
+        from devrel_origin.core.atlas import Atlas
 
         atlas = Atlas(
             api_client=posthog_client,
@@ -185,7 +185,7 @@ class TestAtlasDelegationEdgeCases:
 
     @pytest.mark.asyncio
     async def test_delegate_empty_task(self, posthog_client, knowledge_base_path, mock_llm_client):
-        from devrel_swarm.core.atlas import Atlas
+        from devrel_origin.core.atlas import Atlas
 
         atlas = Atlas(
             api_client=posthog_client,
@@ -200,7 +200,7 @@ class TestAtlasDelegationEdgeCases:
     async def test_delegate_retries_on_failure(
         self, posthog_client, knowledge_base_path, mock_llm_client
     ):
-        from devrel_swarm.core.atlas import Atlas
+        from devrel_origin.core.atlas import Atlas
 
         atlas = Atlas(
             api_client=posthog_client,
@@ -227,7 +227,7 @@ class TestSharedContextEdgeCases:
     """Edge cases for SharedContext."""
 
     def test_context_with_none_values(self):
-        from devrel_swarm.core.atlas import SharedContext
+        from devrel_origin.core.atlas import SharedContext
 
         context = SharedContext(week_of="2026-W12")
         d = context.to_dict()
@@ -236,7 +236,7 @@ class TestSharedContextEdgeCases:
             assert d[key] == {}
 
     def test_context_save_creates_directory(self, tmp_path):
-        from devrel_swarm.core.atlas import SharedContext
+        from devrel_origin.core.atlas import SharedContext
 
         context = SharedContext(week_of="2026-W12")
         deep_path = tmp_path / "a" / "b" / "c"
@@ -244,7 +244,7 @@ class TestSharedContextEdgeCases:
         assert (deep_path / "context_2026-W12.json").exists()
 
     def test_context_save_valid_json(self, tmp_path):
-        from devrel_swarm.core.atlas import SharedContext
+        from devrel_origin.core.atlas import SharedContext
 
         context = SharedContext(
             week_of="2026-W12",

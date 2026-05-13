@@ -7,7 +7,7 @@
 
 ## Why this exists
 
-`devrel-swarm` ships at v0.2.4 with no landing page. The README is the de-facto front door, but it's structured for evaluation, not conversion. A new visitor (typically a founder, since that's who the CLI is built for) has to read past the architecture diagram before getting to "what does this do for me." A landing page closes that gap.
+`devrel-origin` ships at v0.2.4 with no landing page. The README is the de-facto front door, but it's structured for evaluation, not conversion. A new visitor (typically a founder, since that's who the CLI is built for) has to read past the architecture diagram before getting to "what does this do for me." A landing page closes that gap.
 
 The page is one artifact. It is not a website — there is no blog, no team page, no docs (docs live in `docs/`), no email capture. It is a single scrollable index.html the founder lands on, scrolls, and either runs `pipx install` or doesn't.
 
@@ -40,7 +40,7 @@ Single-scroll layout, ~700-900 words of body copy total.
 
 - Headline: *"A 13-agent DevRel team that lives in your repo."*
 - Subhead: one sentence — "Run content, sales, and analytics from a single CLI. Bring your own Anthropic key."
-- Primary CTA: install command as a copy-on-click code block: `pipx install devrel-swarm`
+- Primary CTA: install command as a copy-on-click code block: `pipx install devrel-origin`
 - Secondary CTA: GitHub link
 
 ### 2. The problem
@@ -100,7 +100,7 @@ One paragraph: "Most AI marketing tools generate a draft and ship it. This one r
 A full copyable terminal block:
 
 ```bash
-$ pipx install devrel-swarm
+$ pipx install devrel-origin
 $ devrel init --name myproduct --url https://myproduct.dev --github-repo me/myproduct
 $ export ANTHROPIC_API_KEY=sk-ant-...
 $ devrel content draft "tutorial on feature flags" --type tutorial
@@ -124,7 +124,7 @@ Four or five short Q&As. Tentative list:
 
 - *Does it lock me in?* No backend. The CLI runs locally. Your data is in `.devrel/state.db` and `knowledge_base/`. Walk away anytime.
 - *Why is config in git?* Same reason your CI config is in git: editorial standards are decisions, and decisions belong in source.
-- *What if I already use HubSpot / Buffer / Mailchimp?* Most won't replace those. `devrel-swarm` produces the content; you can paste it where you already work.
+- *What if I already use HubSpot / Buffer / Mailchimp?* Most won't replace those. `devrel-origin` produces the content; you can paste it where you already work.
 - *Does it work without all the integrations?* Yes. Each integration (PostHog, GitHub, Instantly, Apollo, Telegram, Sheets) is optional. Missing keys cause graceful degradation, not crashes.
 - *Is it production-ready?* 800 passing tests, multiple shipped versions, a 13-agent system maintained by one person. You should kick the tires and decide.
 
@@ -165,8 +165,8 @@ Four or five short Q&As. Tentative list:
 
 ## References
 
-- Product `voice.md` template — `src/devrel_swarm/project/templates/voice.md`
-- Product `style.md` per-content-type targets — `src/devrel_swarm/project/templates/style.md`
-- Product `slop-blocklist.md` template — `src/devrel_swarm/project/templates/slop-blocklist.md`
+- Product `voice.md` template — `src/devrel_origin/project/templates/voice.md`
+- Product `style.md` per-content-type targets — `src/devrel_origin/project/templates/style.md`
+- Product `slop-blocklist.md` template — `src/devrel_origin/project/templates/slop-blocklist.md`
 - Existing user docs — `docs/quickstart.md`, `docs/agents/argus.md`, `docs/cli/analytics.md`
 - The Argus design spec is the format model — `docs/superpowers/specs/2026-05-02-argus-analytics-agent-design.md`

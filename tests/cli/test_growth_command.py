@@ -2,7 +2,7 @@
 
 from typer.testing import CliRunner
 
-from devrel_swarm.cli import app
+from devrel_origin.cli import app
 
 
 class TestGrowthUmbrella:

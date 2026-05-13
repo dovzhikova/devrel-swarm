@@ -8,7 +8,7 @@ import httpx
 import pytest
 import respx
 
-from devrel_swarm.tools.apollo_client import (
+from devrel_origin.tools.apollo_client import (
     ApolloAPIError,
     ApolloClient,
     ApolloContact,

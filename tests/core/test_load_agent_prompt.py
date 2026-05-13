@@ -1,7 +1,7 @@
 """Tests for `load_agent_prompt` and `_OPTIMIZE_DIR` resolution.
 
 Regression coverage for the bug where `_OPTIMIZE_DIR` resolved to
-`src/devrel_swarm/optimize/` (which never exists), causing every caller
+`src/devrel_origin/optimize/` (which never exists), causing every caller
 to silently fall through to its inline default — the maintainer's
 prompt-customization workflow was broken without anybody noticing.
 """
@@ -10,7 +10,7 @@ from pathlib import Path
 
 import pytest
 
-from devrel_swarm.core import base
+from devrel_origin.core import base
 
 
 @pytest.fixture
@@ -73,7 +73,7 @@ class TestLoadAgentPrompt:
 
 class TestResolveOptimizeDir:
     def test_resolves_to_repo_root_when_optimize_dir_present(self):
-        # In the dev checkout (`~/devrel-swarm`), this test runs against the
+        # In the dev checkout (`~/devrel-origin`), this test runs against the
         # real codebase, so `_OPTIMIZE_DIR` should resolve to a real path
         # that contains the on-disk `optimize/` tree.
         assert base._OPTIMIZE_DIR is not None

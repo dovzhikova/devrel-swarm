@@ -5,8 +5,8 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from devrel_swarm.core.rex import Rex
-from devrel_swarm.tools.apollo_client import ApolloOrganization
+from devrel_origin.core.rex import Rex
+from devrel_origin.tools.apollo_client import ApolloOrganization
 
 
 @pytest.fixture

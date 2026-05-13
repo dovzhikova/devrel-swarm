@@ -229,7 +229,7 @@ def score_email(test_case: dict, email_data: dict | None) -> EmailScore:
 
 async def generate_email(llm_client, system_prompt: str, email_prompt: str, test_case: dict) -> dict | None:
     """Generate an email using the current prompts and a test case."""
-    from devrel_swarm.core.base import strip_markdown_fences
+    from devrel_origin.core.base import strip_markdown_fences
 
     rendered = email_prompt.format(
         first_name=test_case["first_name"],
@@ -257,7 +257,7 @@ async def generate_email(llm_client, system_prompt: str, email_prompt: str, test
 
 async def run_eval(verbose: bool = False, output_json: bool = False) -> float:
     """Run evaluation on all test cases. Returns average score 0-100."""
-    from devrel_swarm.core.llm import LLMClient
+    from devrel_origin.core.llm import LLMClient
 
     api_key = os.environ.get("ANTHROPIC_API_KEY", "")
     if not api_key:

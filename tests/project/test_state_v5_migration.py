@@ -3,7 +3,7 @@
 import sqlite3
 from pathlib import Path
 
-from devrel_swarm.project import state
+from devrel_origin.project import state
 
 
 def _columns(conn: sqlite3.Connection, table: str) -> set[str]:

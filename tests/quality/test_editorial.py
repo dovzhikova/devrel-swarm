@@ -6,8 +6,8 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from devrel_swarm.project.paths import ProjectPaths
-from devrel_swarm.quality.editorial import (
+from devrel_origin.project.paths import ProjectPaths
+from devrel_origin.quality.editorial import (
     AbortLoud,
     EditorialResult,
     run_pipeline,

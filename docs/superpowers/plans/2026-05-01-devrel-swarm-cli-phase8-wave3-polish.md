@@ -1,4 +1,4 @@
-# devrel-swarm CLI — Phase 8: Wave 3 Polish — Implementation Plan
+# devrel-origin CLI — Phase 8: Wave 3 Polish — Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -18,7 +18,7 @@
 ## File coverage
 
 ```
-src/devrel_swarm/core/
+src/devrel_origin/core/
   atlas.py       MODIFY   process_draft hardening + self-improvement except split
   echo.py        MODIFY   search_limit constructor parameter
   iris.py        MODIFY   remove hardcoded "sources" hint from extraction prompt
@@ -41,7 +41,7 @@ Use **superpowers:using-git-worktrees** to create `.worktrees/cli-phase8-wave3` 
 - [ ] **Step 2: Confirm baseline + lock test set**
 
 ```bash
-cd /Users/macmini/devrel-swarm/.worktrees/cli-phase8-wave3
+cd /Users/macmini/devrel-origin/.worktrees/cli-phase8-wave3
 /opt/homebrew/bin/python3.13 -m venv .venv 2>/dev/null || true
 source .venv/bin/activate
 pip install -e '.[dev]' >/tmp/install.preflight.log 2>&1 && echo "exit=$?"
@@ -57,7 +57,7 @@ Expected: `744 passed, 21 failed`, `21` lines.
 ## Task 1: Atlas — `process_draft` hardening + self-improvement except split
 
 **Files:**
-- Modify: `src/devrel_swarm/core/atlas.py`
+- Modify: `src/devrel_origin/core/atlas.py`
 
 **Bugs:**
 1. `process_draft` (around `atlas.py:800-809`) launches the `EDITOR` env var via a shell-interpolated command string. A malicious or unexpected `EDITOR` value can cause unintended commands to execute, and a missing `EDITOR` binary silently no-ops (the user thinks they edited the draft when they didn't).
@@ -65,7 +65,7 @@ Expected: `744 passed, 21 failed`, `21` lines.
 
 - [ ] **Step 1: Replace shell-interpolated editor launch with a direct argv call**
 
-In `src/devrel_swarm/core/atlas.py`, find the `process_draft` function (around line 800-809). The current implementation reads `EDITOR` from the environment and passes a string to `os.system`. Rewrite it to:
+In `src/devrel_origin/core/atlas.py`, find the `process_draft` function (around line 800-809). The current implementation reads `EDITOR` from the environment and passes a string to `os.system`. Rewrite it to:
 
 1. Read `EDITOR` (default `"vi"`).
 2. Resolve via `shutil.which(editor)` to confirm the binary exists; if `None`, log a warning and return without attempting to edit.
@@ -93,11 +93,11 @@ subprocess.run([editor_path, str(tmp_path)], check=False)
 
 - [ ] **Step 2: Split the self-improvement `except`**
 
-In `src/devrel_swarm/core/atlas.py:617-629`, find the self-improvement block. Currently it imports a tool module and runs it inside a single `try`/`except Exception` that catches both the import failure and any runtime error. Split into two layers:
+In `src/devrel_origin/core/atlas.py:617-629`, find the self-improvement block. Currently it imports a tool module and runs it inside a single `try`/`except Exception` that catches both the import failure and any runtime error. Split into two layers:
 
 ```python
 try:
-    from devrel_swarm.tools.self_improve import run_self_improvement
+    from devrel_origin.tools.self_improve import run_self_improvement
 except ImportError as e:
     logger.warning("Self-improvement module not available; skipping: %s", e)
 else:
@@ -122,7 +122,7 @@ Expected: full suite at parity. No new failures.
 - [ ] **Step 4: Commit**
 
 ```bash
-git add src/devrel_swarm/core/atlas.py
+git add src/devrel_origin/core/atlas.py
 git commit -m "fix(atlas): subprocess.run for editor + split self-improvement ImportError vs Exception (Wave 3)"
 ```
 
@@ -131,13 +131,13 @@ git commit -m "fix(atlas): subprocess.run for editor + split self-improvement Im
 ## Task 2: Echo — `search_limit` constructor parameter
 
 **Files:**
-- Modify: `src/devrel_swarm/core/echo.py`
+- Modify: `src/devrel_origin/core/echo.py`
 
 **Bug:** `web_search(..., limit=20)` is hardcoded across every platform call (echo.py:241). For high-mention products, 20 caps the scan; for low-mention products, fewer would be cheaper.
 
 - [ ] **Step 1: Add `search_limit` parameter**
 
-In `src/devrel_swarm/core/echo.py`, find the `Echo.__init__` method. Add a `search_limit: int = 20` parameter and store it on `self`:
+In `src/devrel_origin/core/echo.py`, find the `Echo.__init__` method. Add a `search_limit: int = 20` parameter and store it on `self`:
 
 ```python
 def __init__(
@@ -169,7 +169,7 @@ Existing tests should pass — the default `search_limit=20` preserves the previ
 - [ ] **Step 3: Commit**
 
 ```bash
-git add src/devrel_swarm/core/echo.py
+git add src/devrel_origin/core/echo.py
 git commit -m "feat(echo): expose search_limit as constructor parameter (Wave 3)"
 ```
 
@@ -178,13 +178,13 @@ git commit -m "feat(echo): expose search_limit as constructor parameter (Wave 3)
 ## Task 3: Iris — remove hardcoded `"sources"` hint from extraction prompt
 
 **Files:**
-- Modify: `src/devrel_swarm/core/iris.py`
+- Modify: `src/devrel_origin/core/iris.py`
 
 **Bug:** The theme-extraction prompt at iris.py:298-314 instructs the LLM to return `["github"]` for the sources field ("always for now"). Multi-source signals (Discourse, support tickets passed via `synthesize_weekly`) get mislabeled as GitHub-only.
 
 - [ ] **Step 1: Update the prompt**
 
-In `src/devrel_swarm/core/iris.py`, find `_extract_themes_from_chunk` (or wherever the chunk-extraction prompt lives, around line 298-314). Locate the line in the prompt that hardcodes a single source value with the "always for now" annotation. Replace it with an instruction asking the LLM to infer the sources from the signals it actually saw:
+In `src/devrel_origin/core/iris.py`, find `_extract_themes_from_chunk` (or wherever the chunk-extraction prompt lives, around line 298-314). Locate the line in the prompt that hardcodes a single source value with the "always for now" annotation. Replace it with an instruction asking the LLM to infer the sources from the signals it actually saw:
 
 The principle: don't hardcode a value the LLM should infer. Update the prompt to say something like "list the sources observed in the signals you classified — typically a subset of github, discourse, twitter, etc." (preserve the existing prompt's overall tone and structure; only change the offending line).
 
@@ -199,7 +199,7 @@ If a test asserts that themes always have `sources == ["github"]`, that test was
 - [ ] **Step 3: Commit**
 
 ```bash
-git add src/devrel_swarm/core/iris.py tests/test_iris.py
+git add src/devrel_origin/core/iris.py tests/test_iris.py
 git commit -m "fix(iris): let LLM infer theme sources instead of hardcoding github (Wave 3)"
 ```
 
@@ -208,13 +208,13 @@ git commit -m "fix(iris): let LLM infer theme sources instead of hardcoding gith
 ## Task 4: Sage — shared keyword constants module
 
 **Files:**
-- Modify: `src/devrel_swarm/core/sage.py`
+- Modify: `src/devrel_origin/core/sage.py`
 
 **Bug:** The keyword `"broken"` (and several others like `"frustrated"`, `"crash"`) is duplicated across `_analyze_sentiment` (line 244-258), `_categorize_issue` (line 258), and `_score_priority` (line 318). Future edits will silently diverge.
 
 - [ ] **Step 1: Add module-level constants block**
 
-In `src/devrel_swarm/core/sage.py`, near the top of the file (after imports, before class definitions), add a constants block:
+In `src/devrel_origin/core/sage.py`, near the top of the file (after imports, before class definitions), add a constants block:
 
 ```python
 # Shared keyword vocabularies for triage classification. Single source of
@@ -293,7 +293,7 @@ Existing classification tests should pass — the behavior is unchanged, only th
 - [ ] **Step 4: Commit**
 
 ```bash
-git add src/devrel_swarm/core/sage.py
+git add src/devrel_origin/core/sage.py
 git commit -m "refactor(sage): extract shared keyword constants to module level (Wave 3)"
 ```
 
@@ -302,7 +302,7 @@ git commit -m "refactor(sage): extract shared keyword constants to module level 
 ## Task 5: Nova — scipy import to module-level + MDE-severity comment
 
 **Files:**
-- Modify: `src/devrel_swarm/core/nova.py`
+- Modify: `src/devrel_origin/core/nova.py`
 
 **Bugs:**
 1. `from scipy import stats` is deferred inside `calculate_sample_size` (nova.py:221). Missing-dependency error surfaces only at call time.
@@ -310,7 +310,7 @@ git commit -m "refactor(sage): extract shared keyword constants to module level 
 
 - [ ] **Step 1: Move scipy import to module-level**
 
-In `src/devrel_swarm/core/nova.py`, find the `from scipy import stats` line inside `calculate_sample_size` (around line 221). Delete it. At the top of the file with the other imports:
+In `src/devrel_origin/core/nova.py`, find the `from scipy import stats` line inside `calculate_sample_size` (around line 221). Delete it. At the top of the file with the other imports:
 
 ```python
 from scipy import stats
@@ -340,7 +340,7 @@ The `pyproject.toml` already lists `scipy>=1.13.0` as a runtime dep, so the cond
 
 - [ ] **Step 2: Document the MDE-severity logic**
 
-In `src/devrel_swarm/core/nova.py:150` (or wherever the MDE assignment lives), find:
+In `src/devrel_origin/core/nova.py:150` (or wherever the MDE assignment lives), find:
 
 ```python
 mde = 0.03 if severity >= 7 else 0.05
@@ -370,7 +370,7 @@ Expected: existing tests pass — no behavior change.
 - [ ] **Step 4: Commit**
 
 ```bash
-git add src/devrel_swarm/core/nova.py
+git add src/devrel_origin/core/nova.py
 git commit -m "refactor(nova): scipy at module-level + document MDE-severity rationale (Wave 3)"
 ```
 
@@ -379,8 +379,8 @@ git commit -m "refactor(nova): scipy at module-level + document MDE-severity rat
 ## Task 6: Vox — surface stderr + non-blocking TTS
 
 **Files:**
-- Modify: `src/devrel_swarm/core/video/desktop_recorder.py`
-- Modify: `src/devrel_swarm/core/video/tts_engine.py`
+- Modify: `src/devrel_origin/core/video/desktop_recorder.py`
+- Modify: `src/devrel_origin/core/video/tts_engine.py`
 
 **Bugs:**
 1. Desktop recorder pipes stderr to `DEVNULL` (desktop_recorder.py:152-156) — silent failures appear as cryptic downstream errors.
@@ -388,7 +388,7 @@ git commit -m "refactor(nova): scipy at module-level + document MDE-severity rat
 
 - [ ] **Step 1: Pipe desktop_recorder stderr**
 
-In `src/devrel_swarm/core/video/desktop_recorder.py:152-156`, find the FFmpeg subprocess construction. Currently:
+In `src/devrel_origin/core/video/desktop_recorder.py:152-156`, find the FFmpeg subprocess construction. Currently:
 
 ```python
 process = await asyncio.create_subprocess_exec(
@@ -421,7 +421,7 @@ If the existing code already calls `await process.wait()` or similar without cap
 
 - [ ] **Step 2: Run `stream_to_file` in an executor**
 
-In `src/devrel_swarm/core/video/tts_engine.py:46`, find the `response.stream_to_file(...)` call. It's a synchronous OpenAI SDK method called inside an async function. Wrap it:
+In `src/devrel_origin/core/video/tts_engine.py:46`, find the `response.stream_to_file(...)` call. It's a synchronous OpenAI SDK method called inside an async function. Wrap it:
 
 ```python
 import asyncio
@@ -451,7 +451,7 @@ Tests for video sub-modules likely don't exercise these specific code paths (the
 - [ ] **Step 4: Commit**
 
 ```bash
-git add src/devrel_swarm/core/video/desktop_recorder.py src/devrel_swarm/core/video/tts_engine.py
+git add src/devrel_origin/core/video/desktop_recorder.py src/devrel_origin/core/video/tts_engine.py
 git commit -m "fix(vox): surface FFmpeg stderr + non-blocking TTS via run_in_executor (Wave 3)"
 ```
 
@@ -460,16 +460,16 @@ git commit -m "fix(vox): surface FFmpeg stderr + non-blocking TTS via run_in_exe
 ## Task 7: Cache `SYSTEM_PROMPT` at construction across content agents
 
 **Files:**
-- Modify: `src/devrel_swarm/core/kai.py`
-- Modify: `src/devrel_swarm/core/mox.py`
-- Modify: `src/devrel_swarm/core/pax.py`
-- Modify: `src/devrel_swarm/core/rex.py`
+- Modify: `src/devrel_origin/core/kai.py`
+- Modify: `src/devrel_origin/core/mox.py`
+- Modify: `src/devrel_origin/core/pax.py`
+- Modify: `src/devrel_origin/core/rex.py`
 
 **Bug:** Each of these four agents has a `SYSTEM_PROMPT` property that reads the prompt from disk via `load_agent_prompt()` on every `execute()` call. In a weekly cycle this is harmless; in a tight loop (e.g., bulk personalization in Pax) it's a stat+read per call with no semantic value beyond the first.
 
 - [ ] **Step 1: Cache in Kai**
 
-In `src/devrel_swarm/core/kai.py`, find the `SYSTEM_PROMPT` property (around line 75-77) and the `__init__` method.
+In `src/devrel_origin/core/kai.py`, find the `SYSTEM_PROMPT` property (around line 75-77) and the `__init__` method.
 
 In `__init__`, after the existing setup, add:
 
@@ -498,9 +498,9 @@ self._system_prompt = load_agent_prompt(
 - [ ] **Step 2: Same change in Mox, Pax, Rex**
 
 Apply the same pattern to:
-- `src/devrel_swarm/core/mox.py`
-- `src/devrel_swarm/core/pax.py`
-- `src/devrel_swarm/core/rex.py`
+- `src/devrel_origin/core/mox.py`
+- `src/devrel_origin/core/pax.py`
+- `src/devrel_origin/core/rex.py`
 
 Each may have a slightly different prompt-loading method name (e.g., Pax uses its own `_load_prompt` after the Phase 7 migration). Adapt to match.
 
@@ -519,8 +519,8 @@ If any test asserts that `SYSTEM_PROMPT` reflects a specific value after the `op
 - [ ] **Step 4: Commit**
 
 ```bash
-git add src/devrel_swarm/core/kai.py src/devrel_swarm/core/mox.py \
-        src/devrel_swarm/core/pax.py src/devrel_swarm/core/rex.py
+git add src/devrel_origin/core/kai.py src/devrel_origin/core/mox.py \
+        src/devrel_origin/core/pax.py src/devrel_origin/core/rex.py
 git commit -m "perf(content): cache SYSTEM_PROMPT at construction across Kai/Mox/Pax/Rex (Wave 3)"
 ```
 

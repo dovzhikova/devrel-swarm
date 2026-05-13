@@ -1,6 +1,6 @@
-# `devrel-swarm` documentation
+# `devrel-origin` documentation
 
-User-facing docs for `devrel-swarm`. Internal architecture specs and implementation plans live in [`superpowers/`](superpowers/).
+User-facing docs for `devrel-origin`. Internal architecture specs and implementation plans live in [`superpowers/`](superpowers/).
 
 ## Start here
 

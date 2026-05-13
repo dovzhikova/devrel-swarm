@@ -1,7 +1,7 @@
-# devrel-swarm CLI — Design Spec
+# devrel-origin CLI — Design Spec
 
 **Status:** Approved (2026-04-29)
-**Supersedes:** `docs/superpowers/specs/2026-04-17-devrel-swarm-product-design.md` (SaaS direction) and `docs/superpowers/plans/2026-04-18-devrel-swarm-v0-agentic-alpha.md` (per-instance Fly plan)
+**Supersedes:** `docs/superpowers/specs/2026-04-17-devrel-origin-product-design.md` (SaaS direction) and `docs/superpowers/plans/2026-04-18-devrel-origin-v0-agentic-alpha.md` (per-instance Fly plan)
 
 ## Why this exists
 
@@ -127,8 +127,8 @@ Stages 2–4 each have their own system prompt and rubric and run as discrete `g
 ## Code structure
 
 ```
-devrel-swarm/
-  src/devrel_swarm/
+devrel-origin/
+  src/devrel_origin/
     __init__.py
     cli/                  Typer subcommands, one file per top-level verb
       __init__.py         Typer app + version
@@ -172,7 +172,7 @@ devrel-swarm/
       config.py           TOML loader, env-var override, secret resolution
       paths.py            cwd-walk to find nearest .devrel/, like git
       state.py            wraps existing storage.InstanceStorage as project-state DB
-  pyproject.toml          [project.scripts] devrel = "devrel_swarm.cli:app"
+  pyproject.toml          [project.scripts] devrel = "devrel_origin.cli:app"
   README.md
   CHANGELOG.md
   tests/
@@ -195,7 +195,7 @@ Atlas keeps its existing public surface (`run_weekly_cycle`, `delegate`, etc.); 
 | Default model | Claude Sonnet 4.6 | Haiku 4.5 for stages 5–7; Opus opt-in via `--model opus` |
 | HTTP client | httpx (async) | Existing |
 | Storage | SQLite via existing `InstanceStorage` | Rebadged as project state DB, lives at `.devrel/state.db` |
-| Distribution | `pipx install devrel-swarm` | Python 3.12+ |
+| Distribution | `pipx install devrel-origin` | Python 3.12+ |
 | Testing | pytest + pytest-asyncio + respx + Typer's CliRunner | |
 
 ## Migration from current state
@@ -204,8 +204,8 @@ Atlas keeps its existing public surface (`run_weekly_cycle`, `delegate`, etc.); 
 2. Mark the superseded plan with a deprecation header pointing to this spec.
 3. Salvage from Phase A: `BudgetGate`, `InstanceStorage` (rebadged as `project/state.py` consumer), and the A.4 hardening test patterns. The A.4 hardening commit on the worktree branch can be cherry-picked or dropped — its security contributions (path traversal, fail-closed) are not needed in a CLI that runs locally with no inbound network surface.
 4. Delete: `tools/http_bridge.py`, `tools/storage.py`'s job/cost endpoints if the FastAPI dep is dropped, `central-app/` references in docs.
-5. Move `agents/` → `src/devrel_swarm/core/`, `tools/` → `src/devrel_swarm/tools/`. Imports updated globally.
-6. New `pyproject.toml` package metadata with `[project.scripts] devrel = "devrel_swarm.cli:app"`.
+5. Move `agents/` → `src/devrel_origin/core/`, `tools/` → `src/devrel_origin/tools/`. Imports updated globally.
+6. New `pyproject.toml` package metadata with `[project.scripts] devrel = "devrel_origin.cli:app"`.
 7. Update `README.md`, `CLAUDE.md` to match CLI direction. Drop SaaS / Fly / Next.js sections.
 
 ## Out of scope
@@ -218,19 +218,19 @@ Atlas keeps its existing public surface (`run_weekly_cycle`, `delegate`, etc.); 
 
 ## Success criteria
 
-- `pipx install devrel-swarm` works on Python 3.12+ (tested on macOS + Ubuntu)
+- `pipx install devrel-origin` works on Python 3.12+ (tested on macOS + Ubuntu)
 - `devrel init` in a fresh repo scaffolds a complete `.devrel/` in <5s
 - `devrel content draft "<prompt>"` produces output the slop filter cannot reject and Sentinel scores ≥7/10 on the first run, against an empty KB
 - `devrel run` against the existing OpenClaw setup produces all current deliverable types (architecture-overview, community-triage, feedback-synthesis, growth-experiment, tutorial, plus campaign/outreach/battlecard/social where applicable) — at parity with `python -m agents.atlas --weekly-cycle`
 - `quality/` package has ≥80% line test coverage
 - `devrel content draft` walltime ≤90s with prompt caching
-- All 12 existing agents still pass their existing tests after the move to `src/devrel_swarm/core/`
+- All 12 existing agents still pass their existing tests after the move to `src/devrel_origin/core/`
 
 ## Implementation phasing
 
 This spec is large enough that a single execution plan would be unwieldy. The implementation plan that follows should phase the work, roughly:
 
-1. **Repo restructure** — package move (`agents/` → `src/devrel_swarm/core/`, `tools/` → `src/devrel_swarm/tools/`), `pyproject.toml` rewrite, all existing tests still pass after the move.
+1. **Repo restructure** — package move (`agents/` → `src/devrel_origin/core/`, `tools/` → `src/devrel_origin/tools/`), `pyproject.toml` rewrite, all existing tests still pass after the move.
 2. **Project bootstrap** — `project/init.py`, `project/config.py`, `project/paths.py`, `project/state.py`; `devrel init` and `devrel doctor` commands; `.devrel/` scaffold tested against a fixture repo.
 3. **Quality pipeline** — `quality/` package end-to-end (voice, style, slop, editorial, persona, readability); replace single critique call in Kai/Mox/Pax/Vox; revision-trace JSON output.
 4. **CLI surface** — Typer subcommand modules for every verb in §3 above; Rich/JSON output; global flags.

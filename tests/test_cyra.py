@@ -7,17 +7,17 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from devrel_swarm.core.cyra import (
+from devrel_origin.core.cyra import (
     CroReport,  # noqa: F401 -- used by later test classes in Tasks 3-9
     Cyra,
     DropOff,
     FunnelStep,
     Hypothesis,
 )
-from devrel_swarm.core.growth import Pillar, Recommendation, TargetKind
-from devrel_swarm.core.llm import LLMClient
-from devrel_swarm.project import state
-from devrel_swarm.tools.api_client import PostHogClient
+from devrel_origin.core.growth import Pillar, Recommendation, TargetKind
+from devrel_origin.core.llm import LLMClient
+from devrel_origin.project import state
+from devrel_origin.tools.api_client import PostHogClient
 
 
 class TestDataclasses:
