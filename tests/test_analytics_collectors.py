@@ -101,6 +101,7 @@ async def test_posthog_collector_handles_empty():
     collector = PostHogCollector(fake_client)
     metrics = await collector.collect((_utc_now() - timedelta(days=7), _utc_now()))
     assert metrics == []
+    assert collector.last_ok is True
 
 
 @pytest.mark.asyncio
@@ -110,6 +111,7 @@ async def test_posthog_collector_returns_empty_on_error():
     collector = PostHogCollector(fake_client)
     metrics = await collector.collect((_utc_now() - timedelta(days=7), _utc_now()))
     assert metrics == []
+    assert collector.last_ok is False
 
 
 # ───────────────────────── GitHubCollector ─────────────────────────
@@ -150,6 +152,17 @@ async def test_github_collector_returns_empty_on_error():
     collector = GitHubCollector(fake)
     metrics = await collector.collect((_utc_now() - timedelta(days=7), _utc_now()))
     assert metrics == []
+
+
+@pytest.mark.asyncio
+async def test_github_collector_returns_empty_on_malformed_payload():
+    fake = MagicMock()
+    fake.get_repo_stats = AsyncMock(return_value=object())
+    fake.repo_full_name = "openclaw/openclaw"
+    collector = GitHubCollector(fake)
+    metrics = await collector.collect((_utc_now() - timedelta(days=7), _utc_now()))
+    assert metrics == []
+    assert collector.last_ok is False
 
 
 # ───────────────────────── InstantlyCollector ─────────────────────────
@@ -201,6 +214,21 @@ async def test_instantly_collector_returns_empty_on_error():
     collector = InstantlyCollector(fake)
     metrics = await collector.collect((_utc_now() - timedelta(days=7), _utc_now()))
     assert metrics == []
+    assert collector.last_ok is False
+
+
+@pytest.mark.asyncio
+async def test_instantly_collector_skips_when_unconfigured(caplog):
+    import logging as _logging
+
+    collector = InstantlyCollector(None)
+    with caplog.at_level(_logging.INFO, logger="devrel_swarm.tools.analytics"):
+        metrics = await collector.collect((_utc_now() - timedelta(days=7), _utc_now()))
+
+    assert metrics == []
+    assert collector.last_ok is False
+    assert any("client not configured" in rec.message for rec in caplog.records)
+    assert not any(rec.levelno >= _logging.WARNING for rec in caplog.records)
 
 
 @pytest.mark.asyncio

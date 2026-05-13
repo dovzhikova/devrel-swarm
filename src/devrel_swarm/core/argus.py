@@ -76,6 +76,10 @@ class Recommendation:
     source_ids: list[str] = field(default_factory=list)
     first_seen_period: str | None = None  # set by _persist_sync; ISO timestamp
 
+    def __post_init__(self) -> None:
+        self.evidence = _coerce_str_list(self.evidence)
+        self.source_ids = _coerce_str_list(self.source_ids)
+
 
 @dataclass
 class PerformanceReport:
@@ -114,15 +118,40 @@ def _metric_to_jsonable(m: PerformanceMetric) -> dict:
     }
 
 
+def _coerce_str_list(value: Any) -> list[str]:
+    if value is None:
+        return []
+    if isinstance(value, str):
+        return [value]
+    if isinstance(value, (list, tuple, set)):
+        items = value
+    else:
+        items = [value]
+
+    out: list[str] = []
+    for item in items:
+        if item is None:
+            continue
+        if isinstance(item, str):
+            text = item
+        elif isinstance(item, (dict, list, tuple, set)):
+            text = json.dumps(item, sort_keys=True)
+        else:
+            text = str(item)
+        if text:
+            out.append(text)
+    return out
+
+
 def _rec_to_jsonable(r: Recommendation) -> dict:
     return {
         "action": r.action,
         "target": r.target,
         "target_type": r.target_type,
         "rationale": r.rationale,
-        "evidence": list(r.evidence),
+        "evidence": _coerce_str_list(r.evidence),
         "confidence": r.confidence,
-        "source_ids": list(r.source_ids),
+        "source_ids": _coerce_str_list(r.source_ids),
         "first_seen_period": r.first_seen_period,
     }
 
@@ -133,7 +162,7 @@ def _report_to_jsonable(r: PerformanceReport) -> dict:
         "period_end": r.period_end.isoformat(),
         "top_performers": [_metric_to_jsonable(m) for m in r.top_performers],
         "bottom_performers": [_metric_to_jsonable(m) for m in r.bottom_performers],
-        "trend_signals": list(r.trend_signals),
+        "trend_signals": _coerce_str_list(r.trend_signals),
         "recommendations": [_rec_to_jsonable(rec) for rec in r.recommendations],
         "sources_ok": dict(r.sources_ok),
         "insufficient_data": r.insufficient_data,
@@ -374,14 +403,16 @@ def _render_brief(rec: Recommendation, period: str) -> str:
     lines.append("## Why")
     lines.append(rec.rationale)
     lines.append("")
-    if rec.evidence:
+    evidence = _coerce_str_list(rec.evidence)
+    if evidence:
         lines.append("## Evidence")
-        for ev in rec.evidence:
+        for ev in evidence:
             lines.append(f"- {ev}")
         lines.append("")
-    if rec.source_ids:
+    source_ids = _coerce_str_list(rec.source_ids)
+    if source_ids:
         lines.append("## Source content")
-        for sid in rec.source_ids:
+        for sid in source_ids:
             lines.append(f"- `{sid}`")
         lines.append("")
     lines.append("## Next step")
@@ -441,9 +472,10 @@ def _render_markdown(report: PerformanceReport) -> str:
     lines.append("")
 
     lines.append("## Trend signals")
-    if not report.trend_signals:
+    trend_signals = _coerce_str_list(report.trend_signals)
+    if not trend_signals:
         lines.append("_None._")
-    for sig in report.trend_signals:
+    for sig in trend_signals:
         lines.append(f"- {sig}")
     lines.append("")
 
@@ -472,9 +504,10 @@ def _render_markdown(report: PerformanceReport) -> str:
                 lines.append(
                     f"- **{r.target}** (conf {r.confidence:.2f}){stale_tag} — {r.rationale}"
                 )
-                if r.source_ids:
-                    lines.append(f"  - sources: {', '.join(r.source_ids)}")
-                for ev in r.evidence:
+                source_ids = _coerce_str_list(r.source_ids)
+                if source_ids:
+                    lines.append(f"  - sources: {', '.join(source_ids)}")
+                for ev in _coerce_str_list(r.evidence):
                     lines.append(f"  - evidence: {ev}")
             lines.append("")
     return "\n".join(lines).rstrip() + "\n"
@@ -671,12 +704,12 @@ class Argus:
 
         all_metrics: list[PerformanceMetric] = []
         sources_ok: dict[str, bool] = {}
-        for name, result in zip(names, results, strict=True):
+        for name, collector, result in zip(names, self._collectors.values(), results, strict=True):
             if isinstance(result, Exception):
                 sources_ok[name] = False
                 logger.warning("Argus collector %s raised: %s", name, result)
             else:
-                sources_ok[name] = True
+                sources_ok[name] = bool(getattr(collector, "last_ok", True))
                 all_metrics.extend(result)
         logger.info(
             "argus.gather_complete",
@@ -831,8 +864,8 @@ class Argus:
                             r.target_type,
                             r.rationale,
                             r.confidence,
-                            json.dumps(list(r.source_ids)),
-                            json.dumps(list(r.evidence)),
+                            json.dumps(_coerce_str_list(r.source_ids)),
+                            json.dumps(_coerce_str_list(r.evidence)),
                             first_seen,
                             Pillar.ARGUS.value,
                             TargetKind.CONTENT_ID.value,
@@ -954,11 +987,11 @@ Do not include any commentary outside the JSON."""
                 target=r["target"],
                 target_type=r["target_type"],
                 rationale=r["rationale"],
-                evidence=list(r.get("evidence", [])),
+                evidence=_coerce_str_list(r.get("evidence", [])),
                 confidence=float(r["confidence"]),
-                source_ids=list(r.get("source_ids", [])),
+                source_ids=_coerce_str_list(r.get("source_ids", [])),
             )
             for r in data.get("recommendations", [])
         ]
-        trend_signals = list(data.get("trend_signals", []))
+        trend_signals = _coerce_str_list(data.get("trend_signals", []))
         return recs, trend_signals

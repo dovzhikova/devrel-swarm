@@ -1,6 +1,7 @@
 """Tests for PostHog API client module."""
 
 import json
+from datetime import datetime, timezone
 
 import httpx
 import pytest
@@ -116,6 +117,49 @@ async def test_event_volumes_returns_top_events(posthog_client):
     assert query["after"] == "-7d"
     assert query["orderBy"] == ["-count()"]
     assert query["limit"] == 10
+
+
+@respx.mock
+async def test_fetch_events_by_url_returns_normalized_metrics(posthog_client):
+    route = respx.post("https://app.posthog.com/api/projects/1/query/").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "results": [
+                    ["https://example.com/blog/a", "A", 42, 30],
+                    ["https://example.com/pricing", "Pricing", 12, 8],
+                ],
+            },
+        )
+    )
+
+    rows = await posthog_client.fetch_events_by_url(
+        start=datetime(2026, 5, 1, tzinfo=timezone.utc),
+        end=datetime(2026, 5, 8, 12, 30, tzinfo=timezone.utc),
+        limit=10,
+    )
+
+    assert rows == [
+        {
+            "url": "https://example.com/blog/a",
+            "title": "A",
+            "page_views": 42,
+            "unique_visitors": 30,
+        },
+        {
+            "url": "https://example.com/pricing",
+            "title": "Pricing",
+            "page_views": 12,
+            "unique_visitors": 8,
+        },
+    ]
+
+    sent_body = json.loads(route.calls[0].request.content)
+    query = sent_body["query"]
+    assert query["kind"] == "HogQLQuery"
+    assert "GROUP BY url" in query["query"]
+    assert "LIMIT 10" in query["query"]
+    assert "2026-05-01T00:00:00Z" in query["query"]
 
 
 @respx.mock

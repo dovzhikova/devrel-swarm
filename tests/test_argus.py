@@ -79,6 +79,33 @@ def test_recommendation_carries_source_ids():
     assert r.source_ids == ["blog/cli-launch"]
 
 
+def test_recommendation_normalizes_string_evidence_and_source_ids():
+    r = Recommendation(
+        action="rewrite",
+        target="blog/cli-launch",
+        target_type="content",
+        rationale="Weak hook.",
+        evidence="blog/cli-launch: p20",  # type: ignore[arg-type]
+        confidence=0.7,
+        source_ids="blog/cli-launch",  # type: ignore[arg-type]
+    )
+
+    report = PerformanceReport(
+        period_start=_utc(2026, 4, 25),
+        period_end=_utc(2026, 5, 2),
+        top_performers=[],
+        bottom_performers=[],
+        trend_signals="One strong signal",  # type: ignore[arg-type]
+        recommendations=[r],
+        sources_ok={"posthog": True},
+    )
+
+    payload = report.to_json()
+    assert payload["recommendations"][0]["evidence"] == ["blog/cli-launch: p20"]
+    assert payload["recommendations"][0]["source_ids"] == ["blog/cli-launch"]
+    assert payload["trend_signals"] == ["One strong signal"]
+
+
 @pytest.mark.asyncio
 async def test_argus_propagates_source_ids_from_llm_to_report():
     posthog = MagicMock()
@@ -112,6 +139,30 @@ async def test_argus_propagates_source_ids_from_llm_to_report():
     assert report.recommendations[0].source_ids == ["blog/x"]
     # JSON serialization includes source_ids
     assert report.to_json()["recommendations"][0]["source_ids"] == ["blog/x"]
+
+
+@pytest.mark.asyncio
+async def test_argus_normalizes_string_fields_from_llm():
+    posthog = MagicMock()
+    posthog.collect = AsyncMock(return_value=[_metric("blog/x", "blog", 100.0)])
+    empty_c = MagicMock()
+    empty_c.collect = AsyncMock(return_value=[])
+    llm = MagicMock()
+    llm.generate = AsyncMock(
+        return_value=(
+            '{"recommendations": [{"action": "rewrite", "target": "blog/x", '
+            '"target_type": "content", "rationale": "weak hero", '
+            '"evidence": "blog/x: p20", "confidence": 0.8, '
+            '"source_ids": "blog/x"}], "trend_signals": "Blog traffic fell"}'
+        )
+    )
+
+    argus = Argus(posthog, empty_c, empty_c, empty_c, llm_client=llm, state_db_path=None)
+    report = await argus.run(_utc(2026, 4, 25), _utc(2026, 5, 2))
+
+    assert report.recommendations[0].evidence == ["blog/x: p20"]
+    assert report.recommendations[0].source_ids == ["blog/x"]
+    assert report.trend_signals == ["Blog traffic fell"]
 
 
 def test_performance_report_round_trip():
@@ -251,6 +302,27 @@ async def test_argus_run_aggregates_collectors_and_marks_sources_ok():
     assert report.sources_ok["social"] is True
     assert len(report.recommendations) == 1
     assert report.recommendations[0].action == "investigate"
+
+
+@pytest.mark.asyncio
+async def test_argus_marks_swallowed_collector_failure_unhealthy():
+    posthog = MagicMock()
+    posthog.collect = AsyncMock(return_value=[_metric("blog/x", "blog", 100.0)])
+
+    degraded = MagicMock()
+    degraded.last_ok = False
+    degraded.collect = AsyncMock(return_value=[])
+
+    empty = MagicMock()
+    empty.collect = AsyncMock(return_value=[])
+    llm = MagicMock()
+    llm.generate = AsyncMock(return_value='{"recommendations": [], "trend_signals": []}')
+
+    argus = Argus(posthog, degraded, empty, empty, llm_client=llm, state_db_path=None)
+    report = await argus.run(_utc(2026, 4, 25), _utc(2026, 5, 2))
+
+    assert report.sources_ok["posthog"] is True
+    assert report.sources_ok["github"] is False
 
 
 @pytest.mark.asyncio

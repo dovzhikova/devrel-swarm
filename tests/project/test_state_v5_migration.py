@@ -1,4 +1,4 @@
-"""Schema v5 migration tests for Growth pillar fact tables + ALTER on analytics_recommendations."""
+"""State schema migration tests for growth tables and social mentions."""
 
 import sqlite3
 from pathlib import Path
@@ -17,8 +17,8 @@ def _tables(conn: sqlite3.Connection) -> set[str]:
 
 
 class TestSchemaV5:
-    def test_schema_version_is_5(self):
-        assert state.SCHEMA_VERSION == 5
+    def test_schema_version_is_6(self):
+        assert state.SCHEMA_VERSION == 6
 
     def test_init_creates_seo_keyword_metrics(self, tmp_path: Path):
         db = tmp_path / "state.db"
@@ -91,6 +91,24 @@ class TestSchemaV5:
                 "segment_breakdown_json",
             } <= cols
 
+    def test_init_creates_social_mentions(self, tmp_path: Path):
+        db = tmp_path / "state.db"
+        state.init_db(db)
+        with sqlite3.connect(db) as conn:
+            assert "social_mentions" in _tables(conn)
+            cols = _columns(conn, "social_mentions")
+            assert {
+                "platform",
+                "post_id",
+                "title",
+                "url",
+                "posted_at",
+                "upvotes",
+                "comments",
+                "engagement_score",
+                "is_own_post",
+            } <= cols
+
 
 class TestPillarColumns:
     def test_init_adds_pillar_column(self, tmp_path: Path):
@@ -161,7 +179,7 @@ class TestPillarColumns:
             assert row == ("argus", "content_id")
             # Schema version bumped
             cur = conn.execute("SELECT MAX(version) FROM schema_meta")
-            assert cur.fetchone()[0] == 5
+            assert cur.fetchone()[0] == state.SCHEMA_VERSION
 
     def test_migration_is_idempotent(self, tmp_path: Path):
         """Running init_db twice on a v5 database is a no-op, not a crash."""
@@ -170,4 +188,50 @@ class TestPillarColumns:
         state.init_db(db)  # second call must not fail
         with sqlite3.connect(db) as conn:
             cur = conn.execute("SELECT MAX(version) FROM schema_meta")
-            assert cur.fetchone()[0] == 5
+            assert cur.fetchone()[0] == state.SCHEMA_VERSION
+
+    def test_existing_partial_social_mentions_table_migrates_to_v6(self, tmp_path: Path):
+        db = tmp_path / "state.db"
+        with sqlite3.connect(db) as conn:
+            conn.executescript(
+                """
+                CREATE TABLE schema_meta (version INTEGER, applied_at TEXT);
+                INSERT INTO schema_meta VALUES (5, datetime('now'));
+                CREATE TABLE social_mentions (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    platform TEXT NOT NULL,
+                    post_id TEXT NOT NULL,
+                    title TEXT,
+                    url TEXT,
+                    posted_at TEXT NOT NULL,
+                    upvotes INTEGER DEFAULT 0,
+                    comments INTEGER DEFAULT 0,
+                    score REAL DEFAULT 0,
+                    is_own_post INTEGER DEFAULT 0
+                );
+                INSERT INTO social_mentions
+                    (platform, post_id, title, url, posted_at, upvotes, comments, score, is_own_post)
+                VALUES
+                    ('reddit', 'abc', 'Launch', 'https://reddit.com/abc',
+                     '2026-05-01T00:00:00+00:00', 10, 2, 12.5, 1);
+                """
+            )
+
+        state.init_db(db)
+
+        with sqlite3.connect(db) as conn:
+            cols = _columns(conn, "social_mentions")
+            assert {
+                "engagement_score",
+                "author",
+                "content",
+                "sentiment",
+                "is_question",
+                "requires_response",
+            } <= cols
+            row = conn.execute(
+                "SELECT engagement_score FROM social_mentions WHERE post_id = 'abc'"
+            ).fetchone()
+            assert row == (12.5,)
+            cur = conn.execute("SELECT MAX(version) FROM schema_meta")
+            assert cur.fetchone()[0] == state.SCHEMA_VERSION

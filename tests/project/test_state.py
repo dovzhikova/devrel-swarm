@@ -39,6 +39,7 @@ def test_init_db_creates_file_and_tables(tmp_path):
         "schema_meta",
         "seo_keyword_metrics",
         "seo_page_profiles",
+        "social_mentions",
     ]
 
 

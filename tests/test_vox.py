@@ -386,6 +386,19 @@ posthog.init('key')
         result = await vox.execute("Show feature flags setup")
         assert result["status"] in ("generated", "script_only")
 
+    @pytest.mark.asyncio
+    async def test_execute_marks_video_not_produced_when_recording_dependency_missing(self, vox):
+        vox._has_ffmpeg = True
+        vox._has_playwright = False
+        vox.openai_api_key = "test-key"
+
+        result = await vox.execute("Show feature flags setup")
+
+        assert result["status"] == "script_only"
+        assert result["video_produced"] is False
+        assert result["recording_skipped"] is True
+        assert any(d["name"] == "playwright" for d in result["missing_dependencies"])
+
     def test_vox_has_system_prompt(self, vox):
         assert "Vox" in Vox.SYSTEM_PROMPT or "video" in Vox.SYSTEM_PROMPT.lower()
 

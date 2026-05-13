@@ -54,14 +54,17 @@ class PostHogCollector:
 
     def __init__(self, client: "PostHogClient"):
         self.client = client
+        self.last_ok = True
 
     async def collect(self, period: Period) -> list[PerformanceMetric]:
         _start, end = period
         try:
             rows = await self.client.fetch_events_by_url(start=_start, end=end)
         except Exception as exc:  # noqa: BLE001
+            self.last_ok = False
             logger.warning("PostHogCollector failed: %s", exc)
             return []
+        self.last_ok = True
 
         metrics: list[PerformanceMetric] = []
         for row in rows:
@@ -95,14 +98,19 @@ class GitHubCollector:
 
     def __init__(self, client):
         self.client = client
+        self.last_ok = True
 
     async def collect(self, period: Period) -> list[PerformanceMetric]:
         _start, end = period
         try:
             stats = await self.client.get_repo_stats()
+            if not isinstance(stats, dict):
+                raise TypeError("github stats payload is not a dict")
         except Exception as exc:  # noqa: BLE001
+            self.last_ok = False
             logger.warning("GitHubCollector failed: %s", exc)
             return []
+        self.last_ok = True
 
         repo = getattr(self.client, "repo_full_name", "unknown/unknown")
         return [
@@ -152,14 +160,22 @@ class InstantlyCollector:
 
     def __init__(self, client):
         self.client = client
+        self.last_ok = True
 
     async def collect(self, period: Period) -> list[PerformanceMetric]:
+        if self.client is None:
+            self.last_ok = False
+            logger.info("InstantlyCollector: client not configured, skipping")
+            return []
+
         start, end = period
         try:
             rows = await self.client.list_campaigns_with_analytics()
         except Exception as exc:  # noqa: BLE001
+            self.last_ok = False
             logger.warning("InstantlyCollector failed: %s", exc)
             return []
+        self.last_ok = True
 
         metrics: list[PerformanceMetric] = []
         for row in rows:
@@ -218,6 +234,7 @@ class SocialCollector:
     def __init__(self, state_db_path: Path):
         self.state_db_path = state_db_path
         self._schema_verified = False
+        self.last_ok = True
 
     def _verify_schema(self, conn: sqlite3.Connection) -> bool:
         """Confirm social_mentions has all required columns.
@@ -269,6 +286,7 @@ class SocialCollector:
     async def collect(self, period: Period) -> list[PerformanceMetric]:
         start, end = period
         if not self.state_db_path.is_file():
+            self.last_ok = False
             logger.info("SocialCollector: state.db not present, skipping")
             return []
 
@@ -278,7 +296,9 @@ class SocialCollector:
             end.isoformat(),
         )
         if rows is None:
+            self.last_ok = False
             return []
+        self.last_ok = True
 
         metrics: list[PerformanceMetric] = []
         for row in rows:

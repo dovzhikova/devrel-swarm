@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import sys
 from dataclasses import asdict, dataclass
+from importlib.util import find_spec
 
 import typer
 from rich.console import Console
@@ -117,6 +119,25 @@ def _run_checks(paths: ProjectPaths) -> list[CheckResult]:
         results.append(CheckResult("kb_files", "pass" if n > 0 else "warn", f"{n} markdown files"))
     else:
         results.append(CheckResult("kb_files", "warn", "kb/ missing"))
+
+    # Optional video toolchain for Vox. Missing pieces should never block the
+    # core content pipeline, but doctor should tell users the exact render fix.
+    if shutil.which("ffmpeg"):
+        results.append(CheckResult("video_ffmpeg", "pass", "installed"))
+    else:
+        results.append(
+            CheckResult("video_ffmpeg", "warn", "not installed; run `brew install ffmpeg`")
+        )
+    if find_spec("playwright") is not None:
+        results.append(CheckResult("video_playwright", "pass", "installed"))
+    else:
+        results.append(
+            CheckResult(
+                "video_playwright",
+                "warn",
+                "not installed; run `pip install 'devrel-swarm[video]' && python -m playwright install chromium`",
+            )
+        )
 
     return results
 

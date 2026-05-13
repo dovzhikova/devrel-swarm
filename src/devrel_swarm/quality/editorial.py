@@ -10,7 +10,7 @@ Stage flow:
   6. Persona             — Haiku score 1-10 + weak sections
   7. Readability         — pure-Python FRE/sentence-stats/jargon check
   → If 6 or 7 fail: re-run stage 4 once with the failed rubric, then
-    re-run 5/6/7 once. Second failure of 6/7 logs and ships flagged.
+    re-run 5/6/7 once. Second persona failure aborts loudly.
   8. Brand audit         — Sentinel (caller's responsibility; orchestrator
                             does not invoke Sentinel because it lives in
                             core/sentinel.py and would create a quality→core
@@ -328,17 +328,18 @@ async def run_pipeline(
         readability2 = _readability_stage(text=text, content_type=content_type, style_md=style_md)
         stages.append(readability2)
 
-        # Readability re-runs are informational only — short test/mock text
-        # often fails MSL but the persona pass is what gates "ship vs flag".
-        # Only persona2 failure flips the flagged bit.
+        # Readability re-runs are informational only because short test/mock
+        # text often fails MSL. Persona is the hard ship/no-ship gate.
         if persona2.issues:
-            logger.warning(
-                "editorial pipeline shipping with flagged=True for content_type=%s "
-                "(persona score %s)",
+            issue_text = "; ".join(persona2.issues)
+            logger.error(
+                "editorial pipeline aborting for content_type=%s after persona repair failed: %s",
                 content_type,
-                persona2.score,
+                issue_text,
             )
-            flagged = True
+            raise AbortLoud(
+                f"Persona gate failed after repair for {content_type}: {issue_text}"
+            )
 
     revision_trace = {
         "content_type": content_type,

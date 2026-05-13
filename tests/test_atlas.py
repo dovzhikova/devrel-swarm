@@ -268,6 +268,31 @@ class TestAtlasOrchestration:
         assert "nova" in call_order
         assert call_order.index("sage") < call_order.index("nova")
 
+    @pytest.mark.asyncio
+    async def test_run_report_records_agent_timings(
+        self, posthog_client, knowledge_base_path, tmp_path
+    ):
+        import json
+
+        archive_dir = tmp_path / "archive"
+        atlas = Atlas(
+            api_client=posthog_client,
+            knowledge_base_path=knowledge_base_path,
+            archive_dir=archive_dir,
+        )
+
+        context = await atlas.run_weekly_cycle()
+        report_path = archive_dir / f"run_report_{context.week_of}.json"
+        report = json.loads(report_path.read_text())
+
+        assert report["agent_timings"]
+        by_agent = {row["agent"]: row for row in report["agent_timings"]}
+        assert {"watchdog", "sage", "echo", "dex", "rex", "iris", "nova", "kai", "vox"} <= set(
+            by_agent
+        )
+        assert all(row["duration_seconds"] >= 0 for row in report["agent_timings"])
+        assert all("started_at" in row and "completed_at" in row for row in report["agent_timings"])
+
 
 class TestAtlasWithDependencies:
     """Test Atlas passes LLM and GitHub tools to agents."""
@@ -727,6 +752,25 @@ class TestAtlasContentBriefAndDeliverables:
         assert brief["github_issues"][0]["number"] == 101
         assert brief["source_files"][0]["path"] == "frontend/src/sdk/init.ts"
 
+    def test_build_kai_task_negates_missing_evidence_requirements(self):
+        task = Atlas._build_kai_task({"github_issues": [], "source_files": []})
+
+        assert "Avoid GitHub issue claims unless" in task
+        assert "Avoid source-code and file-path claims unless" in task
+        assert "Reference real GitHub issues" not in task
+        assert "Use actual file paths" not in task
+
+    def test_build_kai_task_requires_available_evidence(self):
+        task = Atlas._build_kai_task(
+            {
+                "github_issues": [{"number": 42, "title": "SDK init fails"}],
+                "source_files": [{"path": "frontend/src/sdk/init.ts"}],
+            }
+        )
+
+        assert "Reference real GitHub issues from Sage's triage." in task
+        assert "Use actual file paths, commands, and APIs from the source code." in task
+
     def test_write_weekly_deliverables_persists_content_and_trace(
         self, posthog_client, knowledge_base_path, tmp_path
     ):
@@ -762,3 +806,15 @@ class TestAtlasContentBriefAndDeliverables:
 
         atlas.context.kai_content = {"status": "generated", "content": "# Draft"}
         assert atlas._compile_okrs()["content_produced"] is True
+
+    def test_compile_okrs_counts_only_generated_video(self, posthog_client, knowledge_base_path):
+        atlas = Atlas(api_client=posthog_client, knowledge_base_path=knowledge_base_path)
+        atlas.context.vox_video = {
+            "status": "script_only",
+            "recording_skipped": True,
+            "missing_dependencies": [{"name": "playwright"}],
+        }
+        assert atlas._compile_okrs()["video_produced"] is False
+
+        atlas.context.vox_video = {"status": "generated", "output_path": "/tmp/tutorial.mp4"}
+        assert atlas._compile_okrs()["video_produced"] is True
