@@ -81,10 +81,11 @@ def test_draft_writes_deliverable_and_trace(mock_build_kai, mock_client, tmp_pat
     assert "Final clean draft." in deliverables[0].read_text()
     trace = json.loads(traces[0].read_text())
     assert trace["content_type"] == "tutorial"
+    assert trace["editorial_mode"] == "fast"
     assert trace["grounding_sources"] == ["sdks/python.md"]
     assert trace["agent"] == "kai"
     fake_kai.execute.assert_awaited_once_with(
-        task="tutorial on feature flags", content_type="tutorial"
+        task="tutorial on feature flags", content_type="tutorial", editorial_mode="fast"
     )
 
 
@@ -222,6 +223,42 @@ def test_draft_times_out_cleanly(mock_build_kai, mock_client, tmp_path):
 
     assert result.exit_code == 1
     assert "Kai timed out after 0.1s" in result.output
+
+
+@patch("devrel_swarm.cli.content._build_llm_client")
+@patch("devrel_swarm.cli.content._build_kai")
+def test_draft_supports_full_editorial_mode(mock_build_kai, mock_client, tmp_path):
+    _init_project(tmp_path)
+    mock_client.return_value = MagicMock(generate=AsyncMock(return_value="draft"))
+    fake_kai = MagicMock()
+    fake_kai.execute = AsyncMock(
+        return_value={
+            "agent": "kai",
+            "task": "topic",
+            "status": "generated",
+            "content": "Final.",
+            "grounding_sources": ["sdks/python.md"],
+            "editorial_mode": "pipeline",
+            "code_validation": {"all_passed": True, "failed": 0, "validated": 0},
+        }
+    )
+    mock_build_kai.return_value = fake_kai
+
+    cwd = os.getcwd()
+    os.chdir(tmp_path)
+    try:
+        result = runner.invoke(
+            app,
+            ["content", "draft", "topic", "--type", "tutorial", "--editorial-mode", "full"],
+            env={"ANTHROPIC_API_KEY": "sk-ant-test", **os.environ},
+        )
+    finally:
+        os.chdir(cwd)
+
+    assert result.exit_code == 0, result.output
+    fake_kai.execute.assert_awaited_once_with(
+        task="topic", content_type="tutorial", editorial_mode="pipeline"
+    )
 
 
 @patch("devrel_swarm.cli.content._build_llm_client")

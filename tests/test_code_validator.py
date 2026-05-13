@@ -286,6 +286,19 @@ class TestSkipLanguages:
         assert not result.is_valid
         assert "Unsafe shell command" in result.error
 
+    def test_bash_allows_line_continuations_and_multiline_json(self, validator):
+        code = """curl -X POST https://example.com/api/query/ \\
+  -H "Authorization: Bearer <token>" \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "kind": "WebOverviewQuery",
+    "dateRange": {"date_from": "-7d"}
+  }'
+"""
+        block = CodeBlock(language="bash", code=code, line_number=1)
+        result = validator.validate_block(block)
+        assert result.is_valid
+
     def test_yaml_is_validated(self, validator):
         block = CodeBlock(language="yaml", code="key: value", line_number=1)
         result = validator.validate_block(block)
@@ -470,8 +483,8 @@ class TestKaiCodeValidation:
         result = await broken_kai.execute("Write about analytics tracking")
         assert "code_validation" in result
         cv = result["code_validation"]
-        assert cv["all_passed"] is False
-        assert cv["failed"] == 1
-        assert len(cv["errors"]) == 1
-        assert cv["errors"][0]["language"] == "python"
-        assert "syntax error" in cv["errors"][0]["error"].lower()
+        assert cv["all_passed"] is True
+        assert cv["failed"] == 0
+        assert cv["errors"] == []
+        assert cv["deterministic_repair"] is True
+        assert "failed syntax validation" in result["content"]

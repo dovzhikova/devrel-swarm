@@ -64,6 +64,58 @@ class TestKaiExecuteWired:
         mock_llm_client.generate.assert_awaited_once()
 
     @pytest.mark.asyncio
+    async def test_execute_fast_mode_bypasses_editorial_pipeline(
+        self, posthog_client, tmp_path, mock_llm_client
+    ):
+        kb = tmp_path / "kb"
+        kb.mkdir()
+        (kb / "analytics.md").write_text("# Analytics tracking\nTrack analytics events.")
+        (kb / "billing.md").write_text("# Billing\nInvoices and subscriptions.")
+        kai = Kai(
+            api_client=posthog_client,
+            knowledge_base_path=kb,
+            llm_client=mock_llm_client,
+        )
+        mock_llm_client.generate = AsyncMock(return_value="# Draft\n\nTrack events.")
+
+        async def broken_pipeline(**_):
+            raise AssertionError("full editorial pipeline should not run in fast mode")
+
+        with patch("devrel_swarm.core.kai.generate_with_pipeline", new=broken_pipeline):
+            result = await kai.execute("Write about analytics tracking", editorial_mode="fast")
+
+        assert result["status"] == "generated"
+        assert result["editorial_mode"] == "fast"
+        assert result["revision"]["strengths"] == ["fast grounded draft"]
+
+    @pytest.mark.asyncio
+    async def test_execute_repairs_invalid_code_blocks(
+        self, posthog_client, tmp_path, mock_llm_client
+    ):
+        kb = tmp_path / "kb"
+        kb.mkdir()
+        (kb / "analytics.md").write_text("# Analytics tracking\nTeam path cleaning filters.")
+        kai = Kai(
+            api_client=posthog_client,
+            knowledge_base_path=kb,
+            llm_client=mock_llm_client,
+        )
+        mock_llm_client.generate = AsyncMock(
+            return_value="# Draft\n\n```python\nteam = Team.objects.get(id=<project_id>)\n```"
+        )
+
+        result = await kai.execute(
+            "Write about analytics tracking",
+            context={"dex_docs": {"architecture_doc": "Team path cleaning filters."}},
+            editorial_mode="fast",
+        )
+
+        assert result["status"] == "generated"
+        assert "Team.objects.get" not in result["content"]
+        assert result["code_validation"]["all_passed"] is True
+        assert result["code_validation"]["deterministic_repair"] is True
+
+    @pytest.mark.asyncio
     async def test_execute_includes_grounding_sources(self, wired_kai):
         result = await wired_kai.execute("Write about analytics tracking")
         assert "grounding_sources" in result
@@ -232,13 +284,198 @@ SELECT id, status FROM lazy_computation_jobs;
         assert "unsupported file path `/var/log/posthog/hogql.log`" in issue_text
         assert "unsupported database table `lazy_computation_jobs`" in issue_text
 
-    def test_grounding_guard_allows_evidenced_repo_paths_when_not_source_labels(self, kai):
+    def test_grounding_guard_flags_internal_markers_and_unsupported_sql_columns(self, kai):
+        evidence = "[Source: analytics.md]\n`system.replicas` has `queue_size`."
+        content = """
+Use this direct ClickHouse query (evidence truncated):
+
+```sql
+SELECT total_replicas, active_replicas, queue_size
+FROM system.replicas;
+```
+"""
+        issues = kai._grounded_output_issues(
+            content,
+            evidence,
+            allowed_source_ids=["analytics.md"],
+            task="Write a web analytics freshness diagnostic",
+        )
+        issue_text = "\n".join(issue["issue"] for issue in issues)
+
+        assert "internal context-truncation marker" in issue_text
+        assert "unsupported identifier or column `active_replicas`" in issue_text
+        assert "unsupported identifier or column `total_replicas`" in issue_text
+
+    def test_grounding_guard_flags_prose_mcp_tool_references(self, kai):
+        issues = kai._grounded_output_issues(
+            "Use the MCP `project-settings-update` tool to modify path cleaning rules.",
+            "Path cleaning rules live in Team.path_cleaning_filters.",
+            allowed_source_ids=["web-analytics/managing-path-cleaning-rules.md"],
+        )
+        assert any(
+            "unsupported MCP tool `project-settings-update`" in issue["issue"] for issue in issues
+        )
+
+    def test_grounding_guard_does_not_treat_python_import_as_sql_table(self, kai):
+        issues = kai._grounded_output_issues(
+            "```python\nfrom posthog.models import Team\n```",
+            "Team path cleaning filters are stored on teams.",
+            allowed_source_ids=["web-analytics/managing-path-cleaning-rules.md"],
+        )
+        issue_text = "\n".join(issue["issue"] for issue in issues)
+
+        assert "unsupported internal module `posthog.models`" in issue_text
+        assert "unsupported database table `posthog.models`" not in issue_text
+
+    def test_sanitize_internal_markers_removes_context_leakage(self, kai):
+        assert (
+            kai._sanitize_internal_markers("Uses system tables (evidence truncated).")
+            == "Uses system tables."
+        )
+
+    def test_normalize_unsupported_placeholders_rewrites_config_like_values(self, kai):
+        assert (
+            kai._normalize_unsupported_placeholders("Bearer YOUR_TOKEN and YOUR_API_KEY")
+            == "Bearer <your-token> and <your-api-key>"
+        )
+
+    def test_remove_unsupported_sql_blocks_replaces_unevidenced_columns(self, kai):
+        evidence = "`system.replicas` has `queue_size`."
+        content = """
+Run:
+
+```sql
+SELECT total_replicas, active_replicas, queue_size
+FROM system.replicas;
+```
+"""
+        repaired = kai._remove_unsupported_sql_blocks(content, evidence)
+
+        assert "```sql" not in repaired
+        assert "total_replicas" in repaired
+        assert "source material does not verify" in repaired
+        assert "Inspect the referenced" not in repaired
+
+    def test_remove_dead_end_lines_rewrites_required_source_inspection(self, kai):
+        content = """
+## Check
+The evidence does not specify the schema, so inspect `posthog/example.py`.
+The evidence shows job filters but does not provide exact columns; consult `posthog/README.md` before running.
+The evidence does not specify the Postgres schema. It lives in `posthog/jobs.py`.
+The evidence does not specify the signature for the `project-settings-update` MCP tool.
+If dispatch fails, inspect `query_runner.py` for missing imports.
+Continue with verified checks.
+"""
+        repaired = kai._remove_dead_end_lines(content)
+
+        assert "inspect `posthog/example.py`" not in repaired
+        assert "consult `posthog/README.md`" not in repaired
+        assert "`posthog/jobs.py`" not in repaired
+        assert "MCP tool" not in repaired
+        assert "inspect `query_runner.py`" not in repaired
+        assert "Evidence limitation" in repaired
+        assert "Continue with verified checks." in repaired
+
+    def test_remove_unsupported_internal_import_blocks_replaces_runnable_imports(self, kai):
+        content = """
+Use this example:
+
+```python
+from posthog.models import Team
+print(Team)
+```
+"""
+        repaired = kai._remove_unsupported_internal_imports(content, "Team path cleaning filters.")
+
+        assert "from posthog.models import Team" not in repaired
+        assert "Evidence limitation" in repaired
+        assert "posthog.models" in repaired
+
+    def test_remove_invalid_code_blocks_replaces_failed_snippets(self, kai):
+        from devrel_swarm.tools.code_validator import CodeValidator
+
+        content = """
+```python
+team = Team.objects.get(id=<project_id>)
+```
+"""
+        report = CodeValidator().validate_content(content)
+        repaired = kai._remove_invalid_code_blocks(content, report.errors)
+
+        assert "Team.objects.get" not in repaired
+        assert "failed syntax validation" in repaired
+
+    def test_demote_limitation_only_checks_removes_fake_action_steps(self, kai):
+        content = """
+### Check 4: Verify Job Coverage
+
+> Evidence limitation: the current KB evidence does not verify a self-contained command.
+
+### Check 5: Empty
+
+## Next
+Continue.
+"""
+        repaired = kai._demote_limitation_only_checks(content)
+
+        assert "### Check 4" not in repaired
+        assert "### Check 5" not in repaired
+        assert "### Evidence limitation: Verify Job Coverage" in repaired
+        assert "## Next" in repaired
+
+    def test_grounding_guard_flags_missing_web_analytics_diagnostic_section(self, kai):
+        evidence = "[Source: web-analytics/live.md]\nWeb analytics live traffic checks."
+        content = """
+# Web Analytics Freshness
+
+## Architecture Context
+Web analytics uses query runners.
+"""
+        issues = kai._grounded_output_issues(
+            content,
+            evidence,
+            allowed_source_ids=["web-analytics/live.md"],
+            task="Write web analytics freshness diagnostics",
+        )
+        assert any(
+            "dedicated diagnostic web analytics section" in issue["issue"] for issue in issues
+        )
+
+    def test_grounding_guard_flags_unused_web_analytics_evidence_and_dead_ends(self, kai):
+        evidence = (
+            "[Source: web-analytics/managing-path-cleaning-rules.md]\n"
+            "Path cleaning rules normalize URLs.\n"
+            "[Source: web-analytics/exploring-live-traffic.md]\n"
+            "Live traffic shows recent matching events."
+        )
+        content = """
+# Web Analytics Freshness
+
+## Web Analytics Freshness Diagnostics
+The evidence does not specify the table schema, so inspect `posthog/example.py`.
+"""
+        issues = kai._grounded_output_issues(
+            content,
+            evidence,
+            allowed_source_ids=[
+                "web-analytics/managing-path-cleaning-rules.md",
+                "web-analytics/exploring-live-traffic.md",
+            ],
+            task="Write web analytics freshness diagnostics",
+        )
+        issue_text = "\n".join(issue["issue"] for issue in issues)
+
+        assert "path-cleaning evidence is available" in issue_text
+        assert "live-traffic evidence is available" in issue_text
+        assert "dead-end" in issue_text
+
+    def test_grounding_guard_allows_evidenced_repo_paths_when_contextual(self, kai):
         evidence = (
             "[Source: repo/query-api-and-web-analytics-source-evidence.md]\n"
             "`posthog/hogql_queries/query_runner.py` contains get_query_runner."
         )
         content = (
-            "Inspect `posthog/hogql_queries/query_runner.py` for the query runner.\n\n"
+            "The query runner lives in `posthog/hogql_queries/query_runner.py`.\n\n"
             "## Sources\n"
             "- `repo/query-api-and-web-analytics-source-evidence.md`\n"
         )
