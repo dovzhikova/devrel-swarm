@@ -249,9 +249,11 @@ class CodeValidator:
 
     def _validate_shell(self, block: CodeBlock) -> ValidationResult:
         """Validate shell snippets for parseability and obvious destructive commands."""
+        pending = ""
+        pending_start = 0
         for offset, line in enumerate(block.code.splitlines(), start=1):
             stripped = line.strip()
-            if not stripped or stripped.startswith("#"):
+            if not pending and (not stripped or stripped.startswith("#")):
                 continue
 
             if re.search(r"\brm\s+-[rfRf-]*\s+/(?:\s|$)", stripped):
@@ -261,13 +263,41 @@ class CodeValidator:
                     error=f"Unsafe shell command at line {offset}: refuses to delete root.",
                 )
 
+            if pending:
+                current = f"{pending}\n{stripped}"
+                start = pending_start
+            else:
+                current = stripped
+                start = offset
+
+            if current.rstrip().endswith("\\"):
+                pending = current.rstrip()[:-1].rstrip() + " "
+                pending_start = start
+                continue
+
             try:
-                shlex.split(stripped)
+                shlex.split(current)
+            except ValueError as e:
+                if "No closing quotation" in str(e):
+                    pending = current
+                    pending_start = start
+                    continue
+                return ValidationResult(
+                    block=block,
+                    is_valid=False,
+                    error=f"Shell parse error at line {start}: {e}",
+                )
+            pending = ""
+            pending_start = 0
+
+        if pending:
+            try:
+                shlex.split(pending)
             except ValueError as e:
                 return ValidationResult(
                     block=block,
                     is_valid=False,
-                    error=f"Shell parse error at line {offset}: {e}",
+                    error=f"Shell parse error at line {pending_start}: {e}",
                 )
 
         return ValidationResult(block=block, is_valid=True)
