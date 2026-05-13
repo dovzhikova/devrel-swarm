@@ -9,7 +9,7 @@ from unittest.mock import AsyncMock, patch
 
 from typer.testing import CliRunner
 
-from devrel_swarm.cli import app
+from devrel_origin.cli import app
 
 runner = CliRunner()
 
@@ -191,7 +191,7 @@ def test_auth_validation_success_writes_key(tmp_path: Path) -> None:
     os.chdir(tmp_path)
     try:
         with patch(
-            "devrel_swarm.cli.auth._validate",
+            "devrel_origin.cli.auth._validate",
             new=AsyncMock(return_value=(True, "")),
         ):
             result = runner.invoke(
@@ -213,7 +213,7 @@ def test_auth_validation_failure_blocks_write(tmp_path: Path) -> None:
     os.chdir(tmp_path)
     try:
         with patch(
-            "devrel_swarm.cli.auth._validate",
+            "devrel_origin.cli.auth._validate",
             new=AsyncMock(return_value=(False, "401 Unauthorized")),
         ):
             result = runner.invoke(

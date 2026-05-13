@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from devrel_swarm.project.paths import ProjectPaths
-from devrel_swarm.quality.voice import load_voice
+from devrel_origin.project.paths import ProjectPaths
+from devrel_origin.quality.voice import load_voice
 
 
 def _make_paths(tmp_path):

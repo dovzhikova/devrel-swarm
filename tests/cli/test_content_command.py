@@ -11,7 +11,7 @@ import pytest
 import typer
 from typer.testing import CliRunner
 
-from devrel_swarm.cli import app
+from devrel_origin.cli import app
 
 runner = CliRunner()
 
@@ -28,8 +28,8 @@ def _init_project(tmp_path):
         os.chdir(cwd)
 
 
-@patch("devrel_swarm.cli.content._build_llm_client")
-@patch("devrel_swarm.cli.content._build_kai")
+@patch("devrel_origin.cli.content._build_llm_client")
+@patch("devrel_origin.cli.content._build_kai")
 def test_draft_writes_deliverable_and_trace(mock_build_kai, mock_client, tmp_path):
     _init_project(tmp_path)
     mock_client.return_value = MagicMock(generate=AsyncMock(return_value="initial draft"))
@@ -111,7 +111,7 @@ def test_audit_runs_pipeline_against_existing_file(tmp_path):
     os.chdir(tmp_path)
     try:
         with patch(
-            "devrel_swarm.cli.content.run_pipeline",
+            "devrel_origin.cli.content.run_pipeline",
             new=AsyncMock(
                 return_value=MagicMock(
                     final_text="rewritten",
@@ -122,7 +122,7 @@ def test_audit_runs_pipeline_against_existing_file(tmp_path):
             ),
         ):
             with patch(
-                "devrel_swarm.cli.content._build_llm_client",
+                "devrel_origin.cli.content._build_llm_client",
                 return_value=MagicMock(generate=AsyncMock(return_value="x")),
             ):
                 result = runner.invoke(
@@ -157,8 +157,8 @@ def test_audit_fails_without_project(tmp_path):
 
 
 def test_build_llm_client_raises_without_api_key(monkeypatch, tmp_path):
-    from devrel_swarm.cli import content as content_mod
-    from devrel_swarm.project.paths import ProjectPaths
+    from devrel_origin.cli import content as content_mod
+    from devrel_origin.project.paths import ProjectPaths
 
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
     monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
@@ -166,7 +166,7 @@ def test_build_llm_client_raises_without_api_key(monkeypatch, tmp_path):
         content_mod._build_llm_client(ProjectPaths.from_root(tmp_path))
 
 
-@patch("devrel_swarm.cli.content._build_kai")
+@patch("devrel_origin.cli.content._build_kai")
 def test_draft_loads_llm_key_from_project_env(mock_build_kai, monkeypatch, tmp_path):
     _init_project(tmp_path)
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
@@ -197,8 +197,8 @@ def test_draft_loads_llm_key_from_project_env(mock_build_kai, monkeypatch, tmp_p
     assert "ANTHROPIC_API_KEY is required" not in result.output
 
 
-@patch("devrel_swarm.cli.content._build_llm_client")
-@patch("devrel_swarm.cli.content._build_kai")
+@patch("devrel_origin.cli.content._build_llm_client")
+@patch("devrel_origin.cli.content._build_kai")
 def test_draft_times_out_cleanly(mock_build_kai, mock_client, tmp_path):
     _init_project(tmp_path)
     mock_client.return_value = MagicMock(generate=AsyncMock(return_value="draft"))
@@ -225,8 +225,8 @@ def test_draft_times_out_cleanly(mock_build_kai, mock_client, tmp_path):
     assert "Kai timed out after 0.1s" in result.output
 
 
-@patch("devrel_swarm.cli.content._build_llm_client")
-@patch("devrel_swarm.cli.content._build_kai")
+@patch("devrel_origin.cli.content._build_llm_client")
+@patch("devrel_origin.cli.content._build_kai")
 def test_draft_supports_full_editorial_mode(mock_build_kai, mock_client, tmp_path):
     _init_project(tmp_path)
     mock_client.return_value = MagicMock(generate=AsyncMock(return_value="draft"))
@@ -261,8 +261,8 @@ def test_draft_supports_full_editorial_mode(mock_build_kai, mock_client, tmp_pat
     )
 
 
-@patch("devrel_swarm.cli.content._build_llm_client")
-@patch("devrel_swarm.cli.content._build_kai")
+@patch("devrel_origin.cli.content._build_llm_client")
+@patch("devrel_origin.cli.content._build_kai")
 def test_draft_exits_nonzero_when_kai_blocks(mock_build_kai, mock_client, tmp_path):
     _init_project(tmp_path)
     mock_client.return_value = MagicMock(generate=AsyncMock(return_value="draft"))
@@ -292,8 +292,8 @@ def test_draft_exits_nonzero_when_kai_blocks(mock_build_kai, mock_client, tmp_pa
     assert "blocked_by_quality_gate" in result.output
 
 
-@patch("devrel_swarm.cli.content._build_llm_client")
-@patch("devrel_swarm.cli.content._build_kai")
+@patch("devrel_origin.cli.content._build_llm_client")
+@patch("devrel_origin.cli.content._build_kai")
 def test_draft_warns_when_no_kb_grounding(mock_build_kai, mock_client, tmp_path):
     _init_project(tmp_path)
     mock_client.return_value = MagicMock(generate=AsyncMock(return_value="draft"))
@@ -332,8 +332,8 @@ def test_draft_warns_when_no_kb_grounding(mock_build_kai, mock_client, tmp_path)
     assert "No KB sources matched" in result.output
 
 
-@patch("devrel_swarm.cli.content._build_llm_client")
-@patch("devrel_swarm.cli.content._build_kai")
+@patch("devrel_origin.cli.content._build_llm_client")
+@patch("devrel_origin.cli.content._build_kai")
 def test_draft_warns_when_code_validation_fails(mock_build_kai, mock_client, tmp_path):
     _init_project(tmp_path)
     mock_client.return_value = MagicMock(generate=AsyncMock(return_value="draft"))
@@ -372,9 +372,9 @@ def test_draft_warns_when_code_validation_fails(mock_build_kai, mock_client, tmp
     assert "Code validation: 2/3 blocks failed" in result.output
 
 
-@patch("devrel_swarm.cli.content._build_llm_client")
+@patch("devrel_origin.cli.content._build_llm_client")
 def test_audit_aborts_loud_exits_nonzero(mock_client, tmp_path):
-    from devrel_swarm.quality.editorial import AbortLoud
+    from devrel_origin.quality.editorial import AbortLoud
 
     _init_project(tmp_path)
     mock_client.return_value = MagicMock(generate=AsyncMock(return_value="x"))
@@ -387,7 +387,7 @@ def test_audit_aborts_loud_exits_nonzero(mock_client, tmp_path):
     cwd = os.getcwd()
     os.chdir(tmp_path)
     try:
-        with patch("devrel_swarm.cli.content.run_pipeline", new=_raise):
+        with patch("devrel_origin.cli.content.run_pipeline", new=_raise):
             result = runner.invoke(
                 app,
                 ["content", "audit", str(draft), "--type", "tutorial"],
@@ -398,7 +398,7 @@ def test_audit_aborts_loud_exits_nonzero(mock_client, tmp_path):
     assert result.exit_code == 1
 
 
-@patch("devrel_swarm.cli.content._build_llm_client")
+@patch("devrel_origin.cli.content._build_llm_client")
 def test_audit_flagged_prints_warning(mock_client, tmp_path):
     _init_project(tmp_path)
     mock_client.return_value = MagicMock(generate=AsyncMock(return_value="x"))
@@ -415,7 +415,7 @@ def test_audit_flagged_prints_warning(mock_client, tmp_path):
     os.chdir(tmp_path)
     try:
         with patch(
-            "devrel_swarm.cli.content.run_pipeline",
+            "devrel_origin.cli.content.run_pipeline",
             new=AsyncMock(return_value=flagged_result),
         ):
             result = runner.invoke(
@@ -430,7 +430,7 @@ def test_audit_flagged_prints_warning(mock_client, tmp_path):
 
 
 def test_slug_helper_handles_special_chars():
-    from devrel_swarm.cli.content import _slug
+    from devrel_origin.cli.content import _slug
 
     assert _slug("Hello, World!") == "hello-world"
     assert _slug("@#$%^&*") == "draft"

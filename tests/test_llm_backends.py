@@ -9,8 +9,8 @@ import httpx
 import pytest
 import respx
 
-from devrel_swarm.core.llm import LLMClient
-from devrel_swarm.core.llm_backends import (
+from devrel_origin.core.llm import LLMClient
+from devrel_origin.core.llm_backends import (
     ANTHROPIC_DEFAULT_MODEL,
     AnthropicBackend,
     BackendResponse,

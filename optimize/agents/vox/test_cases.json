@@ -2,7 +2,7 @@
   {
     "id": "gateway_setup_video",
     "task": "Create a video tutorial on setting up OpenClaw from scratch",
-    "input_content": "# Setting Up OpenClaw\n\n## Prerequisites\n- Python 3.12+\n- API keys: ANTHROPIC_API_KEY, GITHUB_TOKEN, FIRECRAWL_API_KEY, POSTHOG_API_KEY\n\n## Step 1: Clone the repo\n```bash\ngit clone https://github.com/your-org/devrel-swarm\ncd devrel-swarm\n```\n\n## Step 2: Configure environment\nCopy config/env.example to .env and add your API keys for Claude, GitHub, Firecrawl, PostHog, and OpenAI (for Vox TTS).\n\n## Step 3: Install dependencies\n```bash\npip install -r requirements.txt\n```\n\n## Step 4: Run the full weekly cycle\n```bash\npython -m agents.atlas --weekly-cycle\n```\nThis runs Monday through Friday: Sage triages, Iris synthesizes, Nova experiments, Kai writes content, and Atlas compiles OKRs."
+    "input_content": "# Setting Up OpenClaw\n\n## Prerequisites\n- Python 3.12+\n- API keys: ANTHROPIC_API_KEY, GITHUB_TOKEN, FIRECRAWL_API_KEY, POSTHOG_API_KEY\n\n## Step 1: Clone the repo\n```bash\ngit clone https://github.com/your-org/devrel-origin\ncd devrel-origin\n```\n\n## Step 2: Configure environment\nCopy config/env.example to .env and add your API keys for Claude, GitHub, Firecrawl, PostHog, and OpenAI (for Vox TTS).\n\n## Step 3: Install dependencies\n```bash\npip install -r requirements.txt\n```\n\n## Step 4: Run the full weekly cycle\n```bash\npython -m agents.atlas --weekly-cycle\n```\nThis runs Monday through Friday: Sage triages, Iris synthesizes, Nova experiments, Kai writes content, and Atlas compiles OKRs."
   },
   {
     "id": "skill_creation_video",

@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from devrel_swarm.core.llm import LLMClient, TokenUsage
+from devrel_origin.core.llm import LLMClient, TokenUsage
 
 
 class TestTokenUsage:

@@ -1,0 +1,24 @@
+# devrel-origin project config. Commit this file — it encodes editorial
+# contract along with voice.md / style.md / slop-blocklist.md.
+
+# Project identity. Replace placeholders with real values; the github_repo
+# is optional (set to a comment-out or null if there isn't one).
+[project]
+name = "PROJECT_NAME"
+url = "PROJECT_URL"
+github_repo = "OWNER/REPO"
+
+# Model selection. Sonnet for primary work; Haiku for cheap quality stages
+# (slop lint, persona scoring, readability scoring); Opus opt-in via
+# `--model opus` on individual commands.
+[model]
+default = "claude-sonnet-4-6"
+cheap = "claude-haiku-4-5-20251001"
+opus_opt_in = true
+
+# Budget guardrails. monthly_usd is the cap; warn_at_pct is the threshold
+# at which `devrel doctor` and `devrel run` print a warning. Set
+# monthly_usd to 0 to disable the cap entirely.
+[budget]
+monthly_usd = 100.0
+warn_at_pct = 80

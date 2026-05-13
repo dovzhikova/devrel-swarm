@@ -2,7 +2,7 @@
 
 import pytest
 
-from devrel_swarm.core.nova import ExperimentDesign, Nova
+from devrel_origin.core.nova import ExperimentDesign, Nova
 
 
 @pytest.fixture

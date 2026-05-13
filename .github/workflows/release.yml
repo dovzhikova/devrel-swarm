@@ -6,9 +6,9 @@ name: Release
 #
 # Setup required once on PyPI side:
 #   pypi.org → Account → Publishing → Add a new pending publisher
-#     PyPI Project Name: devrel-swarm
+#     PyPI Project Name: devrel-origin
 #     Owner:             dovzhikova
-#     Repository name:   devrel-swarm
+#     Repository name:   devrel-origin
 #     Workflow name:     release.yml
 #     Environment name:  pypi
 
@@ -47,7 +47,7 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: pypi
-      url: https://pypi.org/p/devrel-swarm
+      url: https://pypi.org/p/devrel-origin
     permissions:
       id-token: write  # required for OIDC trusted publisher
     steps:
@@ -79,5 +79,5 @@ jobs:
           TAG="${GITHUB_REF#refs/tags/}"
           gh release create "$TAG" \
             --title "$TAG" \
-            --notes "See [CHANGELOG.md](https://github.com/dovzhikova/devrel-swarm/blob/main/CHANGELOG.md) for full release notes." \
+            --notes "See [CHANGELOG.md](https://github.com/dovzhikova/devrel-origin/blob/main/CHANGELOG.md) for full release notes." \
             dist/*

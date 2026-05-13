@@ -1,4 +1,4 @@
-# devrel-swarm CLI — Phase 7: Wave 2 Correctness Gaps — Implementation Plan
+# devrel-origin CLI — Phase 7: Wave 2 Correctness Gaps — Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -10,7 +10,7 @@
 
 **Tech Stack:** Python 3.12+ existing test infra. No new dependencies.
 
-**Source review:** Per-agent findings from `docs/superpowers/plans/2026-05-01-devrel-swarm-cli-phase6-bug-sweep.md` "Out of scope" section.
+**Source review:** Per-agent findings from `docs/superpowers/plans/2026-05-01-devrel-origin-cli-phase6-bug-sweep.md` "Out of scope" section.
 **Phases 1-6 (prerequisites, all merged):** `be971bd`, `121187e`, `bfb3bb5`, `86c2747`, `24604c5`, `863f575` on `main`.
 
 ---
@@ -18,7 +18,7 @@
 ## File coverage
 
 ```
-src/devrel_swarm/core/
+src/devrel_origin/core/
   atlas.py             MODIFY   per-agent checkpoint flags + Stage 6 checkpoint
   watchdog.py          MODIFY   real output_age_hours + budget alert as %
   sentinel.py          MODIFY   JSON-vs-API error split + structural-audit 1-100 scale
@@ -42,7 +42,7 @@ Use **superpowers:using-git-worktrees** to create `.worktrees/cli-phase7-wave2` 
 - [ ] **Step 2: Confirm baseline + lock test set**
 
 ```bash
-cd /Users/macmini/devrel-swarm/.worktrees/cli-phase7-wave2
+cd /Users/macmini/devrel-origin/.worktrees/cli-phase7-wave2
 /opt/homebrew/bin/python3.13 -m venv .venv 2>/dev/null || true
 source .venv/bin/activate
 pip install -e '.[dev]' >/tmp/install.preflight.log 2>&1 && echo "exit=$?"
@@ -58,7 +58,7 @@ Expected: `734 passed, 22 failed`, `22` lines.
 ## Task 1: Atlas — per-agent checkpoint flags + Stage 6 checkpoint
 
 **Files:**
-- Modify: `src/devrel_swarm/core/atlas.py`
+- Modify: `src/devrel_origin/core/atlas.py`
 - Modify: `tests/test_atlas.py`
 
 **Bugs:**
@@ -67,7 +67,7 @@ Expected: `734 passed, 22 failed`, `22` lines.
 
 - [ ] **Step 1: Add per-agent success flags to checkpoints**
 
-In `src/devrel_swarm/core/atlas.py`, find the `_checkpoint(stage_num)` call sites and the `_load_checkpoint` reading logic. The current shape is:
+In `src/devrel_origin/core/atlas.py`, find the `_checkpoint(stage_num)` call sites and the `_load_checkpoint` reading logic. The current shape is:
 
 ```python
 self._checkpoint(stage_num=1)  # marks stage 1 done — all 3 agents
@@ -177,7 +177,7 @@ Expected: full suite at parity (≥734 pass), failure-diff empty.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/devrel_swarm/core/atlas.py tests/test_atlas.py
+git add src/devrel_origin/core/atlas.py tests/test_atlas.py
 git commit -m "fix(atlas): per-agent checkpoint flags + Stage 6 checkpoint (Wave 2)"
 ```
 
@@ -186,7 +186,7 @@ git commit -m "fix(atlas): per-agent checkpoint flags + Stage 6 checkpoint (Wave
 ## Task 2: Watchdog — real `output_age_hours` + budget alert as % of cap
 
 **Files:**
-- Modify: `src/devrel_swarm/core/watchdog.py`
+- Modify: `src/devrel_origin/core/watchdog.py`
 
 **Bugs:**
 1. `output_age_hours` is always 0 or 999. The actual `timestamp` field is read into `last_run` but never parsed into a real age.
@@ -194,7 +194,7 @@ git commit -m "fix(atlas): per-agent checkpoint flags + Stage 6 checkpoint (Wave
 
 - [ ] **Step 1: Compute real `output_age_hours`**
 
-In `src/devrel_swarm/core/watchdog.py:125-139` (the `_check_agent_health` method), find where `output_age_hours` is set. Currently it's:
+In `src/devrel_origin/core/watchdog.py:125-139` (the `_check_agent_health` method), find where `output_age_hours` is set. Currently it's:
 
 ```python
 output_age_hours=0 if data else 999,
@@ -278,7 +278,7 @@ python -m pytest tests/ -q --no-header --tb=no --no-cov 2>&1 | tail -3
 - [ ] **Step 4: Commit**
 
 ```bash
-git add src/devrel_swarm/core/watchdog.py
+git add src/devrel_origin/core/watchdog.py
 git commit -m "fix(watchdog): real output_age_hours + budget alert as % of cap (Wave 2)"
 ```
 
@@ -287,7 +287,7 @@ git commit -m "fix(watchdog): real output_age_hours + budget alert as % of cap (
 ## Task 3: Sentinel — JSON-vs-API error distinction + 1-100 scoring scale
 
 **Files:**
-- Modify: `src/devrel_swarm/core/sentinel.py`
+- Modify: `src/devrel_origin/core/sentinel.py`
 - Modify: `tests/test_sentinel.py`
 
 **Bugs:**
@@ -296,7 +296,7 @@ git commit -m "fix(watchdog): real output_age_hours + budget alert as % of cap (
 
 - [ ] **Step 1: Split the `_llm_audit` exception handler**
 
-In `src/devrel_swarm/core/sentinel.py:204-221`, find the `try`/`except` block around the LLM call. Currently:
+In `src/devrel_origin/core/sentinel.py:204-221`, find the `try`/`except` block around the LLM call. Currently:
 
 ```python
 try:
@@ -382,7 +382,7 @@ async def test_json_parse_failure_logs_distinctly_from_api_error(monkeypatch, ca
 - [ ] **Step 4: Commit**
 
 ```bash
-git add src/devrel_swarm/core/sentinel.py tests/test_sentinel.py
+git add src/devrel_origin/core/sentinel.py tests/test_sentinel.py
 git commit -m "fix(sentinel): split JSON-vs-API error logging + normalize structural score 1-100 (Wave 2)"
 ```
 
@@ -391,7 +391,7 @@ git commit -m "fix(sentinel): split JSON-vs-API error logging + normalize struct
 ## Task 4: Iris — `SIMILARITY_THRESHOLD` constant + actionable content briefs
 
 **Files:**
-- Modify: `src/devrel_swarm/core/iris.py`
+- Modify: `src/devrel_origin/core/iris.py`
 
 **Bugs:**
 1. `SIMILARITY_THRESHOLD = 0.5` is a magic number defined inline in `_merge_themes` — should be a module constant with a comment about what title length range it's calibrated for.
@@ -399,7 +399,7 @@ git commit -m "fix(sentinel): split JSON-vs-API error logging + normalize struct
 
 - [ ] **Step 1: Promote `SIMILARITY_THRESHOLD` to a module constant**
 
-In `src/devrel_swarm/core/iris.py`, near the top of the file (after imports, before class definitions), add:
+In `src/devrel_origin/core/iris.py`, near the top of the file (after imports, before class definitions), add:
 
 ```python
 # Jaccard similarity threshold for merging near-duplicate themes.
@@ -414,7 +414,7 @@ In `_merge_themes`, remove the inline `SIMILARITY_THRESHOLD = 0.5` line and use 
 
 - [ ] **Step 2: Make `_find_content_opportunities` produce actionable briefs**
 
-In `src/devrel_swarm/core/iris.py:453-461`, find `_find_content_opportunities`. Currently it does something like:
+In `src/devrel_origin/core/iris.py:453-461`, find `_find_content_opportunities`. Currently it does something like:
 
 ```python
 def _find_content_opportunities(self, themes):
@@ -476,7 +476,7 @@ def test_content_opportunity_falls_back_to_severity_when_no_action():
 - [ ] **Step 4: Commit**
 
 ```bash
-git add src/devrel_swarm/core/iris.py tests/test_iris.py
+git add src/devrel_origin/core/iris.py tests/test_iris.py
 git commit -m "fix(iris): SIMILARITY_THRESHOLD module const + actionable content-opportunity briefs (Wave 2)"
 ```
 
@@ -485,14 +485,14 @@ git commit -m "fix(iris): SIMILARITY_THRESHOLD module const + actionable content
 ## Task 5: Nova — funnel data source flag
 
 **Files:**
-- Modify: `src/devrel_swarm/core/nova.py`
+- Modify: `src/devrel_origin/core/nova.py`
 - Modify: `tests/test_nova.py`
 
 **Bug:** `nova.py:174-189` produces fully hardcoded mock funnel counts (`1000, 700, 595, ...`) and writes them into the result dict as if real. Atlas writes them straight into the run report.
 
 - [ ] **Step 1: Add a `funnel_data_source` flag**
 
-In `src/devrel_swarm/core/nova.py`, find the `funnel_analysis` block. Currently it builds something like:
+In `src/devrel_origin/core/nova.py`, find the `funnel_analysis` block. Currently it builds something like:
 
 ```python
 funnel = {
@@ -545,7 +545,7 @@ def test_funnel_marks_default_estimates_when_no_api_client():
 - [ ] **Step 3: Commit**
 
 ```bash
-git add src/devrel_swarm/core/nova.py tests/test_nova.py
+git add src/devrel_origin/core/nova.py tests/test_nova.py
 git commit -m "fix(nova): funnel data_source flag distinguishes mock from API-sourced (Wave 2)"
 ```
 
@@ -554,13 +554,13 @@ git commit -m "fix(nova): funnel data_source flag distinguishes mock from API-so
 ## Task 6: Kai — `status="error"` in except block
 
 **Files:**
-- Modify: `src/devrel_swarm/core/kai.py`
+- Modify: `src/devrel_origin/core/kai.py`
 
 **Bug:** `kai.py:336-338` `except Exception` block sets `prompt_used` but no `content` key and no `status` field. Downstream consumers can't distinguish silent empty-content failure from real success.
 
 - [ ] **Step 1: Set explicit error status**
 
-In `src/devrel_swarm/core/kai.py`, find the `except` block at the end of the content-generation method. Currently:
+In `src/devrel_origin/core/kai.py`, find the `except` block at the end of the content-generation method. Currently:
 
 ```python
 except Exception as e:
@@ -592,7 +592,7 @@ If any test asserts `base_result["status"] == "generated"` after an exception pa
 - [ ] **Step 3: Commit**
 
 ```bash
-git add src/devrel_swarm/core/kai.py tests/test_kai.py
+git add src/devrel_origin/core/kai.py tests/test_kai.py
 git commit -m "fix(kai): set status='error' + content='' on generation exception (Wave 2)"
 ```
 
@@ -601,7 +601,7 @@ git commit -m "fix(kai): set status='error' + content='' on generation exception
 ## Task 7: Mox — unify `revision` schema with Kai
 
 **Files:**
-- Modify: `src/devrel_swarm/core/mox.py`
+- Modify: `src/devrel_origin/core/mox.py`
 - Modify: `tests/test_mox.py`
 
 **Bug:** Mox `base_result["revision"]` uses `issues` key; Kai uses `remaining_issues`. Inconsistent agent contract.
@@ -609,14 +609,14 @@ git commit -m "fix(kai): set status='error' + content='' on generation exception
 - [ ] **Step 1: Inspect actual key usage**
 
 ```bash
-grep -n "revision\b\|remaining_issues\|\"issues\"" src/devrel_swarm/core/kai.py src/devrel_swarm/core/mox.py | head -20
+grep -n "revision\b\|remaining_issues\|\"issues\"" src/devrel_origin/core/kai.py src/devrel_origin/core/mox.py | head -20
 ```
 
 Determine which name Kai uses post-Phase-6. The two agents should match.
 
 - [ ] **Step 2: Update Mox to match Kai**
 
-In `src/devrel_swarm/core/mox.py`, find the `revision` dict construction. Rename whatever key Mox uses to match Kai's. If Kai uses `remaining_issues` and Mox uses `issues`, change Mox's key to `remaining_issues`. Keep the same filter logic Kai uses (preserve string-list issues per Phase 6 fix).
+In `src/devrel_origin/core/mox.py`, find the `revision` dict construction. Rename whatever key Mox uses to match Kai's. If Kai uses `remaining_issues` and Mox uses `issues`, change Mox's key to `remaining_issues`. Keep the same filter logic Kai uses (preserve string-list issues per Phase 6 fix).
 
 - [ ] **Step 3: Update tests**
 
@@ -625,7 +625,7 @@ In `tests/test_mox.py`, update any assertion that reads `result["revision"]["iss
 - [ ] **Step 4: Commit**
 
 ```bash
-git add src/devrel_swarm/core/mox.py tests/test_mox.py
+git add src/devrel_origin/core/mox.py tests/test_mox.py
 git commit -m "fix(mox): unify revision schema with Kai (remaining_issues key) (Wave 2)"
 ```
 
@@ -634,7 +634,7 @@ git commit -m "fix(mox): unify revision schema with Kai (remaining_issues key) (
 ## Task 8: Pax — migrate `_load_prompt` + `_execute_campaign` None-guard
 
 **Files:**
-- Modify: `src/devrel_swarm/core/pax.py`
+- Modify: `src/devrel_origin/core/pax.py`
 - Modify: `tests/test_pax.py`
 
 **Bugs:**
@@ -643,10 +643,10 @@ git commit -m "fix(mox): unify revision schema with Kai (remaining_issues key) (
 
 - [ ] **Step 1: Migrate `_load_prompt` to shared util**
 
-In `src/devrel_swarm/core/pax.py:195-199`, find `_load_prompt`. Currently it has its own hardcoded path resolution. Replace with a delegation to `base.load_agent_prompt`:
+In `src/devrel_origin/core/pax.py:195-199`, find `_load_prompt`. Currently it has its own hardcoded path resolution. Replace with a delegation to `base.load_agent_prompt`:
 
 ```python
-from devrel_swarm.core.base import load_agent_prompt as _shared_load_agent_prompt
+from devrel_origin.core.base import load_agent_prompt as _shared_load_agent_prompt
 
 def _load_prompt(self, filename: str) -> str:
     """Load a prompt for Pax from optimize/pax/<filename>, falling back
@@ -655,14 +655,14 @@ def _load_prompt(self, filename: str) -> str:
     return _shared_load_agent_prompt("pax", filename, _DEFAULT_SYSTEM_PROMPT)
 ```
 
-Match `load_agent_prompt`'s actual signature — inspect `src/devrel_swarm/core/base.py` first:
+Match `load_agent_prompt`'s actual signature — inspect `src/devrel_origin/core/base.py` first:
 ```bash
-grep -n "def load_agent_prompt" src/devrel_swarm/core/base.py
+grep -n "def load_agent_prompt" src/devrel_origin/core/base.py
 ```
 
 - [ ] **Step 2: Add None-guard to `_execute_campaign`**
 
-In `src/devrel_swarm/core/pax.py:831-851`, find `_execute_campaign`. Add an early guard:
+In `src/devrel_origin/core/pax.py:831-851`, find `_execute_campaign`. Add an early guard:
 
 ```python
 async def _execute_campaign(self, task: str, context: dict) -> dict:
@@ -693,7 +693,7 @@ async def test_execute_campaign_returns_skipped_without_llm_client():
 - [ ] **Step 4: Commit**
 
 ```bash
-git add src/devrel_swarm/core/pax.py tests/test_pax.py
+git add src/devrel_origin/core/pax.py tests/test_pax.py
 git commit -m "fix(pax): migrate _load_prompt to shared util + None-guard _execute_campaign (Wave 2)"
 ```
 
@@ -702,7 +702,7 @@ git commit -m "fix(pax): migrate _load_prompt to shared util + None-guard _execu
 ## Task 9: Dex — class-body `ast.walk` + `repo_path` from project paths
 
 **Files:**
-- Modify: `src/devrel_swarm/core/dex.py`
+- Modify: `src/devrel_origin/core/dex.py`
 - Modify: `tests/test_dex.py`
 
 **Bugs:**
@@ -711,7 +711,7 @@ git commit -m "fix(pax): migrate _load_prompt to shared util + None-guard _execu
 
 - [ ] **Step 1: Replace one-level class traversal with `ast.walk`**
 
-In `src/devrel_swarm/core/dex.py`, find the class-body traversal (around line 224-227). Currently:
+In `src/devrel_origin/core/dex.py`, find the class-body traversal (around line 224-227). Currently:
 
 ```python
 for child in ast.iter_child_nodes(node):
@@ -739,14 +739,14 @@ The cleanest implementation uses a manual recursive descent with scope tracking 
 
 - [ ] **Step 2: Default `repo_path` from project paths**
 
-In `src/devrel_swarm/core/dex.py:602-603`, find the `repo_path = context.get("repo_path", Path("."))` line. Replace with a fallback to project paths:
+In `src/devrel_origin/core/dex.py:602-603`, find the `repo_path = context.get("repo_path", Path("."))` line. Replace with a fallback to project paths:
 
 ```python
 repo_path_value = context.get("repo_path")
 if repo_path_value is None:
     # Try the project root from .devrel/ discovery
     try:
-        from devrel_swarm.project.paths import find_devrel_root
+        from devrel_origin.project.paths import find_devrel_root
         repo_path_value = find_devrel_root()
     except Exception:
         repo_path_value = Path(".")
@@ -776,7 +776,7 @@ def test_dex_uses_devrel_root_when_no_repo_path_in_context(tmp_path, monkeypatch
 - [ ] **Step 4: Commit**
 
 ```bash
-git add src/devrel_swarm/core/dex.py tests/test_dex.py
+git add src/devrel_origin/core/dex.py tests/test_dex.py
 git commit -m "fix(dex): nested class-body traversal + repo_path from .devrel root (Wave 2)"
 ```
 
@@ -785,14 +785,14 @@ git commit -m "fix(dex): nested class-body traversal + repo_path from .devrel ro
 ## Task 10: Rex — `parse_error` status on JSON failure
 
 **Files:**
-- Modify: `src/devrel_swarm/core/rex.py`
+- Modify: `src/devrel_origin/core/rex.py`
 - Modify: `tests/test_rex.py`
 
 **Bug:** `rex.py:471-475` — when `json.loads` fails, the raw cleaned string is stored in `base_result["content"]` with `status="generated"`. Downstream consumers expecting a dict break with `AttributeError`.
 
 - [ ] **Step 1: Distinguish parse failure**
 
-In `src/devrel_swarm/core/rex.py`, find the `json.loads` block. Currently:
+In `src/devrel_origin/core/rex.py`, find the `json.loads` block. Currently:
 
 ```python
 try:
@@ -843,7 +843,7 @@ async def test_json_parse_failure_sets_parse_error_status(monkeypatch):
 - [ ] **Step 3: Commit**
 
 ```bash
-git add src/devrel_swarm/core/rex.py tests/test_rex.py
+git add src/devrel_origin/core/rex.py tests/test_rex.py
 git commit -m "fix(rex): set status='parse_error' on JSON failure; preserve raw_content (Wave 2)"
 ```
 

@@ -8,7 +8,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from typer.testing import CliRunner
 
-from devrel_swarm.cli import app
+from devrel_origin.cli import app
 
 runner = CliRunner()
 
@@ -26,7 +26,7 @@ def _init(tmp_path):
 
 @pytest.fixture
 def mock_atlas():
-    with patch("devrel_swarm.cli._common.Atlas") as M:
+    with patch("devrel_origin.cli._common.Atlas") as M:
         inst = M.return_value
         inst.run_single_task = AsyncMock(
             return_value=MagicMock(success=True, agent="?", result="ok", error=None)
@@ -64,7 +64,7 @@ def test_docs_build_persists_dex_output_to_deliverables(tmp_path):
         "languages": {"Python": 100.0},
         "status": "generated",
     }
-    with patch("devrel_swarm.cli._common.Atlas") as M:
+    with patch("devrel_origin.cli._common.Atlas") as M:
         inst = M.return_value
         inst.run_single_task = AsyncMock(
             return_value=MagicMock(success=True, agent="dex", output=fake_output, error=None)
@@ -93,7 +93,7 @@ def test_docs_build_skips_empty_fields(tmp_path):
         "modules": [],  # falsy, should skip dex-modules.json
         "status": "generated",
     }
-    with patch("devrel_swarm.cli._common.Atlas") as M:
+    with patch("devrel_origin.cli._common.Atlas") as M:
         inst = M.return_value
         inst.run_single_task = AsyncMock(
             return_value=MagicMock(success=True, agent="dex", output=fake_output, error=None)
@@ -110,7 +110,7 @@ def test_docs_build_skips_empty_fields(tmp_path):
 def test_docs_build_does_not_persist_on_failure(tmp_path):
     """A failed Dex run should not leave half-written deliverables."""
     _init(tmp_path)
-    with patch("devrel_swarm.cli._common.Atlas") as M:
+    with patch("devrel_origin.cli._common.Atlas") as M:
         inst = M.return_value
         inst.run_single_task = AsyncMock(
             return_value=MagicMock(success=False, agent="dex", output=None, error="parse failed")

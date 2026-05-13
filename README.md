@@ -1,8 +1,8 @@
-# devrel-swarm
+# devrel-origin
 
 **A developer-first CLI for AI-powered DevRel, sales, and marketing.**
 
-`devrel-swarm` is a `pipx`-installable command-line tool that runs a 13-agent system against any project — community triage, social listening, theme extraction, growth experiments, content production, video tutorials, documentation, competitive intel, sales outreach, brand-consistent campaigns, and post-publish content performance analysis. Operates on a project repo the way `git`, `npm`, and `cargo` do.
+`devrel-origin` is a `pipx`-installable command-line tool that runs a 15-agent system against any project — community triage, social listening, theme extraction, growth experiments, content production, video tutorials, documentation, competitive intel, sales outreach, brand-consistent campaigns, and post-publish content performance analysis. Operates on a project repo the way `git`, `npm`, and `cargo` do.
 
 Every piece of content the system produces flows through an 8-stage editorial pipeline (developmental edit → line edit → copy edit → anti-slop → reader-persona test → readability check → brand audit) so output reads like senior-editor work, not generic AI prose.
 
@@ -17,7 +17,7 @@ that walks you through scaffold → LLM key → health check → voice tuning �
 first draft in one session.
 
 ```bash
-pipx install devrel-swarm
+pipx install devrel-origin
 
 cd /path/to/your/project
 devrel init                # interactive wizard, all the way to first draft
@@ -49,7 +49,7 @@ devrel init --non-interactive --name myproj --url ... --github-repo ...
 After onboarding:
 
 ```bash
-devrel run                       # ad-hoc weekly pipeline (all 13 agents)
+devrel run                       # ad-hoc weekly pipeline (all 15 agents)
 devrel schedule install          # cron it (Mondays 09:00 UTC default)
 ```
 
@@ -167,7 +167,7 @@ Stages 5-7 use Haiku for cost; stages 2-4 use Sonnet. Total cost ≈ 2.5-4× a s
 
 ## How it works internally
 
-Hub-and-spoke with 13 agents. Atlas orchestrates; specialists execute across three pipelines.
+Hub-and-spoke with 15 agents. Atlas orchestrates; specialists execute across the pipelines.
 
 ```
 Atlas (Orchestrator)

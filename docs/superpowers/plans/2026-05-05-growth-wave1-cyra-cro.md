@@ -17,11 +17,11 @@
 
 | File | Status | Responsibility |
 |------|--------|----------------|
-| `src/devrel_swarm/tools/api_client.py` | Modify | Add `funnel_query`, `event_volumes` methods to `PostHogClient` |
-| `src/devrel_swarm/core/cyra.py` | Create | Cyra agent class, `FunnelStep`/`DropOff`/`Hypothesis`/`CroReport` dataclasses, `execute()` method |
-| `src/devrel_swarm/core/__init__.py` | Modify | Export `Cyra` |
-| `src/devrel_swarm/cli/cro.py` | Create | Typer `cro_app` with `report`/`history`/`diff`/`calibration`/`funnel` verbs |
-| `src/devrel_swarm/cli/__init__.py` | Modify | Register `cro_app` |
+| `src/devrel_origin/tools/api_client.py` | Modify | Add `funnel_query`, `event_volumes` methods to `PostHogClient` |
+| `src/devrel_origin/core/cyra.py` | Create | Cyra agent class, `FunnelStep`/`DropOff`/`Hypothesis`/`CroReport` dataclasses, `execute()` method |
+| `src/devrel_origin/core/__init__.py` | Modify | Export `Cyra` |
+| `src/devrel_origin/cli/cro.py` | Create | Typer `cro_app` with `report`/`history`/`diff`/`calibration`/`funnel` verbs |
+| `src/devrel_origin/cli/__init__.py` | Modify | Register `cro_app` |
 | `tests/test_cyra.py` | Create | Cyra unit tests (auto-detect, drop-off, hypotheses, persistence) |
 | `tests/cli/test_cro_command.py` | Create | CLI verb smoke tests |
 
@@ -30,7 +30,7 @@
 ## Task 1: Extend `PostHogClient` with `event_volumes` and `funnel_query`
 
 **Files:**
-- Modify: `src/devrel_swarm/tools/api_client.py`
+- Modify: `src/devrel_origin/tools/api_client.py`
 - Test: `tests/test_api_client.py`
 
 - [ ] **Step 1: Write the failing tests**
@@ -90,7 +90,7 @@ Expected: AttributeError — methods don't exist.
 
 - [ ] **Step 3: Implement the methods**
 
-Append to `PostHogClient` class in `src/devrel_swarm/tools/api_client.py`:
+Append to `PostHogClient` class in `src/devrel_origin/tools/api_client.py`:
 
 ```python
     async def event_volumes(self, days: int = 7, limit: int = 50) -> list[tuple[str, int]]:
@@ -143,7 +143,7 @@ Expected: 2 PASSED.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/devrel_swarm/tools/api_client.py tests/test_api_client.py
+git add src/devrel_origin/tools/api_client.py tests/test_api_client.py
 git commit -m "feat(posthog): add event_volumes + funnel_query for Cyra"
 ```
 
@@ -152,7 +152,7 @@ git commit -m "feat(posthog): add event_volumes + funnel_query for Cyra"
 ## Task 2: Cyra dataclasses
 
 **Files:**
-- Create: `src/devrel_swarm/core/cyra.py`
+- Create: `src/devrel_origin/core/cyra.py`
 - Test: `tests/test_cyra.py`
 
 - [ ] **Step 1: Write the failing test**
@@ -167,7 +167,7 @@ from pathlib import Path
 
 import pytest
 
-from devrel_swarm.core.cyra import (
+from devrel_origin.core.cyra import (
     CroReport,
     Cyra,
     DropOff,
@@ -211,7 +211,7 @@ Expected: ImportError.
 
 - [ ] **Step 3: Create the module + dataclasses**
 
-Create `src/devrel_swarm/core/cyra.py`:
+Create `src/devrel_origin/core/cyra.py`:
 
 ```python
 """Cyra — CRO (conversion rate optimization) auditor.
@@ -232,14 +232,14 @@ from datetime import date, datetime
 from pathlib import Path
 from typing import Optional
 
-from devrel_swarm.core.growth import (
+from devrel_origin.core.growth import (
     Pillar,
     Recommendation,
     TargetKind,
     persist_recommendation,
 )
-from devrel_swarm.core.llm import LLMClient
-from devrel_swarm.tools.api_client import PostHogClient
+from devrel_origin.core.llm import LLMClient
+from devrel_origin.tools.api_client import PostHogClient
 
 logger = logging.getLogger(__name__)
 
@@ -318,7 +318,7 @@ Expected: 3 PASSED.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/devrel_swarm/core/cyra.py tests/test_cyra.py
+git add src/devrel_origin/core/cyra.py tests/test_cyra.py
 git commit -m "feat(cyra): dataclasses (FunnelStep, DropOff, Hypothesis, CroReport)"
 ```
 
@@ -327,7 +327,7 @@ git commit -m "feat(cyra): dataclasses (FunnelStep, DropOff, Hypothesis, CroRepo
 ## Task 3: Funnel auto-detection from event volume
 
 **Files:**
-- Modify: `src/devrel_swarm/core/cyra.py`
+- Modify: `src/devrel_origin/core/cyra.py`
 - Modify: `tests/test_cyra.py`
 
 - [ ] **Step 1: Write the failing test**
@@ -380,7 +380,7 @@ Expected: AttributeError on `Cyra` — class doesn't exist yet.
 
 - [ ] **Step 3: Add the Cyra class with `_autodetect_funnel`**
 
-Append to `src/devrel_swarm/core/cyra.py`:
+Append to `src/devrel_origin/core/cyra.py`:
 
 ```python
 # PostHog system events to exclude from auto-detected funnels
@@ -453,7 +453,7 @@ Expected: 2 PASSED.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/devrel_swarm/core/cyra.py tests/test_cyra.py
+git add src/devrel_origin/core/cyra.py tests/test_cyra.py
 git commit -m "feat(cyra): auto-detect funnel from PostHog event volumes"
 ```
 
@@ -462,7 +462,7 @@ git commit -m "feat(cyra): auto-detect funnel from PostHog event volumes"
 ## Task 4: Drop-off ranking with WoW deterioration
 
 **Files:**
-- Modify: `src/devrel_swarm/core/cyra.py`
+- Modify: `src/devrel_origin/core/cyra.py`
 - Modify: `tests/test_cyra.py`
 
 - [ ] **Step 1: Write the failing test**
@@ -564,7 +564,7 @@ Expected: PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/devrel_swarm/core/cyra.py tests/test_cyra.py
+git add src/devrel_origin/core/cyra.py tests/test_cyra.py
 git commit -m "feat(cyra): drop-off ranking with WoW deterioration detection"
 ```
 
@@ -573,7 +573,7 @@ git commit -m "feat(cyra): drop-off ranking with WoW deterioration detection"
 ## Task 5: LLM hypothesis generation
 
 **Files:**
-- Modify: `src/devrel_swarm/core/cyra.py`
+- Modify: `src/devrel_origin/core/cyra.py`
 - Modify: `tests/test_cyra.py`
 
 - [ ] **Step 1: Write the failing test**
@@ -721,7 +721,7 @@ Expected: PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/devrel_swarm/core/cyra.py tests/test_cyra.py
+git add src/devrel_origin/core/cyra.py tests/test_cyra.py
 git commit -m "feat(cyra): LLM-driven A/B hypothesis generation with ICE scoring"
 ```
 
@@ -730,7 +730,7 @@ git commit -m "feat(cyra): LLM-driven A/B hypothesis generation with ICE scoring
 ## Task 6: Cohort splitting (utm_source × device_type)
 
 **Files:**
-- Modify: `src/devrel_swarm/core/cyra.py`
+- Modify: `src/devrel_origin/core/cyra.py`
 - Modify: `tests/test_cyra.py`
 
 - [ ] **Step 1: Write the failing test**
@@ -843,7 +843,7 @@ Expected: PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/devrel_swarm/core/cyra.py tests/test_cyra.py
+git add src/devrel_origin/core/cyra.py tests/test_cyra.py
 git commit -m "feat(cyra): cohort split with min_sample_size guard"
 ```
 
@@ -852,7 +852,7 @@ git commit -m "feat(cyra): cohort split with min_sample_size guard"
 ## Task 7: Recommendation generation + persistence
 
 **Files:**
-- Modify: `src/devrel_swarm/core/cyra.py`
+- Modify: `src/devrel_origin/core/cyra.py`
 - Modify: `tests/test_cyra.py`
 
 - [ ] **Step 1: Write the failing test**
@@ -861,7 +861,7 @@ Append to `tests/test_cyra.py`:
 
 ```python
 import sqlite3
-from devrel_swarm.project import state
+from devrel_origin.project import state
 
 
 @pytest.fixture
@@ -987,7 +987,7 @@ Expected: PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/devrel_swarm/core/cyra.py tests/test_cyra.py
+git add src/devrel_origin/core/cyra.py tests/test_cyra.py
 git commit -m "feat(cyra): action picker + persist via growth.persist_recommendation"
 ```
 
@@ -996,7 +996,7 @@ git commit -m "feat(cyra): action picker + persist via growth.persist_recommenda
 ## Task 8: Brief generation handoff to Mox
 
 **Files:**
-- Modify: `src/devrel_swarm/core/cyra.py`
+- Modify: `src/devrel_origin/core/cyra.py`
 - Modify: `tests/test_cyra.py`
 
 - [ ] **Step 1: Write the failing test**
@@ -1125,7 +1125,7 @@ Expected: PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/devrel_swarm/core/cyra.py tests/test_cyra.py
+git add src/devrel_origin/core/cyra.py tests/test_cyra.py
 git commit -m "feat(cyra): Mox-ready brief generation per recommendation"
 ```
 
@@ -1134,7 +1134,7 @@ git commit -m "feat(cyra): Mox-ready brief generation per recommendation"
 ## Task 9: `Cyra.execute()` end-to-end orchestration
 
 **Files:**
-- Modify: `src/devrel_swarm/core/cyra.py`
+- Modify: `src/devrel_origin/core/cyra.py`
 - Modify: `tests/test_cyra.py`
 
 - [ ] **Step 1: Write the failing test**
@@ -1283,7 +1283,7 @@ Expected: all Cyra tests PASS; full suite green.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/devrel_swarm/core/cyra.py tests/test_cyra.py
+git add src/devrel_origin/core/cyra.py tests/test_cyra.py
 git commit -m "feat(cyra): Cyra.execute end-to-end orchestration"
 ```
 
@@ -1292,8 +1292,8 @@ git commit -m "feat(cyra): Cyra.execute end-to-end orchestration"
 ## Task 10: `cli/cro.py` — `report` verb
 
 **Files:**
-- Create: `src/devrel_swarm/cli/cro.py`
-- Modify: `src/devrel_swarm/cli/__init__.py`
+- Create: `src/devrel_origin/cli/cro.py`
+- Modify: `src/devrel_origin/cli/__init__.py`
 - Test: `tests/cli/test_cro_command.py`
 
 - [ ] **Step 1: Write the failing test**
@@ -1305,7 +1305,7 @@ Create `tests/cli/test_cro_command.py`:
 
 from typer.testing import CliRunner
 
-from devrel_swarm.cli import app
+from devrel_origin.cli import app
 
 
 def test_cro_help_lists_subcommands():
@@ -1333,7 +1333,7 @@ Expected: `cro` not registered → fail.
 
 - [ ] **Step 3: Create `cli/cro.py` with the `report` verb**
 
-Create `src/devrel_swarm/cli/cro.py`:
+Create `src/devrel_origin/cli/cro.py`:
 
 ```python
 """`devrel cro ...` — CRO auditor verbs (Cyra)."""
@@ -1350,11 +1350,11 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
-from devrel_swarm.cli._common import find_paths_or_exit
-from devrel_swarm.core.cyra import Cyra
-from devrel_swarm.core.growth.target_kinds import Pillar
-from devrel_swarm.core.llm import LLMClient
-from devrel_swarm.tools.api_client import PostHogClient
+from devrel_origin.cli._common import find_paths_or_exit
+from devrel_origin.core.cyra import Cyra
+from devrel_origin.core.growth.target_kinds import Pillar
+from devrel_origin.core.llm import LLMClient
+from devrel_origin.tools.api_client import PostHogClient
 
 cro_app = typer.Typer(
     name="cro",
@@ -1428,10 +1428,10 @@ def report(
         _console.print("[yellow]--push not yet implemented for cro; printed-only.[/yellow]")
 ```
 
-Update `src/devrel_swarm/cli/__init__.py`:
+Update `src/devrel_origin/cli/__init__.py`:
 
 ```python
-from devrel_swarm.cli.cro import cro_app
+from devrel_origin.cli.cro import cro_app
 # ...
 app.add_typer(cro_app, name="cro")
 ```
@@ -1459,7 +1459,7 @@ def test_cro_help_lists_subcommands():
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/devrel_swarm/cli/cro.py src/devrel_swarm/cli/__init__.py tests/cli/test_cro_command.py
+git add src/devrel_origin/cli/cro.py src/devrel_origin/cli/__init__.py tests/cli/test_cro_command.py
 git commit -m "feat(cli): devrel cro report"
 ```
 
@@ -1468,7 +1468,7 @@ git commit -m "feat(cli): devrel cro report"
 ## Task 11: `cli/cro.py` — `history` verb
 
 **Files:**
-- Modify: `src/devrel_swarm/cli/cro.py`
+- Modify: `src/devrel_origin/cli/cro.py`
 - Modify: `tests/cli/test_cro_command.py`
 
 - [ ] **Step 1: Write the failing test**
@@ -1548,7 +1548,7 @@ Expected: PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/devrel_swarm/cli/cro.py tests/cli/test_cro_command.py
+git add src/devrel_origin/cli/cro.py tests/cli/test_cro_command.py
 git commit -m "feat(cli): devrel cro history"
 ```
 
@@ -1557,7 +1557,7 @@ git commit -m "feat(cli): devrel cro history"
 ## Task 12: `cli/cro.py` — `diff` verb
 
 **Files:**
-- Modify: `src/devrel_swarm/cli/cro.py`
+- Modify: `src/devrel_origin/cli/cro.py`
 - Modify: `tests/cli/test_cro_command.py`
 
 - [ ] **Step 1: Write the failing test**
@@ -1642,7 +1642,7 @@ Expected: PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/devrel_swarm/cli/cro.py tests/cli/test_cro_command.py
+git add src/devrel_origin/cli/cro.py tests/cli/test_cro_command.py
 git commit -m "feat(cli): devrel cro diff"
 ```
 
@@ -1651,7 +1651,7 @@ git commit -m "feat(cli): devrel cro diff"
 ## Task 13: `cli/cro.py` — `calibration` and `funnel` verbs
 
 **Files:**
-- Modify: `src/devrel_swarm/cli/cro.py`
+- Modify: `src/devrel_origin/cli/cro.py`
 - Modify: `tests/cli/test_cro_command.py`
 
 - [ ] **Step 1: Write the failing tests**
@@ -1703,8 +1703,8 @@ def calibration() -> None:
         _console.print("[yellow]No state.db yet.[/yellow]")
         raise typer.Exit(code=0)
 
-    from devrel_swarm.core.growth.recommendations import calibrate
-    from devrel_swarm.core.growth.target_kinds import TargetKind
+    from devrel_origin.core.growth.recommendations import calibrate
+    from devrel_origin.core.growth.target_kinds import TargetKind
 
     def _score_outcome(rec) -> str:
         """Did conversion improve at this funnel step after the rec was applied?"""
@@ -1804,7 +1804,7 @@ Expected: all PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/devrel_swarm/cli/cro.py tests/cli/test_cro_command.py
+git add src/devrel_origin/cli/cro.py tests/cli/test_cro_command.py
 git commit -m "feat(cli): devrel cro {calibration,funnel}"
 ```
 
@@ -1813,14 +1813,14 @@ git commit -m "feat(cli): devrel cro {calibration,funnel}"
 ## Task 14: Export Cyra from `core/__init__.py`
 
 **Files:**
-- Modify: `src/devrel_swarm/core/__init__.py`
+- Modify: `src/devrel_origin/core/__init__.py`
 
 - [ ] **Step 1: Add the export**
 
-Edit `src/devrel_swarm/core/__init__.py` and add `Cyra` to the imports + `__all__`:
+Edit `src/devrel_origin/core/__init__.py` and add `Cyra` to the imports + `__all__`:
 
 ```python
-from devrel_swarm.core.cyra import Cyra
+from devrel_origin.core.cyra import Cyra
 # In __all__ list, add: "Cyra",
 ```
 
@@ -1836,7 +1836,7 @@ Expected: full suite green; ruff clean.
 - [ ] **Step 3: Commit**
 
 ```bash
-git add src/devrel_swarm/core/__init__.py
+git add src/devrel_origin/core/__init__.py
 git commit -m "feat(cyra): export Cyra from core"
 ```
 
@@ -1845,8 +1845,8 @@ git commit -m "feat(cyra): export Cyra from core"
 ## Task 15: Atlas Stage 5c registration (Cyra-only placeholder)
 
 **Files:**
-- Modify: `src/devrel_swarm/core/atlas.py`
-- Modify: `src/devrel_swarm/core/agent_config.py` (or wherever `[orchestration]` config lives)
+- Modify: `src/devrel_origin/core/atlas.py`
+- Modify: `src/devrel_origin/core/agent_config.py` (or wherever `[orchestration]` config lives)
 - Test: `tests/test_atlas.py`
 
 Atlas full Stage 5c wiring lands in Wave 4 (Polish). For Wave 1 we just register the `cro_in_run` config flag and add a Cyra-only branch that runs after Argus's Stage 5b when the flag is set. Vega/Selene wiring lands in Waves 2/3.
@@ -1860,7 +1860,7 @@ Append to `tests/test_atlas.py`:
 async def test_atlas_runs_cyra_when_cro_in_run_enabled(tmp_path, monkeypatch):
     """Stage 5c — when cro_in_run=true, Atlas calls Cyra.execute after Argus."""
     # Build a minimal Atlas with mocked agents; assert Cyra.execute was called
-    from devrel_swarm.core.cyra import Cyra
+    from devrel_origin.core.cyra import Cyra
     from unittest.mock import AsyncMock, patch
 
     # ... project state + atlas setup boilerplate (match existing test_atlas.py patterns)
@@ -1879,7 +1879,7 @@ Expected: AttributeError or AssertionError — Atlas doesn't call Cyra yet.
 
 - [ ] **Step 3: Wire Cyra into Atlas Stage 5c**
 
-In `src/devrel_swarm/core/atlas.py`, find where Argus's Stage 5b runs (gated by `analytics_in_run`). Right after that block, add:
+In `src/devrel_origin/core/atlas.py`, find where Argus's Stage 5b runs (gated by `analytics_in_run`). Right after that block, add:
 
 ```python
 # Stage 5c — Growth pillars (Cyra in Wave 1; Vega + Selene added in Waves 2/3)
@@ -1904,7 +1904,7 @@ if self.config.orchestration.cro_in_run:
         self.context.cro_report = {"error": str(e)}
 ```
 
-In `src/devrel_swarm/core/agent_config.py` (or wherever `OrchestrationConfig` lives), add:
+In `src/devrel_origin/core/agent_config.py` (or wherever `OrchestrationConfig` lives), add:
 
 ```python
 @dataclass
@@ -1955,7 +1955,7 @@ Expected: Cyra-Atlas test PASS; full suite green.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/devrel_swarm/core/atlas.py src/devrel_swarm/core/agent_config.py tests/test_atlas.py
+git add src/devrel_origin/core/atlas.py src/devrel_origin/core/agent_config.py tests/test_atlas.py
 git commit -m "feat(atlas): Stage 5c (Cyra) gated by cro_in_run config"
 ```
 

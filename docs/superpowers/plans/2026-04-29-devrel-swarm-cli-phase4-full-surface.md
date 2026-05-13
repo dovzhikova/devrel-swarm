@@ -1,4 +1,4 @@
-# devrel-swarm CLI — Phase 4: Full CLI Surface — Implementation Plan
+# devrel-origin CLI — Phase 4: Full CLI Surface — Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -8,7 +8,7 @@
 
 **Tech Stack:** Typer + Rich (existing), `tomli-w` (already a dep) for config writes, stdlib `sqlite3` for cost queries.
 
-**Spec:** `docs/superpowers/specs/2026-04-29-devrel-swarm-cli-design.md`
+**Spec:** `docs/superpowers/specs/2026-04-29-devrel-origin-cli-design.md`
 **Phases 1-3 (prerequisites, all merged):** `be971bd`, `121187e`, `bfb3bb5` on `main`.
 
 ---
@@ -16,7 +16,7 @@
 ## File structure after Phase 4
 
 ```
-src/devrel_swarm/
+src/devrel_origin/
   cli/
     run.py                NEW   `devrel run` (full weekly + --health + --agent)
     triage.py             NEW   `devrel triage`
@@ -71,22 +71,22 @@ Expected: `exit=0`, `653 passed, 22 failed`, `22` lines.
 This is the foundation for `devrel cost`. We salvage the `set_cost_sink` / `_emit_cost` mechanism from the abandoned v0-agentic-alpha branch (commit `0b16a90`) and wire Atlas to register a sink that persists rows.
 
 **Files:**
-- Modify: `src/devrel_swarm/core/llm.py` — add `set_cost_sink` + `_emit_cost`, call `_emit_cost` after each successful Anthropic response.
-- Modify: `src/devrel_swarm/core/atlas.py` — when `Atlas` is constructed with knowledge of a project path, register a sink that writes to `state.db`.
+- Modify: `src/devrel_origin/core/llm.py` — add `set_cost_sink` + `_emit_cost`, call `_emit_cost` after each successful Anthropic response.
+- Modify: `src/devrel_origin/core/atlas.py` — when `Atlas` is constructed with knowledge of a project path, register a sink that writes to `state.db`.
 - Create: `tests/core/__init__.py`
 - Create: `tests/core/test_llm_cost_sink.py`
-- Create: `src/devrel_swarm/quality/_cost_sink.py` — adapter (pure helper, no LLM dep) that takes a state-db path and returns an async callable `(agent, model, usage) -> None` that inserts a `costs` row.
+- Create: `src/devrel_origin/quality/_cost_sink.py` — adapter (pure helper, no LLM dep) that takes a state-db path and returns an async callable `(agent, model, usage) -> None` that inserts a `costs` row.
 
-  Actually, putting the cost-sink helper under `quality/` is wrong (it has nothing to do with the quality pipeline). Place it under `src/devrel_swarm/project/cost_sink.py` instead — it's project-DB-aware infrastructure.
+  Actually, putting the cost-sink helper under `quality/` is wrong (it has nothing to do with the quality pipeline). Place it under `src/devrel_origin/project/cost_sink.py` instead — it's project-DB-aware infrastructure.
 
-- Create: `src/devrel_swarm/project/cost_sink.py`
+- Create: `src/devrel_origin/project/cost_sink.py`
 - Create: `tests/project/test_cost_sink.py`
 
 Pricing for cost-USD computation lives in `core/llm.py`'s `MODEL_COSTS` dict (already defined). The sink converts token counts × pricing into a `cost_usd` per call.
 
 - [ ] **Step 1: Add `set_cost_sink` + `_emit_cost` to `llm.py`**
 
-In `src/devrel_swarm/core/llm.py`, find the `LLMClient.__init__` method and add this initialization:
+In `src/devrel_origin/core/llm.py`, find the `LLMClient.__init__` method and add this initialization:
 ```python
         self._cost_sink: "Callable[[str, str, dict[str, Any]], Awaitable[None]] | None" = None
 ```
@@ -167,7 +167,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from devrel_swarm.core.llm import LLMClient
+from devrel_origin.core.llm import LLMClient
 
 
 @pytest.mark.asyncio
@@ -247,7 +247,7 @@ Expected: 5 passed.
 
 - [ ] **Step 4: Implement the SQLite cost-sink adapter**
 
-Create `src/devrel_swarm/project/cost_sink.py`:
+Create `src/devrel_origin/project/cost_sink.py`:
 ```python
 """Build a cost-sink callable that inserts rows into the project state DB.
 
@@ -262,7 +262,7 @@ import sqlite3
 from pathlib import Path
 from typing import Any
 
-from devrel_swarm.core.llm import MODEL_COSTS
+from devrel_origin.core.llm import MODEL_COSTS
 
 
 def _compute_cost_usd(model: str, usage: dict[str, Any]) -> float:
@@ -324,8 +324,8 @@ import sqlite3
 
 import pytest
 
-from devrel_swarm.project.cost_sink import _compute_cost_usd, make_sqlite_sink
-from devrel_swarm.project.state import init_db
+from devrel_origin.project.cost_sink import _compute_cost_usd, make_sqlite_sink
+from devrel_origin.project.state import init_db
 
 
 def test_compute_cost_usd_sonnet():
@@ -411,13 +411,13 @@ Expected: 10 passed (5 + 5).
 
 - [ ] **Step 7: Wire Atlas to register the sink when project paths are known**
 
-In `src/devrel_swarm/core/atlas.py`, find `Atlas.__init__`. Currently it constructs LLMClient unconditionally. Add (after the LLMClient is constructed):
+In `src/devrel_origin/core/atlas.py`, find `Atlas.__init__`. Currently it constructs LLMClient unconditionally. Add (after the LLMClient is constructed):
 ```python
         # If the caller passed a project_paths, wire cost events into state.db.
-        from devrel_swarm.project.paths import ProjectPaths
+        from devrel_origin.project.paths import ProjectPaths
         project_paths = kwargs.get("project_paths") if isinstance(kwargs, dict) else None
         if isinstance(project_paths, ProjectPaths) and project_paths.state_db.is_file():
-            from devrel_swarm.project.cost_sink import make_sqlite_sink
+            from devrel_origin.project.cost_sink import make_sqlite_sink
             self.llm_client.set_cost_sink(make_sqlite_sink(project_paths.state_db))
 ```
 
@@ -434,8 +434,8 @@ Expected: `663 passed, 22 failed` (653 + 10 new). Diff empty.
 - [ ] **Step 9: Commit**
 
 ```bash
-git add src/devrel_swarm/core/llm.py src/devrel_swarm/core/atlas.py \
-        src/devrel_swarm/project/cost_sink.py \
+git add src/devrel_origin/core/llm.py src/devrel_origin/core/atlas.py \
+        src/devrel_origin/project/cost_sink.py \
         tests/core/__init__.py tests/core/test_llm_cost_sink.py \
         tests/project/test_cost_sink.py
 git commit -m "feat(cost): add LLMClient cost sink + SQLite adapter; wire Atlas"
@@ -448,7 +448,7 @@ git commit -m "feat(cost): add LLMClient cost sink + SQLite adapter; wire Atlas"
 Most Phase 4 commands wrap a single agent invocation. The shared pattern:
 
 ```python
-# In a per-verb file like src/devrel_swarm/cli/<verb>.py:
+# In a per-verb file like src/devrel_origin/cli/<verb>.py:
 
 from __future__ import annotations
 
@@ -458,7 +458,7 @@ import os
 import typer
 from rich.console import Console
 
-from devrel_swarm.cli._common import build_atlas_or_exit, find_paths_or_exit, render_result
+from devrel_origin.cli._common import build_atlas_or_exit, find_paths_or_exit, render_result
 
 console = Console()
 
@@ -478,7 +478,7 @@ def <verb>_command(
     asyncio.run(_do())
 ```
 
-Define the shared helpers ONCE in `src/devrel_swarm/cli/_common.py`:
+Define the shared helpers ONCE in `src/devrel_origin/cli/_common.py`:
 
 ```python
 """Shared CLI helpers."""
@@ -492,9 +492,9 @@ import sys
 import typer
 from rich.console import Console
 
-from devrel_swarm.core.atlas import Atlas, DelegationResult
-from devrel_swarm.core.llm import LLMClient
-from devrel_swarm.project.paths import ProjectNotFoundError, ProjectPaths, find_devrel_root
+from devrel_origin.core.atlas import Atlas, DelegationResult
+from devrel_origin.core.llm import LLMClient
+from devrel_origin.project.paths import ProjectNotFoundError, ProjectPaths, find_devrel_root
 
 
 def find_paths_or_exit(console: Console) -> ProjectPaths:
@@ -555,7 +555,7 @@ A test pattern (also reused) — one test per verb that mocks `Atlas.run_single_
 # tests/cli/test_<verb>_command.py
 from unittest.mock import AsyncMock, MagicMock, patch
 from typer.testing import CliRunner
-from devrel_swarm.cli import app
+from devrel_origin.cli import app
 
 runner = CliRunner()
 
@@ -574,7 +574,7 @@ def test_<verb>_dispatches_to_<agent>(tmp_path):
     cwd = os.getcwd()
     os.chdir(tmp_path)
     try:
-        with patch("devrel_swarm.cli._common.Atlas") as MockAtlas:
+        with patch("devrel_origin.cli._common.Atlas") as MockAtlas:
             instance = MockAtlas.return_value
             instance.run_single_task = AsyncMock(return_value=MagicMock(
                 success=True, agent="<agent>", result={"summary": "ok"},
@@ -595,10 +595,10 @@ Each verb-task in this plan instantiates this pattern with its own `<verb>`, `<a
 ## Task 2: `devrel run` (full pipeline + --health + --agent)
 
 **Files:**
-- Create: `src/devrel_swarm/cli/_common.py` (the shared helper module above)
-- Create: `src/devrel_swarm/cli/run.py`
+- Create: `src/devrel_origin/cli/_common.py` (the shared helper module above)
+- Create: `src/devrel_origin/cli/run.py`
 - Create: `tests/cli/test_run_command.py`
-- Modify: `src/devrel_swarm/cli/__init__.py` (register the run command)
+- Modify: `src/devrel_origin/cli/__init__.py` (register the run command)
 
 `devrel run` (no args) calls `Atlas.run_weekly_cycle()`. `devrel run --health` runs only Watchdog. `devrel run --agent <name> [--task <task>]` runs a single agent.
 
@@ -616,7 +616,7 @@ import asyncio
 import typer
 from rich.console import Console
 
-from devrel_swarm.cli._common import build_atlas_or_exit, find_paths_or_exit
+from devrel_origin.cli._common import build_atlas_or_exit, find_paths_or_exit
 
 console = Console()
 
@@ -653,9 +653,9 @@ def run_command(
 
 - [ ] **Step 3: Register `run` in `cli/__init__.py`**
 
-In `src/devrel_swarm/cli/__init__.py`, add:
+In `src/devrel_origin/cli/__init__.py`, add:
 ```python
-from devrel_swarm.cli.run import run_command
+from devrel_origin.cli.run import run_command
 ```
 and:
 ```python
@@ -675,7 +675,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from typer.testing import CliRunner
 
-from devrel_swarm.cli import app
+from devrel_origin.cli import app
 
 runner = CliRunner()
 
@@ -694,7 +694,7 @@ def test_run_health_calls_watchdog(tmp_path):
     cwd = os.getcwd()
     os.chdir(tmp_path)
     try:
-        with patch("devrel_swarm.cli._common.Atlas") as MockAtlas:
+        with patch("devrel_origin.cli._common.Atlas") as MockAtlas:
             inst = MockAtlas.return_value
             inst.run_single_task = AsyncMock(return_value=MagicMock(success=True, agent="watchdog", result={"checks": "ok"}, error=None))
             result = runner.invoke(app, ["run", "--health"], env={"ANTHROPIC_API_KEY": "x", **os.environ})
@@ -709,7 +709,7 @@ def test_run_agent_dispatches_named_agent(tmp_path):
     cwd = os.getcwd()
     os.chdir(tmp_path)
     try:
-        with patch("devrel_swarm.cli._common.Atlas") as MockAtlas:
+        with patch("devrel_origin.cli._common.Atlas") as MockAtlas:
             inst = MockAtlas.return_value
             inst.run_single_task = AsyncMock(return_value=MagicMock(success=True, agent="kai", result="ok", error=None))
             result = runner.invoke(app, ["run", "--agent", "kai", "--task", "Write tutorial"],
@@ -727,7 +727,7 @@ def test_run_default_calls_weekly_cycle(tmp_path):
     cwd = os.getcwd()
     os.chdir(tmp_path)
     try:
-        with patch("devrel_swarm.cli._common.Atlas") as MockAtlas:
+        with patch("devrel_origin.cli._common.Atlas") as MockAtlas:
             inst = MockAtlas.return_value
             inst.run_weekly_cycle = AsyncMock(return_value=MagicMock(week_of="2026-W18"))
             result = runner.invoke(app, ["run"], env={"ANTHROPIC_API_KEY": "x", **os.environ})
@@ -757,8 +757,8 @@ Expected: 4 passed.
 - [ ] **Step 6: Commit**
 
 ```bash
-git add src/devrel_swarm/cli/_common.py src/devrel_swarm/cli/run.py \
-        src/devrel_swarm/cli/__init__.py tests/cli/test_run_command.py
+git add src/devrel_origin/cli/_common.py src/devrel_origin/cli/run.py \
+        src/devrel_origin/cli/__init__.py tests/cli/test_run_command.py
 git commit -m "feat(cli): add 'devrel run' (full weekly + --health + --agent)"
 ```
 
@@ -769,8 +769,8 @@ git commit -m "feat(cli): add 'devrel run' (full weekly + --health + --agent)"
 These four follow the canonical pattern verbatim. Single dispatch since they're identical in shape.
 
 **Files:**
-- Create: `src/devrel_swarm/cli/triage.py`, `listen.py`, `synthesize.py`, `experiment.py`
-- Modify: `src/devrel_swarm/cli/__init__.py`
+- Create: `src/devrel_origin/cli/triage.py`, `listen.py`, `synthesize.py`, `experiment.py`
+- Modify: `src/devrel_origin/cli/__init__.py`
 - Create: `tests/cli/test_triage_command.py`, `test_listen_command.py`, `test_synthesize_command.py`, `test_experiment_command.py`
 
 **Per-verb specs:**
@@ -794,7 +794,7 @@ import asyncio
 import typer
 from rich.console import Console
 
-from devrel_swarm.cli._common import build_atlas_or_exit, find_paths_or_exit, render_result
+from devrel_origin.cli._common import build_atlas_or_exit, find_paths_or_exit, render_result
 
 console = Console()
 
@@ -828,7 +828,7 @@ import asyncio
 import typer
 from rich.console import Console
 
-from devrel_swarm.cli._common import build_atlas_or_exit, find_paths_or_exit, render_result
+from devrel_origin.cli._common import build_atlas_or_exit, find_paths_or_exit, render_result
 
 console = Console()
 
@@ -865,7 +865,7 @@ import asyncio
 import typer
 from rich.console import Console
 
-from devrel_swarm.cli._common import build_atlas_or_exit, find_paths_or_exit, render_result
+from devrel_origin.cli._common import build_atlas_or_exit, find_paths_or_exit, render_result
 
 console = Console()
 
@@ -898,7 +898,7 @@ import asyncio
 import typer
 from rich.console import Console
 
-from devrel_swarm.cli._common import build_atlas_or_exit, find_paths_or_exit, render_result
+from devrel_origin.cli._common import build_atlas_or_exit, find_paths_or_exit, render_result
 
 console = Console()
 
@@ -923,10 +923,10 @@ def experiment_command(
 - [ ] **Step 5: Register all four in `cli/__init__.py`**
 
 ```python
-from devrel_swarm.cli.triage import triage_command
-from devrel_swarm.cli.listen import listen_command
-from devrel_swarm.cli.synthesize import synthesize_command
-from devrel_swarm.cli.experiment import experiment_command
+from devrel_origin.cli.triage import triage_command
+from devrel_origin.cli.listen import listen_command
+from devrel_origin.cli.synthesize import synthesize_command
+from devrel_origin.cli.experiment import experiment_command
 # ... after existing registrations:
 app.command(name="triage")(triage_command)
 app.command(name="listen")(listen_command)
@@ -948,7 +948,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from typer.testing import CliRunner
 
-from devrel_swarm.cli import app
+from devrel_origin.cli import app
 
 runner = CliRunner()
 
@@ -964,7 +964,7 @@ def _init(tmp_path):
 
 @pytest.fixture
 def mock_atlas():
-    with patch("devrel_swarm.cli._common.Atlas") as M:
+    with patch("devrel_origin.cli._common.Atlas") as M:
         inst = M.return_value
         inst.run_single_task = AsyncMock(return_value=MagicMock(
             success=True, agent="?", result={"summary": "ok"}, error=None,
@@ -1040,9 +1040,9 @@ Expected: 5 passed.
 - [ ] **Step 8: Commit**
 
 ```bash
-git add src/devrel_swarm/cli/triage.py src/devrel_swarm/cli/listen.py \
-        src/devrel_swarm/cli/synthesize.py src/devrel_swarm/cli/experiment.py \
-        src/devrel_swarm/cli/__init__.py tests/cli/test_devrel_verbs.py
+git add src/devrel_origin/cli/triage.py src/devrel_origin/cli/listen.py \
+        src/devrel_origin/cli/synthesize.py src/devrel_origin/cli/experiment.py \
+        src/devrel_origin/cli/__init__.py tests/cli/test_devrel_verbs.py
 git commit -m "feat(cli): add devrel verbs (triage, listen, synthesize, experiment)"
 ```
 
@@ -1053,9 +1053,9 @@ git commit -m "feat(cli): add devrel verbs (triage, listen, synthesize, experime
 Same pattern. `sales` is a Typer subapp with three subcommands; `intel` is a top-level verb.
 
 **Files:**
-- Create: `src/devrel_swarm/cli/intel.py`
-- Create: `src/devrel_swarm/cli/sales.py` (Typer subapp with 3 subcommands)
-- Modify: `src/devrel_swarm/cli/__init__.py`
+- Create: `src/devrel_origin/cli/intel.py`
+- Create: `src/devrel_origin/cli/sales.py` (Typer subapp with 3 subcommands)
+- Modify: `src/devrel_origin/cli/__init__.py`
 - Create: `tests/cli/test_sales_verbs.py`
 
 **Specs:**
@@ -1079,7 +1079,7 @@ import asyncio
 import typer
 from rich.console import Console
 
-from devrel_swarm.cli._common import build_atlas_or_exit, find_paths_or_exit, render_result
+from devrel_origin.cli._common import build_atlas_or_exit, find_paths_or_exit, render_result
 
 console = Console()
 
@@ -1113,7 +1113,7 @@ import asyncio
 import typer
 from rich.console import Console
 
-from devrel_swarm.cli._common import build_atlas_or_exit, find_paths_or_exit, render_result
+from devrel_origin.cli._common import build_atlas_or_exit, find_paths_or_exit, render_result
 
 console = Console()
 
@@ -1166,8 +1166,8 @@ def sequence(
 - [ ] **Step 3: Register both in `cli/__init__.py`**
 
 ```python
-from devrel_swarm.cli.intel import intel_command
-from devrel_swarm.cli.sales import sales_app
+from devrel_origin.cli.intel import intel_command
+from devrel_origin.cli.sales import sales_app
 # ...
 app.command(name="intel")(intel_command)
 app.add_typer(sales_app, name="sales")
@@ -1188,7 +1188,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from typer.testing import CliRunner
 
-from devrel_swarm.cli import app
+from devrel_origin.cli import app
 
 runner = CliRunner()
 
@@ -1204,7 +1204,7 @@ def _init(tmp_path):
 
 @pytest.fixture
 def mock_atlas():
-    with patch("devrel_swarm.cli._common.Atlas") as M:
+    with patch("devrel_origin.cli._common.Atlas") as M:
         inst = M.return_value
         inst.run_single_task = AsyncMock(return_value=MagicMock(
             success=True, agent="?", result={"k": "v"}, error=None,
@@ -1269,8 +1269,8 @@ python -m pytest tests/cli/test_sales_verbs.py -v --no-cov 2>&1 | tail -10
 Expected: 4 passed.
 
 ```bash
-git add src/devrel_swarm/cli/intel.py src/devrel_swarm/cli/sales.py \
-        src/devrel_swarm/cli/__init__.py tests/cli/test_sales_verbs.py
+git add src/devrel_origin/cli/intel.py src/devrel_origin/cli/sales.py \
+        src/devrel_origin/cli/__init__.py tests/cli/test_sales_verbs.py
 git commit -m "feat(cli): add 'devrel intel' + 'devrel sales {outreach|battlecard|sequence}'"
 ```
 
@@ -1281,8 +1281,8 @@ git commit -m "feat(cli): add 'devrel intel' + 'devrel sales {outreach|battlecar
 Same pattern as sales. Subapp + 4 subcommands.
 
 **Files:**
-- Create: `src/devrel_swarm/cli/marketing.py`
-- Modify: `src/devrel_swarm/cli/__init__.py`
+- Create: `src/devrel_origin/cli/marketing.py`
+- Modify: `src/devrel_origin/cli/__init__.py`
 - Create: `tests/cli/test_marketing_verbs.py`
 
 **Specs:**
@@ -1306,7 +1306,7 @@ import asyncio
 import typer
 from rich.console import Console
 
-from devrel_swarm.cli._common import build_atlas_or_exit, find_paths_or_exit, render_result
+from devrel_origin.cli._common import build_atlas_or_exit, find_paths_or_exit, render_result
 
 console = Console()
 
@@ -1368,7 +1368,7 @@ def campaign(
 - [ ] **Step 2: Register in `cli/__init__.py`**
 
 ```python
-from devrel_swarm.cli.marketing import marketing_app
+from devrel_origin.cli.marketing import marketing_app
 # ...
 app.add_typer(marketing_app, name="marketing")
 ```
@@ -1387,7 +1387,7 @@ python -m pytest tests/cli/test_marketing_verbs.py -v --no-cov 2>&1 | tail -10
 Expected: 4 passed.
 
 ```bash
-git add src/devrel_swarm/cli/marketing.py src/devrel_swarm/cli/__init__.py \
+git add src/devrel_origin/cli/marketing.py src/devrel_origin/cli/__init__.py \
         tests/cli/test_marketing_verbs.py
 git commit -m "feat(cli): add 'devrel marketing {blog|landing|social|campaign}'"
 ```
@@ -1399,9 +1399,9 @@ git commit -m "feat(cli): add 'devrel marketing {blog|landing|social|campaign}'"
 These wrap existing tools (`tools/kb_harvester.py`, `tools/scheduler.py`) instead of agents.
 
 **Files:**
-- Create: `src/devrel_swarm/cli/kb.py`
-- Create: `src/devrel_swarm/cli/schedule.py`
-- Modify: `src/devrel_swarm/cli/__init__.py`
+- Create: `src/devrel_origin/cli/kb.py`
+- Create: `src/devrel_origin/cli/schedule.py`
+- Modify: `src/devrel_origin/cli/__init__.py`
 - Create: `tests/cli/test_kb_verbs.py`, `tests/cli/test_schedule_verbs.py`
 
 - [ ] **Step 1: Create `cli/kb.py`**
@@ -1419,8 +1419,8 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
-from devrel_swarm.cli._common import find_paths_or_exit
-from devrel_swarm.tools.kb_harvester import KBHarvester
+from devrel_origin.cli._common import find_paths_or_exit
+from devrel_origin.tools.kb_harvester import KBHarvester
 
 console = Console()
 
@@ -1499,8 +1499,8 @@ from __future__ import annotations
 import typer
 from rich.console import Console
 
-from devrel_swarm.cli._common import find_paths_or_exit
-from devrel_swarm.tools.scheduler import Scheduler
+from devrel_origin.cli._common import find_paths_or_exit
+from devrel_origin.tools.scheduler import Scheduler
 
 console = Console()
 
@@ -1545,14 +1545,14 @@ def remove_cmd() -> None:
 
 If `Scheduler()` requires arguments or has different method names, adapt accordingly. Inspect first:
 ```bash
-grep -n "class Scheduler\|def install\|def remove\|def list" src/devrel_swarm/tools/scheduler.py | head -10
+grep -n "class Scheduler\|def install\|def remove\|def list" src/devrel_origin/tools/scheduler.py | head -10
 ```
 
 - [ ] **Step 3: Register both in `cli/__init__.py`**
 
 ```python
-from devrel_swarm.cli.kb import kb_app
-from devrel_swarm.cli.schedule import schedule_app
+from devrel_origin.cli.kb import kb_app
+from devrel_origin.cli.schedule import schedule_app
 # ...
 app.add_typer(kb_app, name="kb")
 app.add_typer(schedule_app, name="schedule")
@@ -1573,7 +1573,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from typer.testing import CliRunner
 
-from devrel_swarm.cli import app
+from devrel_origin.cli import app
 
 runner = CliRunner()
 
@@ -1598,7 +1598,7 @@ def _run(tmp_path, args):
 
 def test_kb_add_calls_harvester(tmp_path):
     _init(tmp_path)
-    with patch("devrel_swarm.cli.kb.KBHarvester") as MockH:
+    with patch("devrel_origin.cli.kb.KBHarvester") as MockH:
         inst = MockH.return_value
         inst.harvest_url = AsyncMock(return_value=True)
         r = _run(tmp_path, ["kb", "add", "https://example.com/docs"])
@@ -1627,7 +1627,7 @@ def test_kb_list_with_files(tmp_path):
 
 def test_kb_refresh_calls_harvest_all(tmp_path):
     _init(tmp_path)
-    with patch("devrel_swarm.cli.kb.KBHarvester") as MockH:
+    with patch("devrel_origin.cli.kb.KBHarvester") as MockH:
         inst = MockH.return_value
         inst.harvest_all = AsyncMock(return_value=[True, True, False])
         r = _run(tmp_path, ["kb", "refresh"])
@@ -1648,7 +1648,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from typer.testing import CliRunner
 
-from devrel_swarm.cli import app
+from devrel_origin.cli import app
 
 runner = CliRunner()
 
@@ -1673,7 +1673,7 @@ def _run(tmp_path, args):
 
 def test_schedule_install(tmp_path):
     _init(tmp_path)
-    with patch("devrel_swarm.cli.schedule.Scheduler") as MockS:
+    with patch("devrel_origin.cli.schedule.Scheduler") as MockS:
         inst = MockS.return_value
         r = _run(tmp_path, ["schedule", "install"])
     assert r.exit_code == 0, r.output
@@ -1682,7 +1682,7 @@ def test_schedule_install(tmp_path):
 
 def test_schedule_list_empty(tmp_path):
     _init(tmp_path)
-    with patch("devrel_swarm.cli.schedule.Scheduler") as MockS:
+    with patch("devrel_origin.cli.schedule.Scheduler") as MockS:
         inst = MockS.return_value
         inst.list_entries.return_value = []
         r = _run(tmp_path, ["schedule", "list"])
@@ -1692,7 +1692,7 @@ def test_schedule_list_empty(tmp_path):
 
 def test_schedule_remove(tmp_path):
     _init(tmp_path)
-    with patch("devrel_swarm.cli.schedule.Scheduler") as MockS:
+    with patch("devrel_origin.cli.schedule.Scheduler") as MockS:
         inst = MockS.return_value
         r = _run(tmp_path, ["schedule", "remove"])
     assert r.exit_code == 0
@@ -1707,8 +1707,8 @@ python -m pytest tests/cli/test_kb_verbs.py tests/cli/test_schedule_verbs.py -v 
 Expected: 7 passed (4 + 3).
 
 ```bash
-git add src/devrel_swarm/cli/kb.py src/devrel_swarm/cli/schedule.py \
-        src/devrel_swarm/cli/__init__.py \
+git add src/devrel_origin/cli/kb.py src/devrel_origin/cli/schedule.py \
+        src/devrel_origin/cli/__init__.py \
         tests/cli/test_kb_verbs.py tests/cli/test_schedule_verbs.py
 git commit -m "feat(cli): add 'devrel kb' and 'devrel schedule' subcommands"
 ```
@@ -1718,11 +1718,11 @@ git commit -m "feat(cli): add 'devrel kb' and 'devrel schedule' subcommands"
 ## Task 7: Cost, deliverables, config, content slop — utility verbs
 
 **Files:**
-- Create: `src/devrel_swarm/cli/cost.py`
-- Create: `src/devrel_swarm/cli/deliverables.py`
-- Create: `src/devrel_swarm/cli/config.py`
-- Modify: `src/devrel_swarm/cli/content.py` (add `slop` subcommand)
-- Modify: `src/devrel_swarm/cli/__init__.py`
+- Create: `src/devrel_origin/cli/cost.py`
+- Create: `src/devrel_origin/cli/deliverables.py`
+- Create: `src/devrel_origin/cli/config.py`
+- Modify: `src/devrel_origin/cli/content.py` (add `slop` subcommand)
+- Modify: `src/devrel_origin/cli/__init__.py`
 - Create: `tests/cli/test_cost_command.py`, `test_deliverables_command.py`, `test_config_command.py`, `test_content_slop.py`
 
 - [ ] **Step 1: `cli/cost.py`**
@@ -1738,7 +1738,7 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
-from devrel_swarm.cli._common import find_paths_or_exit
+from devrel_origin.cli._common import find_paths_or_exit
 
 console = Console()
 
@@ -1810,7 +1810,7 @@ from rich.console import Console
 from rich.markdown import Markdown
 from rich.table import Table
 
-from devrel_swarm.cli._common import find_paths_or_exit
+from devrel_origin.cli._common import find_paths_or_exit
 
 console = Console()
 
@@ -1880,7 +1880,7 @@ import tomllib
 import typer
 from rich.console import Console
 
-from devrel_swarm.cli._common import find_paths_or_exit
+from devrel_origin.cli._common import find_paths_or_exit
 
 console = Console()
 
@@ -1961,7 +1961,7 @@ def set_cmd(
 
 - [ ] **Step 4: Add `content slop` subcommand**
 
-In `src/devrel_swarm/cli/content.py`, after the existing `audit_command`, add:
+In `src/devrel_origin/cli/content.py`, after the existing `audit_command`, add:
 
 ```python
 @content_app.command("slop")
@@ -1970,8 +1970,8 @@ def slop_command(
     json_output: bool = typer.Option(False, "--json"),
 ) -> None:
     """Run only the anti-slop pass on an existing draft."""
-    from devrel_swarm.cli._common import find_paths_or_exit
-    from devrel_swarm.quality.slop import find_slop, parse_blocklist
+    from devrel_origin.cli._common import find_paths_or_exit
+    from devrel_origin.quality.slop import find_slop, parse_blocklist
 
     paths = find_paths_or_exit(console)
     text = file.read_text()
@@ -2000,9 +2000,9 @@ def slop_command(
 - [ ] **Step 5: Register all in `cli/__init__.py`**
 
 ```python
-from devrel_swarm.cli.cost import cost_command
-from devrel_swarm.cli.deliverables import deliverables_app
-from devrel_swarm.cli.config import config_app
+from devrel_origin.cli.cost import cost_command
+from devrel_origin.cli.deliverables import deliverables_app
+from devrel_origin.cli.config import config_app
 # ...
 app.command(name="cost")(cost_command)
 app.add_typer(deliverables_app, name="deliverables")
@@ -2026,8 +2026,8 @@ from pathlib import Path
 import pytest
 from typer.testing import CliRunner
 
-from devrel_swarm.cli import app
-from devrel_swarm.project.state import init_db
+from devrel_origin.cli import app
+from devrel_origin.project.state import init_db
 
 runner = CliRunner()
 
@@ -2200,9 +2200,9 @@ python -m pytest tests/cli/test_utility_verbs.py -v --no-cov 2>&1 | tail -20
 Expected: 14 passed.
 
 ```bash
-git add src/devrel_swarm/cli/cost.py src/devrel_swarm/cli/deliverables.py \
-        src/devrel_swarm/cli/config.py src/devrel_swarm/cli/content.py \
-        src/devrel_swarm/cli/__init__.py tests/cli/test_utility_verbs.py
+git add src/devrel_origin/cli/cost.py src/devrel_origin/cli/deliverables.py \
+        src/devrel_origin/cli/config.py src/devrel_origin/cli/content.py \
+        src/devrel_origin/cli/__init__.py tests/cli/test_utility_verbs.py
 git commit -m "feat(cli): add cost, deliverables, config get/set, content slop"
 ```
 
@@ -2213,8 +2213,8 @@ git commit -m "feat(cli): add cost, deliverables, config get/set, content slop"
 Two more thin wrappers around agents.
 
 **Files:**
-- Create: `src/devrel_swarm/cli/docs.py`, `src/devrel_swarm/cli/video.py`
-- Modify: `src/devrel_swarm/cli/__init__.py`
+- Create: `src/devrel_origin/cli/docs.py`, `src/devrel_origin/cli/video.py`
+- Modify: `src/devrel_origin/cli/__init__.py`
 - Create: `tests/cli/test_niche_verbs.py`
 
 **Specs:**
@@ -2236,7 +2236,7 @@ import asyncio
 import typer
 from rich.console import Console
 
-from devrel_swarm.cli._common import build_atlas_or_exit, find_paths_or_exit, render_result
+from devrel_origin.cli._common import build_atlas_or_exit, find_paths_or_exit, render_result
 
 console = Console()
 
@@ -2275,7 +2275,7 @@ import asyncio
 import typer
 from rich.console import Console
 
-from devrel_swarm.cli._common import build_atlas_or_exit, find_paths_or_exit, render_result
+from devrel_origin.cli._common import build_atlas_or_exit, find_paths_or_exit, render_result
 
 console = Console()
 
@@ -2306,8 +2306,8 @@ def record(
 - [ ] **Step 3: Register both**
 
 ```python
-from devrel_swarm.cli.docs import docs_app
-from devrel_swarm.cli.video import video_app
+from devrel_origin.cli.docs import docs_app
+from devrel_origin.cli.video import video_app
 # ...
 app.add_typer(docs_app, name="docs")
 app.add_typer(video_app, name="video")
@@ -2328,7 +2328,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from typer.testing import CliRunner
 
-from devrel_swarm.cli import app
+from devrel_origin.cli import app
 
 runner = CliRunner()
 
@@ -2344,7 +2344,7 @@ def _init(tmp_path):
 
 @pytest.fixture
 def mock_atlas():
-    with patch("devrel_swarm.cli._common.Atlas") as M:
+    with patch("devrel_origin.cli._common.Atlas") as M:
         inst = M.return_value
         inst.run_single_task = AsyncMock(return_value=MagicMock(success=True, agent="?", result="ok", error=None))
         yield inst
@@ -2384,8 +2384,8 @@ python -m pytest tests/cli/test_niche_verbs.py -v --no-cov 2>&1 | tail -10
 Expected: 2 passed.
 
 ```bash
-git add src/devrel_swarm/cli/docs.py src/devrel_swarm/cli/video.py \
-        src/devrel_swarm/cli/__init__.py tests/cli/test_niche_verbs.py
+git add src/devrel_origin/cli/docs.py src/devrel_origin/cli/video.py \
+        src/devrel_origin/cli/__init__.py tests/cli/test_niche_verbs.py
 git commit -m "feat(cli): add 'devrel docs build' and 'devrel video record'"
 ```
 
@@ -2405,7 +2405,7 @@ Expected: ~`710-720 passed, 22 failed`. Diff empty.
 
 ```bash
 python -m pytest tests/cli tests/core tests/project \
-  --cov=devrel_swarm.cli --cov=devrel_swarm.core.llm --cov=devrel_swarm.project \
+  --cov=devrel_origin.cli --cov=devrel_origin.core.llm --cov=devrel_origin.project \
   --cov-report=term 2>&1 | tail -20
 ```
 Expected: `cli/` ≥80%, `project/cost_sink.py` ≥80%, `core/llm.py` ≥75% (the cost-sink portions).
@@ -2466,10 +2466,10 @@ devrel video record <script>
 In the File Map, append after the existing CLI block:
 
 ```
-src/devrel_swarm/cli/_common.py    Shared CLI helpers (find_paths_or_exit,
+src/devrel_origin/cli/_common.py    Shared CLI helpers (find_paths_or_exit,
                                    build_atlas_or_exit, render_result).
-src/devrel_swarm/cli/run.py + 14 more  One file per verb / verb group.
-src/devrel_swarm/project/cost_sink.py  Builds an async sink that writes
+src/devrel_origin/cli/run.py + 14 more  One file per verb / verb group.
+src/devrel_origin/project/cost_sink.py  Builds an async sink that writes
                                    LLM cost events into .devrel/state.db.
                                    Atlas registers it on construction
                                    when project_paths is provided.

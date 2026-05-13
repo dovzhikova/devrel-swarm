@@ -3,8 +3,8 @@ requires = ["setuptools>=77.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "devrel-swarm"
-version = "0.2.13"
+name = "devrel-origin"
+version = "0.2.14"
 description = "A 15-agent CLI that runs DevRel, sales, and marketing on your repo. BYO Anthropic or OpenRouter key."
 readme = "README.md"
 requires-python = ">=3.12"
@@ -59,8 +59,8 @@ dependencies = [
 [project.optional-dependencies]
 # Video tutorial generation (Vox agent). Adds ~150MB Playwright browsers
 # (after `playwright install`), pyobjc-core on macOS, and pulls openai for
-# TTS narration. Install with `pip install 'devrel-swarm[video]'` or
-# `pipx install 'devrel-swarm[video]'`.
+# TTS narration. Install with `pip install 'devrel-origin[video]'` or
+# `pipx install 'devrel-origin[video]'`.
 video = [
     "openai>=1.50.0",
     "playwright>=1.49.0",
@@ -68,7 +68,7 @@ video = [
 ]
 
 # SEO auditor (Selene). Pulls Google API client + OAuth flow + HTML parser.
-# Install with `pip install 'devrel-swarm[seo]'` (or `[growth]` for the full pipeline).
+# Install with `pip install 'devrel-origin[seo]'` (or `[growth]` for the full pipeline).
 seo = [
     "google-api-python-client>=2.150.0",
     "google-auth-oauthlib>=1.2.0",
@@ -85,7 +85,7 @@ geo-google = [
 # Convenience: full Growth pipeline (Selene + Vega + Cyra). GEO + CRO have
 # zero new deps; their AI clients reuse existing openai/anthropic/httpx.
 growth = [
-    "devrel-swarm[seo]",
+    "devrel-origin[seo]",
 ]
 
 dev = [
@@ -98,29 +98,29 @@ dev = [
     "build>=1.0.0",
     "twine>=5.0.0",
     # dev installs always pull video + growth deps so tests can exercise the full pipeline
-    "devrel-swarm[video,growth]",
+    "devrel-origin[video,growth]",
 ]
 
 [project.urls]
-Homepage = "https://github.com/dovzhikova/devrel-swarm"
-Repository = "https://github.com/dovzhikova/devrel-swarm"
-Issues = "https://github.com/dovzhikova/devrel-swarm/issues"
-Changelog = "https://github.com/dovzhikova/devrel-swarm/blob/main/CHANGELOG.md"
-Documentation = "https://github.com/dovzhikova/devrel-swarm/tree/main/docs"
+Homepage = "https://github.com/dovzhikova/devrel-origin"
+Repository = "https://github.com/dovzhikova/devrel-origin"
+Issues = "https://github.com/dovzhikova/devrel-origin/issues"
+Changelog = "https://github.com/dovzhikova/devrel-origin/blob/main/CHANGELOG.md"
+Documentation = "https://github.com/dovzhikova/devrel-origin/tree/main/docs"
 
 [project.scripts]
-devrel = "devrel_swarm.cli:app"
+devrel = "devrel_origin.cli:app"
 
 [tool.setuptools.packages.find]
 where = ["src"]
-include = ["devrel_swarm*"]
+include = ["devrel_origin*"]
 
 [tool.setuptools.package-data]
-"devrel_swarm.project.templates" = ["*.toml", "*.md", "*.gitignore"]
+"devrel_origin.project.templates" = ["*.toml", "*.md", "*.gitignore"]
 
 [tool.pytest.ini_options]
 minversion = "7.0"
-addopts = "-v --cov=devrel_swarm --cov-report=term-missing"
+addopts = "-v --cov=devrel_origin --cov-report=term-missing"
 testpaths = ["tests"]
 asyncio_mode = "auto"
 markers = [
@@ -129,7 +129,7 @@ markers = [
 
 [tool.coverage.run]
 branch = true
-source = ["devrel_swarm"]
+source = ["devrel_origin"]
 omit = [
     "*/tests/*",
     "*/test_*.py",

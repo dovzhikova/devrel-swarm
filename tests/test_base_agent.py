@@ -1,6 +1,6 @@
-"""Tests for shared agent utilities in src/devrel_swarm/core/base.py."""
+"""Tests for shared agent utilities in src/devrel_origin/core/base.py."""
 
-from devrel_swarm.core.base import KnowledgeBaseSearch, strip_markdown_fences
+from devrel_origin.core.base import KnowledgeBaseSearch, strip_markdown_fences
 
 
 class TestStripMarkdownFences:

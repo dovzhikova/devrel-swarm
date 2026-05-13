@@ -7,7 +7,7 @@
 
 ## 1. Why this exists
 
-devrel-swarm ships at v0.2.4 with one auditor in the post-publish slot (Argus, content performance). Brand presence in 2026 has three more measurement surfaces that aren't covered: organic search rankings, AI-engine citations, and conversion funnel diagnosis. Each is a discipline with mature toolchains; none currently feed into the swarm's recommendation pipeline.
+devrel-origin ships at v0.2.4 with one auditor in the post-publish slot (Argus, content performance). Brand presence in 2026 has three more measurement surfaces that aren't covered: organic search rankings, AI-engine citations, and conversion funnel diagnosis. Each is a discipline with mature toolchains; none currently feed into the swarm's recommendation pipeline.
 
 This spec adds three new auditor agents — **Selene** (SEO), **Vega** (GEO), **Cyra** (CRO) — as a fourth pipeline alongside Health, DevRel, and Sales. All three follow Argus's pattern exactly: gather signals, score deterministically, emit structured `Recommendation` rows, stage Mox-ready briefs. None of them write content or push to external systems; that stays Mox's job.
 
@@ -264,7 +264,7 @@ Net-new:
 
 - `PERPLEXITY_API_KEY` — `pplx-...`
 - `SERPAPI_API_KEY` — opt-in only when `[geo].include_google_ai_overviews = true`
-- `GSC_OAUTH_CLIENT_ID` + `GSC_OAUTH_CLIENT_SECRET` — bundled in the package for the shared "devrel-swarm" GCP project; users never set these. Stored in `core/oauth_constants.py` and overridable via env var only for self-hosting maintainers.
+- `GSC_OAUTH_CLIENT_ID` + `GSC_OAUTH_CLIENT_SECRET` — bundled in the package for the shared "devrel-origin" GCP project; users never set these. Stored in `core/oauth_constants.py` and overridable via env var only for self-hosting maintainers.
 
 Existing (already wired): `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `BRAVE_API_KEY`, `POSTHOG_API_KEY`.
 
@@ -282,13 +282,13 @@ geo-google = [
     "google-search-results>=2.4.2",
 ]
 growth = [
-    "devrel-swarm[seo]",
+    "devrel-origin[seo]",
     # geo + cro have zero new deps; their AI clients reuse existing openai/anthropic/httpx
 ]
 
 # existing in v0.2.4 (this spec extends `dev` to pull `[growth]` so contributor
 # tests exercise the full pipeline, mirroring the v0.2.4 pattern of
-# `devrel-swarm[video]` being included in `dev`)
+# `devrel-origin[video]` being included in `dev`)
 video = ["openai>=1.50.0", "playwright>=1.49.0", "pyautogui>=0.9.54"]
 dev = [
     "pytest>=7.4.0",
@@ -299,15 +299,15 @@ dev = [
     "mypy>=1.5.0",
     "build>=1.0.0",
     "twine>=5.0.0",
-    "devrel-swarm[video,growth]",
+    "devrel-origin[video,growth]",
 ]
 ```
 
 End-user paths:
 
-- `pip install devrel-swarm` — base + Argus + Cyra (PostHog client is core)
-- `pip install 'devrel-swarm[growth]'` — adds Selene + Vega
-- `pip install 'devrel-swarm[growth,geo-google]'` — full set including SerpAPI
+- `pip install devrel-origin` — base + Argus + Cyra (PostHog client is core)
+- `pip install 'devrel-origin[growth]'` — adds Selene + Vega
+- `pip install 'devrel-origin[growth,geo-google]'` — full set including SerpAPI
 
 ## 6. CLI surface
 
@@ -333,7 +333,7 @@ devrel growth {summary|diff}                       (cross-pillar only)
 ## 7. New Python modules
 
 ```
-src/devrel_swarm/
+src/devrel_origin/
 ├── core/
 │   ├── selene.py    (~600 LOC)    — SEO auditor agent
 │   ├── vega.py      (~700 LOC)    — GEO auditor agent

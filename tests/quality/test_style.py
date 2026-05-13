@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from devrel_swarm.project.paths import ProjectPaths
-from devrel_swarm.quality.style import (
+from devrel_origin.project.paths import ProjectPaths
+from devrel_origin.quality.style import (
     DEFAULT_TARGETS,
     ContentTypeTargets,
     load_style,

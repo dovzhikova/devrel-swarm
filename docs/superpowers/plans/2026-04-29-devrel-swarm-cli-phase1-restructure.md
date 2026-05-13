@@ -1,21 +1,21 @@
-# devrel-swarm CLI — Phase 1: Repo Restructure — Implementation Plan
+# devrel-origin CLI — Phase 1: Repo Restructure — Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Move the existing `agents/` and `tools/` packages to `src/devrel_swarm/{core,tools}/` with src-layout packaging and updated imports, with all existing tests still passing. No behaviour change.
+**Goal:** Move the existing `agents/` and `tools/` packages to `src/devrel_origin/{core,tools}/` with src-layout packaging and updated imports, with all existing tests still passing. No behaviour change.
 
-**Architecture:** Standard Python src-layout. The 13 agents move to `src/devrel_swarm/core/` (renamed from "agents" because in the new product the agents are the implementation core, not the public surface). Tool modules move to `src/devrel_swarm/tools/`. `agents/config.py` is renamed to `core/agent_config.py` to disambiguate from the future `cli/config.py` introduced in Phase 4. All imports rewritten from `agents.X` / `tools.X` to `devrel_swarm.core.X` / `devrel_swarm.tools.X`.
+**Architecture:** Standard Python src-layout. The 13 agents move to `src/devrel_origin/core/` (renamed from "agents" because in the new product the agents are the implementation core, not the public surface). Tool modules move to `src/devrel_origin/tools/`. `agents/config.py` is renamed to `core/agent_config.py` to disambiguate from the future `cli/config.py` introduced in Phase 4. All imports rewritten from `agents.X` / `tools.X` to `devrel_origin.core.X` / `devrel_origin.tools.X`.
 
 **Tech Stack:** Python 3.12+, setuptools src-layout (already setuptools-based), pytest + pytest-asyncio + respx (existing), `git mv` for history-preserving moves.
 
-**Spec:** `docs/superpowers/specs/2026-04-29-devrel-swarm-cli-design.md`
+**Spec:** `docs/superpowers/specs/2026-04-29-devrel-origin-cli-design.md`
 
 ---
 
 ## File structure after Phase 1
 
 ```
-src/devrel_swarm/
+src/devrel_origin/
   __init__.py              # version, public re-exports
   core/
     __init__.py
@@ -127,7 +127,7 @@ Replace with:
 ```toml
 [tool.setuptools.packages.find]
 where = ["src"]
-include = ["devrel_swarm*"]
+include = ["devrel_origin*"]
 ```
 
 - [ ] **Step 2: Update coverage and test configuration to point at new package**
@@ -139,9 +139,9 @@ minversion = "7.0"
 addopts = "-v --cov=agents --cov=tools --cov-report=term-missing"
 ```
 
-Replace `--cov=agents --cov=tools` with `--cov=devrel_swarm`:
+Replace `--cov=agents --cov=tools` with `--cov=devrel_origin`:
 ```toml
-addopts = "-v --cov=devrel_swarm --cov-report=term-missing"
+addopts = "-v --cov=devrel_origin --cov-report=term-missing"
 ```
 
 In `pyproject.toml`, find:
@@ -155,7 +155,7 @@ Replace with:
 ```toml
 [tool.coverage.run]
 branch = true
-source = ["devrel_swarm"]
+source = ["devrel_origin"]
 ```
 
 - [ ] **Step 3: Verify `pyproject.toml` parses**
@@ -170,68 +170,68 @@ Expected: `ok`. If `tomllib` raises, fix the TOML and re-run.
 
 ---
 
-## Task 3: Move files into the new `src/devrel_swarm/` layout
+## Task 3: Move files into the new `src/devrel_origin/` layout
 
 **Files:**
-- Create: `src/devrel_swarm/__init__.py`, `src/devrel_swarm/core/__init__.py`, `src/devrel_swarm/tools/__init__.py`
-- Move: every file under `agents/` → `src/devrel_swarm/core/`
-- Move: every file under `tools/` → `src/devrel_swarm/tools/`
-- Rename (during move): `agents/config.py` → `src/devrel_swarm/core/agent_config.py`
+- Create: `src/devrel_origin/__init__.py`, `src/devrel_origin/core/__init__.py`, `src/devrel_origin/tools/__init__.py`
+- Move: every file under `agents/` → `src/devrel_origin/core/`
+- Move: every file under `tools/` → `src/devrel_origin/tools/`
+- Rename (during move): `agents/config.py` → `src/devrel_origin/core/agent_config.py`
 
 - [ ] **Step 1: Create the package skeleton directories**
 
 Run:
 ```bash
-mkdir -p src/devrel_swarm/core src/devrel_swarm/tools
+mkdir -p src/devrel_origin/core src/devrel_origin/tools
 ```
 
-- [ ] **Step 2: Create `src/devrel_swarm/__init__.py` with version metadata**
+- [ ] **Step 2: Create `src/devrel_origin/__init__.py` with version metadata**
 
-Write to `src/devrel_swarm/__init__.py`:
+Write to `src/devrel_origin/__init__.py`:
 ```python
-"""devrel-swarm — DevRel + Sales + Marketing agent system."""
+"""devrel-origin — DevRel + Sales + Marketing agent system."""
 
 __version__ = "0.2.0"
 ```
 
 (Bump from 0.1.0 to 0.2.0 reflects the breaking package-path change for any external importers; `pyproject.toml` will be updated in lockstep in Step 7.)
 
-- [ ] **Step 3: Move every Python module out of `agents/` to `src/devrel_swarm/core/` using `git mv` (preserves history)**
+- [ ] **Step 3: Move every Python module out of `agents/` to `src/devrel_origin/core/` using `git mv` (preserves history)**
 
 Run, in order:
 ```bash
-git mv agents/__init__.py src/devrel_swarm/core/__init__.py
-git mv agents/config.py   src/devrel_swarm/core/agent_config.py
+git mv agents/__init__.py src/devrel_origin/core/__init__.py
+git mv agents/config.py   src/devrel_origin/core/agent_config.py
 for f in atlas.py base.py llm.py types.py sage.py echo.py iris.py nova.py \
          kai.py vox.py dex.py rex.py pax.py mox.py sentinel.py watchdog.py; do
-  git mv "agents/$f" "src/devrel_swarm/core/$f"
+  git mv "agents/$f" "src/devrel_origin/core/$f"
 done
-git mv agents/video src/devrel_swarm/core/video
+git mv agents/video src/devrel_origin/core/video
 rmdir agents
 ```
-Expected after each command: clean exit. After the loop, `agents/` no longer exists and `src/devrel_swarm/core/` contains every former `agents/` file plus `agent_config.py` (formerly `config.py`).
+Expected after each command: clean exit. After the loop, `agents/` no longer exists and `src/devrel_origin/core/` contains every former `agents/` file plus `agent_config.py` (formerly `config.py`).
 
-- [ ] **Step 4: Move every Python module out of `tools/` to `src/devrel_swarm/tools/`**
+- [ ] **Step 4: Move every Python module out of `tools/` to `src/devrel_origin/tools/`**
 
 Run:
 ```bash
-git mv tools/__init__.py src/devrel_swarm/tools/__init__.py
+git mv tools/__init__.py src/devrel_origin/tools/__init__.py
 for f in api_client.py apollo_client.py code_validator.py github_tools.py \
          instantly_client.py kb_harvester.py mcp_server.py notifications.py \
          run_report.py scheduler.py search_tools.py self_improve.py sheets.py; do
-  git mv "tools/$f" "src/devrel_swarm/tools/$f"
+  git mv "tools/$f" "src/devrel_origin/tools/$f"
 done
 rmdir tools
 ```
-Expected: clean exit; `tools/` gone, `src/devrel_swarm/tools/` populated.
+Expected: clean exit; `tools/` gone, `src/devrel_origin/tools/` populated.
 
 - [ ] **Step 5: Verify the move is clean**
 
 Run:
 ```bash
 test ! -d agents && test ! -d tools && echo ok
-ls src/devrel_swarm/core/ | wc -l    # expect 19 entries (18 .py incl. agent_config.py and __init__.py, plus video/)
-ls src/devrel_swarm/tools/ | wc -l   # expect 14 entries (13 .py + __init__.py)
+ls src/devrel_origin/core/ | wc -l    # expect 19 entries (18 .py incl. agent_config.py and __init__.py, plus video/)
+ls src/devrel_origin/tools/ | wc -l   # expect 14 entries (13 .py + __init__.py)
 ```
 Expected: `ok`, then two counts close to the comments. If a count is short, find what got missed under `agents/` or `tools/` and `git mv` it now (do not leave any `*.py` orphans behind).
 
@@ -261,7 +261,7 @@ version = "0.2.0"
 ## Task 4: Rewrite imports across the codebase
 
 **Files (modified, not moved):**
-- All `*.py` under `src/devrel_swarm/core/` and `src/devrel_swarm/tools/`
+- All `*.py` under `src/devrel_origin/core/` and `src/devrel_origin/tools/`
 - All `*.py` under `tests/`
 - `run_100_leads.py`, `run_sales_pipeline.py`
 
@@ -272,8 +272,8 @@ version = "0.2.0"
 Run:
 ```bash
 TARGETS=$(git ls-files \
-  'src/devrel_swarm/core/*.py' 'src/devrel_swarm/core/**/*.py' \
-  'src/devrel_swarm/tools/*.py' \
+  'src/devrel_origin/core/*.py' 'src/devrel_origin/core/**/*.py' \
+  'src/devrel_origin/tools/*.py' \
   'tests/*.py' \
   'run_100_leads.py' 'run_sales_pipeline.py')
 echo "$TARGETS" | wc -l
@@ -285,8 +285,8 @@ Expected: a count matching the moved + adjacent files (around 60+ files).
 Run:
 ```bash
 echo "$TARGETS" | xargs sed -i '' \
-  -e 's|^from agents\.config import|from devrel_swarm.core.agent_config import|g' \
-  -e 's|^import agents\.config\b|import devrel_swarm.core.agent_config|g'
+  -e 's|^from agents\.config import|from devrel_origin.core.agent_config import|g' \
+  -e 's|^import agents\.config\b|import devrel_origin.core.agent_config|g'
 ```
 
 (Note: macOS BSD sed needs `-i ''`; on Linux drop the empty-string arg.)
@@ -296,13 +296,13 @@ echo "$TARGETS" | xargs sed -i '' \
 Run:
 ```bash
 echo "$TARGETS" | xargs sed -i '' \
-  -e 's|^from agents\.|from devrel_swarm.core.|g' \
-  -e 's|^from agents import|from devrel_swarm.core import|g' \
-  -e 's|^import agents\.|import devrel_swarm.core.|g' \
-  -e 's|^import agents$|import devrel_swarm.core|g' \
-  -e 's|^from tools\.|from devrel_swarm.tools.|g' \
-  -e 's|^from tools import|from devrel_swarm.tools import|g' \
-  -e 's|^import tools\.|import devrel_swarm.tools.|g'
+  -e 's|^from agents\.|from devrel_origin.core.|g' \
+  -e 's|^from agents import|from devrel_origin.core import|g' \
+  -e 's|^import agents\.|import devrel_origin.core.|g' \
+  -e 's|^import agents$|import devrel_origin.core|g' \
+  -e 's|^from tools\.|from devrel_origin.tools.|g' \
+  -e 's|^from tools import|from devrel_origin.tools import|g' \
+  -e 's|^import tools\.|import devrel_origin.tools.|g'
 ```
 
 - [ ] **Step 4: Catch CLI-style `python -m agents.X` strings used in subprocess/CLI tests**
@@ -311,8 +311,8 @@ Run:
 ```bash
 echo "$TARGETS" | xargs grep -lE 'python -m agents\.|python -m tools\.' | tee /tmp/m_dash_hits.txt
 echo "$TARGETS" | xargs sed -i '' \
-  -e 's|python -m agents\.|python -m devrel_swarm.core.|g' \
-  -e 's|python -m tools\.|python -m devrel_swarm.tools.|g'
+  -e 's|python -m agents\.|python -m devrel_origin.core.|g' \
+  -e 's|python -m tools\.|python -m devrel_origin.tools.|g'
 ```
 Expected: `/tmp/m_dash_hits.txt` lists any tests/scripts that referenced the old `python -m` paths (likely `agents/atlas.py`'s docstring + a few tests). After the sed, those references now point at the new module paths.
 
@@ -328,7 +328,7 @@ Expected: **empty output**. If any line returns, inspect it manually and rewrite
 
 Run:
 ```bash
-python -m compileall -q src/devrel_swarm tests run_100_leads.py run_sales_pipeline.py 2>&1 | tail -20
+python -m compileall -q src/devrel_origin tests run_100_leads.py run_sales_pipeline.py 2>&1 | tail -20
 echo "exit=$?"
 ```
 Expected: `exit=0` (silent compile means every file parses). If `compileall` reports a `SyntaxError`, the rewrite produced a bad line — fix it before continuing.
@@ -361,23 +361,23 @@ CMD ["python", "-m", "agents.atlas", "--weekly-cycle"]
 ```
 Replace with:
 ```dockerfile
-CMD ["python", "-m", "devrel_swarm.core.atlas", "--weekly-cycle"]
+CMD ["python", "-m", "devrel_origin.core.atlas", "--weekly-cycle"]
 ```
 
 - [ ] **Step 2: Update `CLAUDE.md` path references**
 
 In `CLAUDE.md`, the `## File Map` section lists `agents/X` and `tools/X` paths. Replace each top-level header line:
-- `agents/` → `src/devrel_swarm/core/`
-- `tools/` → `src/devrel_swarm/tools/`
-- `agents.X` → `devrel_swarm.core.X` (anywhere in prose / code blocks)
-- `tools.X` → `devrel_swarm.tools.X`
-- `agents/config.py` → `src/devrel_swarm/core/agent_config.py`
+- `agents/` → `src/devrel_origin/core/`
+- `tools/` → `src/devrel_origin/tools/`
+- `agents.X` → `devrel_origin.core.X` (anywhere in prose / code blocks)
+- `tools.X` → `devrel_origin.tools.X`
+- `agents/config.py` → `src/devrel_origin/core/agent_config.py`
 
-Also update the **Commands** section so example invocations reference the new module path (`python -m devrel_swarm.core.atlas --weekly-cycle`).
+Also update the **Commands** section so example invocations reference the new module path (`python -m devrel_origin.core.atlas --weekly-cycle`).
 
 Add at the top of `CLAUDE.md`, just under the title, a one-line note:
 ```
-> **Note:** This repository moved to a `src/devrel_swarm/` layout in Phase 1 of the CLI direction. See `docs/superpowers/specs/2026-04-29-devrel-swarm-cli-design.md`.
+> **Note:** This repository moved to a `src/devrel_origin/` layout in Phase 1 of the CLI direction. See `docs/superpowers/specs/2026-04-29-devrel-origin-cli-design.md`.
 ```
 
 - [ ] **Step 3: Quick sanity grep — no stale paths remain in tracked files**
@@ -387,7 +387,7 @@ Run:
 git grep -n -E '(agents/|tools/)' -- ':(exclude)docs/superpowers/' \
   ':(exclude).planning/' ':(exclude)deliverables/' ':(exclude)knowledge_base/' \
   ':(exclude)optimize/' ':(exclude)config/' \
-  | grep -vE '(\.devrel/|\.gitignore|src/devrel_swarm)'
+  | grep -vE '(\.devrel/|\.gitignore|src/devrel_origin)'
 ```
 Expected: empty output, OR only lines inside docstrings / comments where the old path is being described historically. Inspect each remaining line — if it's a stale reference, fix it; if it's intentional historical mention, leave it.
 
@@ -405,7 +405,7 @@ pip install -e '.[dev]' > /tmp/install.after.log 2>&1
 echo "exit=$?"
 ```
 Expected: `exit=0`. If install fails:
-- A `package not found` error means `pyproject.toml`'s `[tool.setuptools.packages.find]` didn't pick up `src/devrel_swarm` — re-check Task 2 Step 1.
+- A `package not found` error means `pyproject.toml`'s `[tool.setuptools.packages.find]` didn't pick up `src/devrel_origin` — re-check Task 2 Step 1.
 - A `ModuleNotFoundError` at import time means an `__init__.py` is missing — re-check Task 3 Steps 1–4.
 
 - [ ] **Step 2: Run the full test suite**
@@ -425,16 +425,16 @@ diff /tmp/pytest.failures.before.txt /tmp/pytest.failures.after.txt
 ```
 Expected: **empty diff**. The same 22 tests must fail with the same node IDs after the move. If the diff has any line, **stop and investigate** — either a previously-failing test is now passing (good but unexpected; investigate), or a previously-passing test is now failing (regression — must fix before commit). Common causes when imports got missed:
 - Missed import rewrite — `git grep -nE "^(from|import) (agents|tools)\." -- '*.py'` should be empty.
-- A test that did `monkeypatch.setattr("agents.X.Y", ...)` — string-based patches need updating to `devrel_swarm.core.X.Y`.
+- A test that did `monkeypatch.setattr("agents.X.Y", ...)` — string-based patches need updating to `devrel_origin.core.X.Y`.
 - `conftest.py` manipulating `sys.path` — inspect `tests/conftest.py` and update any `sys.path.insert(0, "agents")` style entries.
 
 - [ ] **Step 4: Smoke-test the module entry point**
 
 Run:
 ```bash
-python -m devrel_swarm.core.atlas --help 2>&1 | head -5
+python -m devrel_origin.core.atlas --help 2>&1 | head -5
 ```
-Expected: Atlas's CLI help text prints (the existing argparse output). If you get `No module named devrel_swarm.core.atlas`, the install or path is still wrong — fix before committing.
+Expected: Atlas's CLI help text prints (the existing argparse output). If you get `No module named devrel_origin.core.atlas`, the install or path is still wrong — fix before committing.
 
 ---
 
@@ -448,7 +448,7 @@ Run:
 ```bash
 git status --short
 ```
-Expected: `R` rename lines for every moved file, plus `M` lines for `pyproject.toml`, `Dockerfile`, `CLAUDE.md`, the various import-edited files, and `??` for the new `src/devrel_swarm/__init__.py`. No surprise additions.
+Expected: `R` rename lines for every moved file, plus `M` lines for `pyproject.toml`, `Dockerfile`, `CLAUDE.md`, the various import-edited files, and `??` for the new `src/devrel_origin/__init__.py`. No surprise additions.
 
 - [ ] **Step 2: Stage everything**
 
@@ -464,16 +464,16 @@ Expected: the same files now show as staged (`A`, `R`, `M`).
 Run:
 ```bash
 git commit -m "$(cat <<'EOF'
-refactor: move to src/devrel_swarm/ layout (Phase 1)
+refactor: move to src/devrel_origin/ layout (Phase 1)
 
-Restructure agents/ and tools/ into src/devrel_swarm/core/ and
-src/devrel_swarm/tools/ with src-layout packaging. Renames
+Restructure agents/ and tools/ into src/devrel_origin/core/ and
+src/devrel_origin/tools/ with src-layout packaging. Renames
 agents/config.py to core/agent_config.py to disambiguate from the
 forthcoming cli/config.py module. No behaviour change — every
 existing test passes at the same count as before the move.
 
 This is Phase 1 of the CLI direction defined in
-docs/superpowers/specs/2026-04-29-devrel-swarm-cli-design.md.
+docs/superpowers/specs/2026-04-29-devrel-origin-cli-design.md.
 
 Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
 EOF

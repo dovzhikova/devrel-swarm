@@ -15,12 +15,12 @@ from unittest.mock import patch
 
 import pytest
 
-from devrel_swarm.cli._common import (
+from devrel_origin.cli._common import (
     _load_agent_config,
     _resolve_github_repo,
     build_atlas_or_exit,
 )
-from devrel_swarm.project.paths import ProjectPaths
+from devrel_origin.project.paths import ProjectPaths
 
 
 def _make_paths(root: Path) -> ProjectPaths:
@@ -129,7 +129,7 @@ class TestBuildAtlasWiring:
                 "APOLLO_API_KEY",
             ):
                 os.environ.pop(k, None)
-            with patch("devrel_swarm.cli._common.Atlas") as MockAtlas:
+            with patch("devrel_origin.cli._common.Atlas") as MockAtlas:
                 build_atlas_or_exit(paths, console)
                 kwargs = MockAtlas.call_args.kwargs
                 assert kwargs["archive_dir"] == paths.context_dir
@@ -161,7 +161,7 @@ class TestBuildAtlasWiring:
                 "APOLLO_API_KEY",
             ):
                 os.environ.pop(k, None)
-            with patch("devrel_swarm.cli._common.Atlas") as MockAtlas:
+            with patch("devrel_origin.cli._common.Atlas") as MockAtlas:
                 build_atlas_or_exit(paths, console)
                 config = MockAtlas.call_args.kwargs["config"]
                 assert config.agent_timeouts == {"kai": 900.0}
@@ -190,7 +190,7 @@ class TestBuildAtlasWiring:
                 "GITHUB_REPO",
             ):
                 os.environ.pop(k, None)
-            with patch("devrel_swarm.cli._common.Atlas") as MockAtlas:
+            with patch("devrel_origin.cli._common.Atlas") as MockAtlas:
                 build_atlas_or_exit(paths, console)
                 gh = MockAtlas.call_args.kwargs["github_tools"]
                 assert gh is not None
@@ -220,7 +220,7 @@ class TestBuildAtlasWiring:
                 "GITHUB_REPO",
             ):
                 os.environ.pop(k, None)
-            with patch("devrel_swarm.cli._common.Atlas") as MockAtlas:
+            with patch("devrel_origin.cli._common.Atlas") as MockAtlas:
                 build_atlas_or_exit(paths, console)
                 gh = MockAtlas.call_args.kwargs["github_tools"]
                 assert gh is not None
@@ -249,7 +249,7 @@ class TestBuildAtlasWiring:
                 "APOLLO_API_KEY",
             ):
                 os.environ.pop(k, None)
-            with patch("devrel_swarm.cli._common.Atlas") as MockAtlas:
+            with patch("devrel_origin.cli._common.Atlas") as MockAtlas:
                 build_atlas_or_exit(paths, console)
                 st = MockAtlas.call_args.kwargs["search_tools"]
                 assert st is not None
@@ -273,7 +273,7 @@ class TestLLMClientWiring:
     """Provider selection + per-agent model overrides from .devrel/config.toml."""
 
     def test_openrouter_selected_when_provider_explicitly_set(self, tmp_path):
-        from devrel_swarm.cli._common import _build_llm_client
+        from devrel_origin.cli._common import _build_llm_client
 
         paths = _make_paths(tmp_path)
         paths.config_file.write_text('[project]\nname = "X"\n\n[llm]\nprovider = "openrouter"\n')
@@ -286,7 +286,7 @@ class TestLLMClientWiring:
         assert client.backend.name == "openrouter"
 
     def test_openrouter_selected_when_only_or_key_in_env(self, tmp_path):
-        from devrel_swarm.cli._common import _build_llm_client
+        from devrel_origin.cli._common import _build_llm_client
 
         paths = _make_paths(tmp_path)
         paths.config_file.write_text('[project]\nname = "X"\n')
@@ -299,7 +299,7 @@ class TestLLMClientWiring:
         assert client.backend.name == "openrouter"
 
     def test_anthropic_selected_when_both_env_keys_present(self, tmp_path):
-        from devrel_swarm.cli._common import _build_llm_client
+        from devrel_origin.cli._common import _build_llm_client
 
         paths = _make_paths(tmp_path)
         paths.config_file.write_text('[project]\nname = "X"\n')
@@ -315,7 +315,7 @@ class TestLLMClientWiring:
         assert client.backend.name == "anthropic"
 
     def test_agent_models_passed_through(self, tmp_path):
-        from devrel_swarm.cli._common import _build_llm_client
+        from devrel_origin.cli._common import _build_llm_client
 
         paths = _make_paths(tmp_path)
         paths.config_file.write_text(
@@ -338,7 +338,7 @@ class TestLLMClientWiring:
     def test_exits_when_provider_openrouter_but_no_or_key(self, tmp_path):
         import click
 
-        from devrel_swarm.cli._common import _build_llm_client
+        from devrel_origin.cli._common import _build_llm_client
 
         paths = _make_paths(tmp_path)
         paths.config_file.write_text('[project]\nname = "X"\n\n[llm]\nprovider = "openrouter"\n')
@@ -357,7 +357,7 @@ class TestEnvAutoLoad:
     before _build_llm_client reads them, without overriding shell exports."""
 
     def test_loads_devrel_env_when_present(self, tmp_path):
-        from devrel_swarm.cli._common import _build_llm_client
+        from devrel_origin.cli._common import _build_llm_client
 
         paths = _make_paths(tmp_path)
         paths.config_file.write_text('[project]\nname = "X"\n')
@@ -372,7 +372,7 @@ class TestEnvAutoLoad:
         assert client.backend.name == "anthropic"
 
     def test_loads_root_env_as_fallback(self, tmp_path):
-        from devrel_swarm.cli._common import _build_llm_client
+        from devrel_origin.cli._common import _build_llm_client
 
         paths = _make_paths(tmp_path)
         paths.config_file.write_text('[project]\nname = "X"\n')
@@ -391,7 +391,7 @@ class TestEnvAutoLoad:
         """python-dotenv override=False: a key already in the shell env wins
         over the file. Lets users debug-override with a one-shot
         `ANTHROPIC_API_KEY=other-key devrel run` without editing the file."""
-        from devrel_swarm.cli._common import _build_llm_client
+        from devrel_origin.cli._common import _build_llm_client
 
         paths = _make_paths(tmp_path)
         paths.config_file.write_text('[project]\nname = "X"\n')

@@ -8,8 +8,8 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from devrel_swarm.core.argus import PerformanceMetric
-from devrel_swarm.tools.analytics import (
+from devrel_origin.core.argus import PerformanceMetric
+from devrel_origin.tools.analytics import (
     GitHubCollector,
     InstantlyCollector,
     PostHogCollector,
@@ -326,7 +326,7 @@ def _seed_social_mentions_db(db_path):
                 (
                     "hackernews",
                     "hn-9",
-                    "Show HN: devrel-swarm",
+                    "Show HN: devrel-origin",
                     "https://news.ycombinator.com/item?id=9",
                     "2026-04-29T14:00:00+00:00",
                     150,
@@ -408,7 +408,7 @@ async def test_social_collector_returns_empty_when_schema_drifted(tmp_path, capl
         conn.commit()
 
     collector = SocialCollector(db)
-    with caplog.at_level(_logging.WARNING, logger="devrel_swarm.tools.analytics"):
+    with caplog.at_level(_logging.WARNING, logger="devrel_origin.tools.analytics"):
         metrics = await collector.collect((_utc_now() - timedelta(days=7), _utc_now()))
     assert metrics == []
     assert any("engagement_score" in rec.message for rec in caplog.records)

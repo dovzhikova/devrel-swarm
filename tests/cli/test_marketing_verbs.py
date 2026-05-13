@@ -8,7 +8,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from typer.testing import CliRunner
 
-from devrel_swarm.cli import app
+from devrel_origin.cli import app
 
 runner = CliRunner()
 
@@ -26,7 +26,7 @@ def _init(tmp_path):
 
 @pytest.fixture
 def mock_atlas():
-    with patch("devrel_swarm.cli._common.Atlas") as M:
+    with patch("devrel_origin.cli._common.Atlas") as M:
         inst = M.return_value
         inst.run_single_task = AsyncMock(
             return_value=MagicMock(

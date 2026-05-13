@@ -4,12 +4,12 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from devrel_swarm.core.echo import (
+from devrel_origin.core.echo import (
     Echo,
     SocialListeningReport,
     SocialMention,
 )
-from devrel_swarm.tools.search_tools import SearchResult
+from devrel_origin.tools.search_tools import SearchResult
 
 
 @pytest.fixture
@@ -476,7 +476,7 @@ class TestQuestionSignalsConstant:
     """is_question must use the dedicated QUESTION_SIGNALS, not a slice."""
 
     def test_question_signals_named_constant_used(self):
-        from devrel_swarm.core.echo import QUESTION_SIGNALS
+        from devrel_origin.core.echo import QUESTION_SIGNALS
 
         assert "?" in QUESTION_SIGNALS
         assert "how do" in QUESTION_SIGNALS
@@ -487,7 +487,7 @@ class TestPostedAtParsing:
     """Search results carrying a date should produce that date, not now()."""
 
     def test_posted_at_parsed_from_result(self):
-        from devrel_swarm.core.echo import _parse_result_date
+        from devrel_origin.core.echo import _parse_result_date
 
         class FakeResult:
             published_date = "2026-04-10T14:00:00Z"
@@ -503,7 +503,7 @@ class TestPostedAtParsing:
         assert parsed.day == 10
 
     def test_parse_result_date_returns_none_for_missing(self):
-        from devrel_swarm.core.echo import _parse_result_date
+        from devrel_origin.core.echo import _parse_result_date
 
         class Empty:
             title = "x"
@@ -520,7 +520,7 @@ class TestNoOpenClawTypo:
         # space-after-apostrophe variant indicates the bug.
         import inspect
 
-        from devrel_swarm.core import echo
+        from devrel_origin.core import echo
 
         source = inspect.getsource(echo)
         assert "OpenClaw' " not in source

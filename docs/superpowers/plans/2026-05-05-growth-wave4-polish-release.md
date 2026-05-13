@@ -17,8 +17,8 @@
 
 | File | Status | Responsibility |
 |------|--------|----------------|
-| `src/devrel_swarm/core/atlas.py` | Modify | Replace 3 sequential pillar branches with one `asyncio.gather` block |
-| `src/devrel_swarm/cli/growth.py` | Modify | Richer `summary` (per-pillar table) + `diff` (cross-pillar movement) |
+| `src/devrel_origin/core/atlas.py` | Modify | Replace 3 sequential pillar branches with one `asyncio.gather` block |
+| `src/devrel_origin/cli/growth.py` | Modify | Richer `summary` (per-pillar table) + `diff` (cross-pillar movement) |
 | `pyproject.toml` | Modify | Version bump `0.2.4` → `0.3.0` |
 | `CHANGELOG.md` | Modify | Add `## 0.3.0 — 2026-05-29` (or actual ship date) section |
 | `README.md` | Modify | Add Growth pipeline mention; install paths for `[growth]` and `[geo-google]` extras |
@@ -32,7 +32,7 @@
 ## Task 1: Consolidate Atlas Stage 5c into one `asyncio.gather` block
 
 **Files:**
-- Modify: `src/devrel_swarm/core/atlas.py`
+- Modify: `src/devrel_origin/core/atlas.py`
 - Modify: `tests/test_atlas.py`
 
 - [ ] **Step 1: Write the consolidated test**
@@ -64,7 +64,7 @@ Expected: AssertionError on missing concurrent execution.
 
 - [ ] **Step 3: Refactor the three sequential pillar branches into one gather**
 
-In `src/devrel_swarm/core/atlas.py`, find the three blocks added in Waves 1-3:
+In `src/devrel_origin/core/atlas.py`, find the three blocks added in Waves 1-3:
 
 ```python
 if self.config.orchestration.cro_in_run: ...
@@ -144,7 +144,7 @@ Expected: all PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/devrel_swarm/core/atlas.py tests/test_atlas.py
+git add src/devrel_origin/core/atlas.py tests/test_atlas.py
 git commit -m "refactor(atlas): Stage 5c via asyncio.gather with per-pillar isolation"
 ```
 
@@ -153,7 +153,7 @@ git commit -m "refactor(atlas): Stage 5c via asyncio.gather with per-pillar isol
 ## Task 2: Rich `devrel growth summary` (per-pillar table + counts)
 
 **Files:**
-- Modify: `src/devrel_swarm/cli/growth.py`
+- Modify: `src/devrel_origin/cli/growth.py`
 - Modify: `tests/cli/test_growth_command.py`
 
 - [ ] **Step 1: Write the failing test**
@@ -163,7 +163,7 @@ Append to `tests/cli/test_growth_command.py`:
 ```python
 import sqlite3
 
-from devrel_swarm.project import state
+from devrel_origin.project import state
 
 
 def test_growth_summary_shows_per_pillar_counts(tmp_path, monkeypatch):
@@ -232,7 +232,7 @@ Expected: PASS.
 If you needed to tweak `cli/growth.py`:
 
 ```bash
-git add src/devrel_swarm/cli/growth.py tests/cli/test_growth_command.py
+git add src/devrel_origin/cli/growth.py tests/cli/test_growth_command.py
 git commit -m "test: cross-pillar summary integration with all four pillars"
 ```
 
@@ -286,9 +286,9 @@ devrel growth {summary|diff}    # cross-pillar
 ### Install paths
 
 ```bash
-pip install devrel-swarm                         # base + Argus + Cyra
-pip install 'devrel-swarm[growth]'               # adds Selene + Vega
-pip install 'devrel-swarm[growth,geo-google]'    # full set including SerpAPI
+pip install devrel-origin                         # base + Argus + Cyra
+pip install 'devrel-origin[growth]'               # adds Selene + Vega
+pip install 'devrel-origin[growth,geo-google]'    # full set including SerpAPI
 ```
 
 `[growth]` adds Google API client + BeautifulSoup. `[geo-google]` adds
@@ -334,7 +334,7 @@ Selene needs three things to do its job:
 
 1. A site whose **sitemap.xml** it can crawl
 2. **Google Search Console** access for the site (read-only OAuth)
-3. The `[growth]` install extra (`pip install 'devrel-swarm[growth]'`)
+3. The `[growth]` install extra (`pip install 'devrel-origin[growth]'`)
 
 Cost: ~$0.40 per weekly cycle (~$21/year). GSC API + sitemap crawls are free.
 
@@ -367,11 +367,11 @@ devrel seo connect-gsc
 This opens your default browser to Google's consent screen. The first time you
 connect, you may see a warning: **"Google hasn't verified this app."**
 
-That's expected. The shared `devrel-swarm` GCP project has been submitted
+That's expected. The shared `devrel-origin` GCP project has been submitted
 for Google verification, but the review queue takes 4-6 weeks. Until verified,
 proceed via:
 
-> **Advanced → Continue to devrel-swarm**
+> **Advanced → Continue to devrel-origin**
 
 Read-only access (`webmasters.readonly` scope) is the only permission requested.
 A refresh token is stored at `.devrel/credentials/gsc.json` (mode 0600,
@@ -628,7 +628,7 @@ briefs.
   isolation. Per-pillar gates: `[orchestration].argus_in_run`/`cro_in_run` (default
   ON, cheap) and `seo_in_run`/`geo_in_run` (default OFF, opt-in heavies).
 - **`[seo]` and `[geo-google]` optional install extras**. `pip install
-  'devrel-swarm[growth]'` adds Selene + Vega deps (Google API client + OAuth +
+  'devrel-origin[growth]'` adds Selene + Vega deps (Google API client + OAuth +
   BeautifulSoup). `[geo-google]` adds SerpAPI for the optional 5th GEO engine.
 
 ### Changed
@@ -682,9 +682,9 @@ Change line `version = "0.2.4"` to `version = "0.3.0"`.
 - [ ] **Step 2: Reinstall + verify version derivation**
 
 ```bash
-cd ~/devrel-swarm && source .venv/bin/activate
+cd ~/devrel-origin && source .venv/bin/activate
 pip install -e ".[dev]" --quiet
-python -c "from devrel_swarm import __version__; print(__version__)"
+python -c "from devrel_origin import __version__; print(__version__)"
 # Expected: 0.3.0
 ```
 
@@ -733,10 +733,10 @@ Expected: wheel + sdist build clean; twine PASSED for both.
 rm -rf /tmp/devrel-novideo
 python3.13 -m venv /tmp/devrel-novideo
 source /tmp/devrel-novideo/bin/activate
-pip install --quiet ~/devrel-swarm/dist/devrel_swarm-0.3.0-py3-none-any.whl
+pip install --quiet ~/devrel-origin/dist/devrel_origin-0.3.0-py3-none-any.whl
 devrel --version
-# Expected: devrel-swarm 0.3.0
-python -c "from devrel_swarm.core.atlas import Atlas; from devrel_swarm.cli import app; print('imports OK')"
+# Expected: devrel-origin 0.3.0
+python -c "from devrel_origin.core.atlas import Atlas; from devrel_origin.cli import app; print('imports OK')"
 # Expected: imports OK
 ```
 
@@ -746,11 +746,11 @@ python -c "from devrel_swarm.core.atlas import Atlas; from devrel_swarm.cli impo
 rm -rf /tmp/devrel-growth
 python3.13 -m venv /tmp/devrel-growth
 source /tmp/devrel-growth/bin/activate
-pip install --quiet "$HOME/devrel-swarm/dist/devrel_swarm-0.3.0-py3-none-any.whl[growth]"
+pip install --quiet "$HOME/devrel-origin/dist/devrel_origin-0.3.0-py3-none-any.whl[growth]"
 pip list 2>/dev/null | grep -iE "google-api|beautifulsoup"
 # Expected: 2+ google-* + beautifulsoup4
 devrel --version
-# Expected: devrel-swarm 0.3.0
+# Expected: devrel-origin 0.3.0
 ```
 
 If any step fails: stop and fix before tagging.
@@ -764,7 +764,7 @@ If any step fails: stop and fix before tagging.
 - [ ] **Step 1: Verify git status is clean**
 
 ```bash
-cd ~/devrel-swarm
+cd ~/devrel-origin
 git status --short
 git log --oneline -10
 ```
@@ -812,16 +812,16 @@ Expected: 3 jobs (Build → Publish → GitHub release) all green.
 
 ```bash
 sleep 10  # give PyPI's CDN a moment
-curl -s https://pypi.org/pypi/devrel-swarm/json | python3 -c \
+curl -s https://pypi.org/pypi/devrel-origin/json | python3 -c \
   "import sys, json; d = json.load(sys.stdin); print(d['info']['version'])"
 # Expected: 0.3.0
 
 rm -rf /tmp/devrel-pypi
 python3.13 -m venv /tmp/devrel-pypi
 source /tmp/devrel-pypi/bin/activate
-pip install --quiet devrel-swarm
+pip install --quiet devrel-origin
 devrel --version
-# Expected: devrel-swarm 0.3.0
+# Expected: devrel-origin 0.3.0
 ```
 
 ---
@@ -853,15 +853,15 @@ Verify:
 - [ ] No errors in the cycle log other than expected per-pillar failures (e.g. if Brave AI API is rate-limited, the cycle continues)
 - [ ] Total cost reported by `devrel cost` is in the expected ~$3-4 range
 
-- [ ] **Step 2: Update `gtm-labs.co/devrel-swarm` landing**
+- [ ] **Step 2: Update `gtm-labs.co/devrel-origin` landing**
 
 The landing copy currently references "13 agents." Update to "16 agents"
 and add a Growth pipeline section. Repo path:
-`landing/index.html` (also lives at `~/gtm-labs/public/devrel-swarm/index.html` per project memory).
+`landing/index.html` (also lives at `~/gtm-labs/public/devrel-origin/index.html` per project memory).
 
 - [ ] **Step 3: Update project memory**
 
-Save the v0.3.0 ship to memory at `project_devrel_swarm.md`:
+Save the v0.3.0 ship to memory at `project_devrel_origin.md`:
 - 4 commits per wave landed on origin/main
 - Tagged + published on PyPI
 - 4-pillar weekly cycle smoke clean
@@ -873,16 +873,16 @@ Save the v0.3.0 ship to memory at `project_devrel_swarm.md`:
 - [ ] `pytest tests/ -q --no-header` shows ~920 passed / 21 xfailed
 - [ ] `ruff check .` and `ruff format --check .` both clean
 - [ ] `python -m build` + `twine check` PASSED both wheel and sdist
-- [ ] Fresh py3.13 venv install of `devrel-swarm` (no extras) works
-- [ ] Fresh py3.13 venv install of `devrel-swarm[growth]` pulls Google + BS4
+- [ ] Fresh py3.13 venv install of `devrel-origin` (no extras) works
+- [ ] Fresh py3.13 venv install of `devrel-origin[growth]` pulls Google + BS4
 - [ ] `pyproject.toml` version is `0.3.0`
 - [ ] `CHANGELOG.md` has the v0.3.0 section
 - [ ] `README.md` mentions Growth pipeline and install paths
 - [ ] `docs/seo-setup.md` and `docs/geo-setup.md` published
 - [ ] `git tag v0.3.0` created and pushed
 - [ ] Release workflow green; PyPI shows `0.3.0`
-- [ ] `pip install devrel-swarm` from a fresh venv installs `0.3.0`
+- [ ] `pip install devrel-origin` from a fresh venv installs `0.3.0`
 - [ ] Manual `devrel run` smoke with all four pillars completes without errors
-- [ ] Landing page (gtm-labs.co/devrel-swarm) updated to "16 agents"
+- [ ] Landing page (gtm-labs.co/devrel-origin) updated to "16 agents"
 
 When all checked: v0.3.0 shipped. Growth pipeline is live.

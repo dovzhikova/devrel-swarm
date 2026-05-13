@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from devrel_swarm.core.mox import (
+from devrel_origin.core.mox import (
     PIPELINE_CONTENT_TYPE_MAP,
     BlogPost,
     CampaignBrief,
@@ -243,7 +243,7 @@ class TestMoxPipelineRouting:
             captured["content_type"] = content_type
             return ("body", [], [])
 
-        with patch("devrel_swarm.core.mox.generate_with_pipeline", new=fake_pipeline):
+        with patch("devrel_origin.core.mox.generate_with_pipeline", new=fake_pipeline):
             result = await mox.execute("Build a cold email drip campaign")
 
         assert result["content_type"] == "email_campaign"

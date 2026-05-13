@@ -7,7 +7,7 @@ from unittest.mock import patch
 
 from typer.testing import CliRunner
 
-from devrel_swarm.cli import app
+from devrel_origin.cli import app
 
 runner = CliRunner()
 
@@ -35,7 +35,7 @@ def _run(tmp_path, args):
 
 def test_schedule_install_invokes_install_cron(tmp_path):
     _init(tmp_path)
-    with patch("devrel_swarm.cli.schedule.Scheduler") as M:
+    with patch("devrel_origin.cli.schedule.Scheduler") as M:
         inst = M.return_value
         inst.install_cron.return_value = ["* * * * * echo a", "0 9 * * 1 echo b"]
         r = _run(tmp_path, ["schedule", "install"])
@@ -46,7 +46,7 @@ def test_schedule_install_invokes_install_cron(tmp_path):
 
 def test_schedule_list_shows_entries(tmp_path):
     _init(tmp_path)
-    with patch("devrel_swarm.cli.schedule.Scheduler") as M:
+    with patch("devrel_origin.cli.schedule.Scheduler") as M:
         inst = M.return_value
         inst.list_entries.return_value = [
             {
@@ -54,7 +54,7 @@ def test_schedule_list_shows_entries(tmp_path):
                 "cron": "0 9 * * 1",
                 "description": "Weekly run",
                 "enabled": True,
-                "command": "python -m devrel_swarm.core.atlas --weekly-cycle",
+                "command": "python -m devrel_origin.core.atlas --weekly-cycle",
             },
         ]
         r = _run(tmp_path, ["schedule", "list"])
@@ -66,7 +66,7 @@ def test_schedule_list_shows_entries(tmp_path):
 
 def test_schedule_remove_invokes_remove_cron(tmp_path):
     _init(tmp_path)
-    with patch("devrel_swarm.cli.schedule.Scheduler") as M:
+    with patch("devrel_origin.cli.schedule.Scheduler") as M:
         inst = M.return_value
         inst.remove_cron.return_value = None
         r = _run(tmp_path, ["schedule", "remove"])

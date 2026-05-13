@@ -2,7 +2,7 @@
 
 import pytest
 
-from devrel_swarm.tools.code_validator import CodeBlock, CodeValidator
+from devrel_origin.tools.code_validator import CodeBlock, CodeValidator
 
 
 @pytest.fixture
@@ -441,10 +441,10 @@ class TestKaiCodeValidation:
         # the test substitutes a deterministic 3-tuple without exercising the
         # real 8-stage editorial chain (which needs many more LLM mocks).
         monkeypatch.setattr(
-            "devrel_swarm.core.kai.generate_with_pipeline",
+            "devrel_origin.core.kai.generate_with_pipeline",
             AsyncMock(return_value=(good_content, ["clear examples"], [])),
         )
-        from devrel_swarm.core.kai import Kai
+        from devrel_origin.core.kai import Kai
 
         return Kai(
             api_client=posthog_client,
@@ -458,10 +458,10 @@ class TestKaiCodeValidation:
 
         broken_content = "# Tutorial\n\n```python\ndef broken(\n  x = \n```\n"
         monkeypatch.setattr(
-            "devrel_swarm.core.kai.generate_with_pipeline",
+            "devrel_origin.core.kai.generate_with_pipeline",
             AsyncMock(return_value=(broken_content, [], [])),
         )
-        from devrel_swarm.core.kai import Kai
+        from devrel_origin.core.kai import Kai
 
         return Kai(
             api_client=posthog_client,

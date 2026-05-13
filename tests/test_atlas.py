@@ -7,13 +7,13 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from devrel_swarm.core.agent_config import AgentConfig
-from devrel_swarm.core.atlas import Atlas, DelegationResult, SharedContext
-from devrel_swarm.core.mox import Mox
-from devrel_swarm.core.pax import Pax
-from devrel_swarm.core.rex import Rex
-from devrel_swarm.project import state as project_state
-from devrel_swarm.project.paths import ProjectPaths
+from devrel_origin.core.agent_config import AgentConfig
+from devrel_origin.core.atlas import Atlas, DelegationResult, SharedContext
+from devrel_origin.core.mox import Mox
+from devrel_origin.core.pax import Pax
+from devrel_origin.core.rex import Rex
+from devrel_origin.project import state as project_state
+from devrel_origin.project.paths import ProjectPaths
 
 
 class TestSharedContext:
@@ -470,7 +470,7 @@ class TestAtlasArgusStage:
 
         from datetime import datetime, timezone
 
-        from devrel_swarm.core.argus import PerformanceReport
+        from devrel_origin.core.argus import PerformanceReport
 
         fake_report = PerformanceReport(
             period_start=datetime(2026, 4, 25, tzinfo=timezone.utc),
@@ -534,7 +534,7 @@ class TestAtlasCyraStage:
     async def test_cyra_called_when_cro_in_run_true(
         self, posthog_client, knowledge_base_path, tmp_path
     ):
-        from devrel_swarm.core.cyra import CroReport
+        from devrel_origin.core.cyra import CroReport
 
         atlas = Atlas(
             api_client=posthog_client,

@@ -4,7 +4,7 @@ import sqlite3
 
 from typer.testing import CliRunner
 
-from devrel_swarm.cli import app
+from devrel_origin.cli import app
 
 
 def test_cro_help_lists_subcommands():
@@ -24,8 +24,8 @@ def test_cro_report_help_runs():
 
 def test_cro_report_inserts_analytics_report_row(tmp_path, monkeypatch):
     """Regression: report verb must seed analytics_reports row to satisfy FK."""
-    from devrel_swarm.cli import cro as cro_module
-    from devrel_swarm.project import state
+    from devrel_origin.cli import cro as cro_module
+    from devrel_origin.project import state
 
     monkeypatch.chdir(tmp_path)
     devrel_dir = tmp_path / ".devrel"
@@ -127,7 +127,7 @@ def test_cro_funnel_inspector_runs(tmp_path, monkeypatch):
         'product_name = "Test"\nproduct_url = "https://example.com"\n'
     )
     # The funnel verb requires PostHog + LLM env vars. Stub them with no-op classes.
-    import devrel_swarm.cli.cro as cro_module
+    import devrel_origin.cli.cro as cro_module
 
     monkeypatch.setattr(cro_module, "PostHogClient", lambda **kw: object())
 

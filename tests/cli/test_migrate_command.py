@@ -8,8 +8,8 @@ from pathlib import Path
 
 from typer.testing import CliRunner
 
-from devrel_swarm.cli import app
-from devrel_swarm.project.state import SCHEMA_VERSION
+from devrel_origin.cli import app
+from devrel_origin.project.state import SCHEMA_VERSION
 
 runner = CliRunner()
 

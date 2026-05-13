@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from devrel_swarm.project.config import (
+from devrel_origin.project.config import (
     BudgetConfig,
     ConfigError,
     ModelConfig,

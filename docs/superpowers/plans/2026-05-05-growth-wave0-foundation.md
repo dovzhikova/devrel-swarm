@@ -16,15 +16,15 @@
 
 | File | Status | Responsibility |
 |------|--------|----------------|
-| `src/devrel_swarm/project/state.py` | Modify | Bump `SCHEMA_VERSION` to 5; add `pillar` + `target_kind` ALTERs via `_migrate_to_v5`; add 4 new fact tables to `SCHEMA` constant; add 2 new indexes |
-| `src/devrel_swarm/core/growth/__init__.py` | Create | Public exports for `Recommendation`, `TargetKind`, `Pillar`, `persist_recommendation`, `find_open_by_target`, `mark_applied`, `find_stale`, `calibrate` |
-| `src/devrel_swarm/core/growth/target_kinds.py` | Create | `TargetKind` enum + `Pillar` enum + collision-guard validator |
-| `src/devrel_swarm/core/growth/recommendations.py` | Create | Pillar-agnostic `Recommendation` dataclass; `persist_recommendation`, `find_open_by_target`, `mark_applied`, `find_stale` queries; `calibrate` helper |
-| `src/devrel_swarm/core/argus.py` | Modify | Use shared `growth.persist_recommendation` + `growth.calibrate` instead of inline; pass `pillar="argus"`, `target_kind="content_id"` |
-| `src/devrel_swarm/cli/growth.py` | Create | Typer `growth_app` with `summary` + `diff` placeholder verbs |
-| `src/devrel_swarm/cli/argus.py` | Create | Renamed copy of `cli/analytics.py` (Argus-only verbs) |
-| `src/devrel_swarm/cli/analytics.py` | Modify | Becomes a deprecation-warning alias that delegates to `argus.argus_app` |
-| `src/devrel_swarm/cli/__init__.py` | Modify | Register `growth_app`, `argus_app`; deprecation-alias `analytics_app` |
+| `src/devrel_origin/project/state.py` | Modify | Bump `SCHEMA_VERSION` to 5; add `pillar` + `target_kind` ALTERs via `_migrate_to_v5`; add 4 new fact tables to `SCHEMA` constant; add 2 new indexes |
+| `src/devrel_origin/core/growth/__init__.py` | Create | Public exports for `Recommendation`, `TargetKind`, `Pillar`, `persist_recommendation`, `find_open_by_target`, `mark_applied`, `find_stale`, `calibrate` |
+| `src/devrel_origin/core/growth/target_kinds.py` | Create | `TargetKind` enum + `Pillar` enum + collision-guard validator |
+| `src/devrel_origin/core/growth/recommendations.py` | Create | Pillar-agnostic `Recommendation` dataclass; `persist_recommendation`, `find_open_by_target`, `mark_applied`, `find_stale` queries; `calibrate` helper |
+| `src/devrel_origin/core/argus.py` | Modify | Use shared `growth.persist_recommendation` + `growth.calibrate` instead of inline; pass `pillar="argus"`, `target_kind="content_id"` |
+| `src/devrel_origin/cli/growth.py` | Create | Typer `growth_app` with `summary` + `diff` placeholder verbs |
+| `src/devrel_origin/cli/argus.py` | Create | Renamed copy of `cli/analytics.py` (Argus-only verbs) |
+| `src/devrel_origin/cli/analytics.py` | Modify | Becomes a deprecation-warning alias that delegates to `argus.argus_app` |
+| `src/devrel_origin/cli/__init__.py` | Modify | Register `growth_app`, `argus_app`; deprecation-alias `analytics_app` |
 | `pyproject.toml` | Modify | Add `[seo]`, `[geo-google]`, `[growth]` optional-dependencies extras; update `[dev]` to pull `[video,growth]` |
 | `tests/project/test_state_v5_migration.py` | Create | Migrate v4 dump → v5; assert columns present + indexes created + idempotent on second run |
 | `tests/core/growth/__init__.py` | Create | Empty package marker |
@@ -42,7 +42,7 @@
 ## Task 1: Bump `SCHEMA_VERSION` to 5 + add new fact tables to `SCHEMA`
 
 **Files:**
-- Modify: `src/devrel_swarm/project/state.py`
+- Modify: `src/devrel_origin/project/state.py`
 - Test: `tests/project/test_state_v5_migration.py`
 
 - [ ] **Step 1: Write the failing test that asserts `SCHEMA_VERSION == 5` and the new tables exist after init**
@@ -57,7 +57,7 @@ from pathlib import Path
 
 import pytest
 
-from devrel_swarm.project import state
+from devrel_origin.project import state
 
 
 def _columns(conn: sqlite3.Connection, table: str) -> set[str]:
@@ -116,7 +116,7 @@ class TestSchemaV5:
 - [ ] **Step 2: Run test to verify it fails**
 
 ```bash
-cd ~/devrel-swarm && source .venv/bin/activate
+cd ~/devrel-origin && source .venv/bin/activate
 pytest tests/project/test_state_v5_migration.py::TestSchemaV5 -v --no-cov
 ```
 
@@ -124,7 +124,7 @@ Expected: 5 FAILED. `SCHEMA_VERSION == 4`, new tables don't exist.
 
 - [ ] **Step 3: Bump version + add tables to SCHEMA constant**
 
-Edit `src/devrel_swarm/project/state.py`:
+Edit `src/devrel_origin/project/state.py`:
 
 ```python
 # Change line 18:
@@ -205,7 +205,7 @@ Expected: 5 PASSED.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/devrel_swarm/project/state.py tests/project/test_state_v5_migration.py
+git add src/devrel_origin/project/state.py tests/project/test_state_v5_migration.py
 git commit -m "feat(schema): v5 — add SEO/GEO/CRO fact tables (Wave 0/1)"
 ```
 
@@ -214,7 +214,7 @@ git commit -m "feat(schema): v5 — add SEO/GEO/CRO fact tables (Wave 0/1)"
 ## Task 2: ALTER `analytics_recommendations` for `pillar` + `target_kind`
 
 **Files:**
-- Modify: `src/devrel_swarm/project/state.py`
+- Modify: `src/devrel_origin/project/state.py`
 - Test: `tests/project/test_state_v5_migration.py` (extend)
 
 - [ ] **Step 1: Write the failing test that asserts pillar + target_kind columns exist after init**
@@ -296,7 +296,7 @@ Expected: 4 FAILED. Columns missing.
 
 - [ ] **Step 3: Add the migration function**
 
-Edit `src/devrel_swarm/project/state.py`. Add this helper above `init_db`:
+Edit `src/devrel_origin/project/state.py`. Add this helper above `init_db`:
 
 ```python
 def _migrate_to_v5(conn: sqlite3.Connection) -> None:
@@ -367,7 +367,7 @@ Expected: 9 PASSED (5 from Task 1 + 4 new).
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/devrel_swarm/project/state.py tests/project/test_state_v5_migration.py
+git add src/devrel_origin/project/state.py tests/project/test_state_v5_migration.py
 git commit -m "feat(schema): v5 — pillar + target_kind columns on analytics_recommendations"
 ```
 
@@ -376,8 +376,8 @@ git commit -m "feat(schema): v5 — pillar + target_kind columns on analytics_re
 ## Task 3: `Pillar` and `TargetKind` enums
 
 **Files:**
-- Create: `src/devrel_swarm/core/growth/__init__.py`
-- Create: `src/devrel_swarm/core/growth/target_kinds.py`
+- Create: `src/devrel_origin/core/growth/__init__.py`
+- Create: `src/devrel_origin/core/growth/target_kinds.py`
 - Create: `tests/core/growth/__init__.py`
 - Create: `tests/core/growth/test_target_kinds.py`
 
@@ -392,7 +392,7 @@ Create `tests/core/growth/test_target_kinds.py`:
 
 import pytest
 
-from devrel_swarm.core.growth.target_kinds import (
+from devrel_origin.core.growth.target_kinds import (
     Pillar,
     TargetKind,
     validate_target_kind_for_pillar,
@@ -453,7 +453,7 @@ Expected: ImportError — module doesn't exist.
 
 - [ ] **Step 3: Create `target_kinds.py`**
 
-Create `src/devrel_swarm/core/growth/__init__.py`:
+Create `src/devrel_origin/core/growth/__init__.py`:
 
 ```python
 """Shared helpers for the Growth pipeline (Selene/Vega/Cyra + Argus).
@@ -463,7 +463,7 @@ math. Each pillar agent imports from here and contributes pillar-specific
 scoring on top.
 """
 
-from devrel_swarm.core.growth.target_kinds import (
+from devrel_origin.core.growth.target_kinds import (
     Pillar,
     TargetKind,
     validate_target_kind_for_pillar,
@@ -476,7 +476,7 @@ __all__ = [
 ]
 ```
 
-Create `src/devrel_swarm/core/growth/target_kinds.py`:
+Create `src/devrel_origin/core/growth/target_kinds.py`:
 
 ```python
 """Pillar + TargetKind enums and the (pillar, target_kind) collision guard.
@@ -543,7 +543,7 @@ Expected: all PASSED.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/devrel_swarm/core/growth/ tests/core/growth/__init__.py tests/core/growth/test_target_kinds.py
+git add src/devrel_origin/core/growth/ tests/core/growth/__init__.py tests/core/growth/test_target_kinds.py
 git commit -m "feat(growth): Pillar + TargetKind enums with per-pillar validator"
 ```
 
@@ -552,7 +552,7 @@ git commit -m "feat(growth): Pillar + TargetKind enums with per-pillar validator
 ## Task 4: Pillar-agnostic `Recommendation` dataclass + `persist_recommendation`
 
 **Files:**
-- Create: `src/devrel_swarm/core/growth/recommendations.py`
+- Create: `src/devrel_origin/core/growth/recommendations.py`
 - Test: `tests/core/growth/test_recommendations.py`
 
 - [ ] **Step 1: Write the failing tests**
@@ -568,15 +568,15 @@ from pathlib import Path
 
 import pytest
 
-from devrel_swarm.core.growth.recommendations import (
+from devrel_origin.core.growth.recommendations import (
     Recommendation,
     persist_recommendation,
     find_open_by_target,
     mark_applied,
     find_stale,
 )
-from devrel_swarm.core.growth.target_kinds import Pillar, TargetKind
-from devrel_swarm.project import state
+from devrel_origin.core.growth.target_kinds import Pillar, TargetKind
+from devrel_origin.project import state
 
 
 @pytest.fixture
@@ -738,7 +738,7 @@ Expected: ImportError — module doesn't exist.
 
 - [ ] **Step 3: Create the persistence module**
 
-Create `src/devrel_swarm/core/growth/recommendations.py`:
+Create `src/devrel_origin/core/growth/recommendations.py`:
 
 ```python
 """Pillar-agnostic Recommendation dataclass + persistence + lifecycle queries.
@@ -759,7 +759,7 @@ from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Optional
 
-from devrel_swarm.core.growth.target_kinds import (
+from devrel_origin.core.growth.target_kinds import (
     Pillar,
     TargetKind,
     validate_target_kind_for_pillar,
@@ -914,19 +914,19 @@ def find_stale(
         ]
 ```
 
-Update `src/devrel_swarm/core/growth/__init__.py` to export the new symbols:
+Update `src/devrel_origin/core/growth/__init__.py` to export the new symbols:
 
 ```python
 """Shared helpers for the Growth pipeline (Selene/Vega/Cyra + Argus)."""
 
-from devrel_swarm.core.growth.recommendations import (
+from devrel_origin.core.growth.recommendations import (
     Recommendation,
     find_open_by_target,
     find_stale,
     mark_applied,
     persist_recommendation,
 )
-from devrel_swarm.core.growth.target_kinds import (
+from devrel_origin.core.growth.target_kinds import (
     Pillar,
     TargetKind,
     validate_target_kind_for_pillar,
@@ -955,7 +955,7 @@ Expected: all PASSED.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/devrel_swarm/core/growth/recommendations.py src/devrel_swarm/core/growth/__init__.py tests/core/growth/test_recommendations.py
+git add src/devrel_origin/core/growth/recommendations.py src/devrel_origin/core/growth/__init__.py tests/core/growth/test_recommendations.py
 git commit -m "feat(growth): pillar-agnostic Recommendation persistence + lifecycle"
 ```
 
@@ -964,8 +964,8 @@ git commit -m "feat(growth): pillar-agnostic Recommendation persistence + lifecy
 ## Task 5: Calibration helper
 
 **Files:**
-- Modify: `src/devrel_swarm/core/growth/recommendations.py`
-- Modify: `src/devrel_swarm/core/growth/__init__.py`
+- Modify: `src/devrel_origin/core/growth/recommendations.py`
+- Modify: `src/devrel_origin/core/growth/__init__.py`
 - Create: `tests/core/growth/test_calibration.py`
 
 - [ ] **Step 1: Write the failing test**
@@ -980,13 +980,13 @@ from pathlib import Path
 
 import pytest
 
-from devrel_swarm.core.growth.recommendations import (
+from devrel_origin.core.growth.recommendations import (
     Recommendation,
     calibrate,
     persist_recommendation,
 )
-from devrel_swarm.core.growth.target_kinds import Pillar, TargetKind
-from devrel_swarm.project import state
+from devrel_origin.core.growth.target_kinds import Pillar, TargetKind
+from devrel_origin.project import state
 
 
 @pytest.fixture
@@ -1074,7 +1074,7 @@ Expected: ImportError on `calibrate` — function doesn't exist.
 
 - [ ] **Step 3: Add `calibrate` to `recommendations.py`**
 
-Append to `src/devrel_swarm/core/growth/recommendations.py`:
+Append to `src/devrel_origin/core/growth/recommendations.py`:
 
 ```python
 from collections import defaultdict
@@ -1146,7 +1146,7 @@ def calibrate(
     return result
 ```
 
-Update `src/devrel_swarm/core/growth/__init__.py` to add `calibrate` to the import + `__all__`.
+Update `src/devrel_origin/core/growth/__init__.py` to add `calibrate` to the import + `__all__`.
 
 - [ ] **Step 4: Run tests to verify they pass**
 
@@ -1159,7 +1159,7 @@ Expected: 3 PASSED.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/devrel_swarm/core/growth/recommendations.py src/devrel_swarm/core/growth/__init__.py tests/core/growth/test_calibration.py
+git add src/devrel_origin/core/growth/recommendations.py src/devrel_origin/core/growth/__init__.py tests/core/growth/test_calibration.py
 git commit -m "feat(growth): per-pillar calibration helper with hit-rate + lift"
 ```
 
@@ -1168,21 +1168,21 @@ git commit -m "feat(growth): per-pillar calibration helper with hit-rate + lift"
 ## Task 6: Refactor Argus to use shared `growth` module
 
 **Files:**
-- Modify: `src/devrel_swarm/core/argus.py`
+- Modify: `src/devrel_origin/core/argus.py`
 - Modify: `tests/test_argus.py` (any tests touching `_persist`)
 
 - [ ] **Step 1: Find Argus's existing `_persist` and `calibrate_recommendations`**
 
 ```bash
-grep -n "_persist\|calibrate_recommendations\|analytics_recommendations" src/devrel_swarm/core/argus.py | head -20
+grep -n "_persist\|calibrate_recommendations\|analytics_recommendations" src/devrel_origin/core/argus.py | head -20
 ```
 
 - [ ] **Step 2: Replace inline INSERT with `growth.persist_recommendation`**
 
-In `src/devrel_swarm/core/argus.py`, replace any inline INSERT into `analytics_recommendations` with:
+In `src/devrel_origin/core/argus.py`, replace any inline INSERT into `analytics_recommendations` with:
 
 ```python
-from devrel_swarm.core.growth import (
+from devrel_origin.core.growth import (
     Pillar,
     Recommendation as GrowthRecommendation,
     TargetKind,
@@ -1223,7 +1223,7 @@ Expected: full suite still 815+ passed (the +tests-from-this-wave) / 21 xfailed.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/devrel_swarm/core/argus.py tests/test_argus.py
+git add src/devrel_origin/core/argus.py tests/test_argus.py
 git commit -m "refactor(argus): delegate persistence to growth.persist_recommendation"
 ```
 
@@ -1232,9 +1232,9 @@ git commit -m "refactor(argus): delegate persistence to growth.persist_recommend
 ## Task 7: Rename `cli/analytics.py` to `cli/argus.py`
 
 **Files:**
-- Create: `src/devrel_swarm/cli/argus.py` (copy of analytics.py with module-level rename)
-- Modify: `src/devrel_swarm/cli/analytics.py` (becomes deprecation alias)
-- Modify: `src/devrel_swarm/cli/__init__.py`
+- Create: `src/devrel_origin/cli/argus.py` (copy of analytics.py with module-level rename)
+- Modify: `src/devrel_origin/cli/analytics.py` (becomes deprecation alias)
+- Modify: `src/devrel_origin/cli/__init__.py`
 - Test: `tests/cli/test_analytics_alias.py`
 
 - [ ] **Step 1: Write the failing alias test**
@@ -1248,7 +1248,7 @@ import warnings
 
 from typer.testing import CliRunner
 
-from devrel_swarm.cli import app
+from devrel_origin.cli import app
 
 
 def test_analytics_subcommand_runs_with_deprecation_warning():
@@ -1279,12 +1279,12 @@ Expected: `argus` command not registered → fail.
 - [ ] **Step 3: Copy analytics.py → argus.py + add alias shim**
 
 ```bash
-cp src/devrel_swarm/cli/analytics.py src/devrel_swarm/cli/argus.py
+cp src/devrel_origin/cli/analytics.py src/devrel_origin/cli/argus.py
 ```
 
-Edit `src/devrel_swarm/cli/argus.py`: rename the Typer app variable from `analytics_app` to `argus_app` (search/replace all in the file).
+Edit `src/devrel_origin/cli/argus.py`: rename the Typer app variable from `analytics_app` to `argus_app` (search/replace all in the file).
 
-Replace `src/devrel_swarm/cli/analytics.py` with:
+Replace `src/devrel_origin/cli/analytics.py` with:
 
 ```python
 """Deprecated alias — use `devrel argus ...`. Retained until v1.0 for backward compat."""
@@ -1293,7 +1293,7 @@ import warnings
 
 import typer
 
-from devrel_swarm.cli.argus import argus_app
+from devrel_origin.cli.argus import argus_app
 
 analytics_app = typer.Typer(
     name="analytics",
@@ -1317,12 +1317,12 @@ for cmd in argus_app.registered_commands:
     analytics_app.registered_commands.append(cmd)
 ```
 
-Update `src/devrel_swarm/cli/__init__.py` to register both:
+Update `src/devrel_origin/cli/__init__.py` to register both:
 
 ```python
 # In the imports section:
-from devrel_swarm.cli.analytics import analytics_app
-from devrel_swarm.cli.argus import argus_app
+from devrel_origin.cli.analytics import analytics_app
+from devrel_origin.cli.argus import argus_app
 
 # In the body that registers Typer subgroups:
 app.add_typer(argus_app, name="argus")
@@ -1341,7 +1341,7 @@ Expected: alias tests PASS; full suite still green.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/devrel_swarm/cli/argus.py src/devrel_swarm/cli/analytics.py src/devrel_swarm/cli/__init__.py tests/cli/test_analytics_alias.py
+git add src/devrel_origin/cli/argus.py src/devrel_origin/cli/analytics.py src/devrel_origin/cli/__init__.py tests/cli/test_analytics_alias.py
 git commit -m "refactor(cli): rename analytics → argus with deprecation alias"
 ```
 
@@ -1350,8 +1350,8 @@ git commit -m "refactor(cli): rename analytics → argus with deprecation alias"
 ## Task 8: `cli/growth.py` umbrella with `summary` + `diff` placeholders
 
 **Files:**
-- Create: `src/devrel_swarm/cli/growth.py`
-- Modify: `src/devrel_swarm/cli/__init__.py`
+- Create: `src/devrel_origin/cli/growth.py`
+- Modify: `src/devrel_origin/cli/__init__.py`
 - Test: `tests/cli/test_growth_command.py`
 
 - [ ] **Step 1: Write the failing test**
@@ -1363,7 +1363,7 @@ Create `tests/cli/test_growth_command.py`:
 
 from typer.testing import CliRunner
 
-from devrel_swarm.cli import app
+from devrel_origin.cli import app
 
 
 class TestGrowthUmbrella:
@@ -1407,7 +1407,7 @@ Expected: `growth` command not registered → fail.
 
 - [ ] **Step 3: Create the umbrella module**
 
-Create `src/devrel_swarm/cli/growth.py`:
+Create `src/devrel_origin/cli/growth.py`:
 
 ```python
 """Cross-pillar `devrel growth` umbrella.
@@ -1427,8 +1427,8 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
-from devrel_swarm.cli._common import find_paths_or_exit
-from devrel_swarm.core.growth.target_kinds import Pillar
+from devrel_origin.cli._common import find_paths_or_exit
+from devrel_origin.core.growth.target_kinds import Pillar
 
 growth_app = typer.Typer(
     name="growth",
@@ -1510,10 +1510,10 @@ def diff(
     _console.print(table)
 ```
 
-Update `src/devrel_swarm/cli/__init__.py`:
+Update `src/devrel_origin/cli/__init__.py`:
 
 ```python
-from devrel_swarm.cli.growth import growth_app
+from devrel_origin.cli.growth import growth_app
 # ...
 app.add_typer(growth_app, name="growth")
 ```
@@ -1529,7 +1529,7 @@ Expected: 3 PASSED.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/devrel_swarm/cli/growth.py src/devrel_swarm/cli/__init__.py tests/cli/test_growth_command.py
+git add src/devrel_origin/cli/growth.py src/devrel_origin/cli/__init__.py tests/cli/test_growth_command.py
 git commit -m "feat(cli): cross-pillar `devrel growth {summary|diff}` umbrella"
 ```
 
@@ -1554,7 +1554,7 @@ In `pyproject.toml`, replace the `[project.optional-dependencies]` block with:
 [project.optional-dependencies]
 # Video tutorial generation (Vox agent). Adds ~150MB Playwright browsers
 # (after `playwright install`), pyobjc-core on macOS, and pulls openai for
-# TTS narration. Install with `pip install 'devrel-swarm[video]'`.
+# TTS narration. Install with `pip install 'devrel-origin[video]'`.
 video = [
     "openai>=1.50.0",
     "playwright>=1.49.0",
@@ -1562,7 +1562,7 @@ video = [
 ]
 
 # SEO auditor (Selene). Pulls Google API client + OAuth flow + HTML parser.
-# Install with `pip install 'devrel-swarm[seo]'` (or `[growth]` for full pipeline).
+# Install with `pip install 'devrel-origin[seo]'` (or `[growth]` for full pipeline).
 seo = [
     "google-api-python-client>=2.150.0",
     "google-auth-oauthlib>=1.2.0",
@@ -1579,7 +1579,7 @@ geo-google = [
 # Convenience: full Growth pipeline (Selene + Vega + Cyra). GEO + CRO have
 # zero new deps; their AI clients reuse existing openai/anthropic/httpx.
 growth = [
-    "devrel-swarm[seo]",
+    "devrel-origin[seo]",
 ]
 
 dev = [
@@ -1591,14 +1591,14 @@ dev = [
     "mypy>=1.5.0",
     "build>=1.0.0",
     "twine>=5.0.0",
-    "devrel-swarm[video,growth]",
+    "devrel-origin[video,growth]",
 ]
 ```
 
 - [ ] **Step 3: Reinstall in editable mode + verify build still clean**
 
 ```bash
-cd ~/devrel-swarm && source .venv/bin/activate
+cd ~/devrel-origin && source .venv/bin/activate
 pip install -e ".[dev]" --quiet
 ruff check . && ruff format --check . | tail -1
 rm -rf dist/ build/ && python -m build 2>&1 | tail -2
@@ -1612,7 +1612,7 @@ Expected: ruff clean, build clean, twine PASSED.
 ```bash
 rm -rf /tmp/devrel-growth-test && python3.13 -m venv /tmp/devrel-growth-test
 source /tmp/devrel-growth-test/bin/activate
-pip install --quiet "$HOME/devrel-swarm/dist/devrel_swarm-0.2.4-py3-none-any.whl[growth]"
+pip install --quiet "$HOME/devrel-origin/dist/devrel_origin-0.2.4-py3-none-any.whl[growth]"
 pip list 2>/dev/null | grep -iE "google-api|google-auth|beautifulsoup"
 ```
 
@@ -1639,11 +1639,11 @@ This task is half-document, half-manual-action. The OAuth verification clock is 
 Create `docs/setup-google-oauth.md`:
 
 ```markdown
-# Setting up the shared "devrel-swarm" Google OAuth project
+# Setting up the shared "devrel-origin" Google OAuth project
 
 `devrel seo connect-gsc` runs a standard OAuth 2.0 installed-app flow against a
 GCP project owned by Daria. Users never set their own client_id/secret —
-they consent against the shared "devrel-swarm" app the first time they
+they consent against the shared "devrel-origin" app the first time they
 connect, and refresh tokens are stored locally at
 `.devrel/credentials/gsc.json`.
 
@@ -1654,10 +1654,10 @@ warning indefinitely).
 ## 1. Create the GCP project
 
 1. Sign into https://console.cloud.google.com with the account that should
-   own the OAuth client (recommend a dedicated devrel-swarm@ Google Workspace
+   own the OAuth client (recommend a dedicated devrel-origin@ Google Workspace
    account separate from personal Gmail).
 2. Click the project selector (top bar) → "New Project".
-3. Project name: `devrel-swarm`, no organisation, click Create.
+3. Project name: `devrel-origin`, no organisation, click Create.
 4. Wait ~30 seconds for provisioning, then select the new project.
 
 ## 2. Enable the Search Console API
@@ -1670,10 +1670,10 @@ warning indefinitely).
 1. Navigation menu → APIs & Services → OAuth consent screen.
 2. User type: **External**. Click Create.
 3. App information:
-   - App name: `devrel-swarm`
+   - App name: `devrel-origin`
    - User support email: `dovzhikova@gmail.com` (or the Workspace email)
-   - App logo: 120x120 png at <https://gtm-labs.co/devrel-swarm/logo.png> (or upload local)
-   - App domain: `https://gtm-labs.co/devrel-swarm`
+   - App logo: 120x120 png at <https://gtm-labs.co/devrel-origin/logo.png> (or upload local)
+   - App domain: `https://gtm-labs.co/devrel-origin`
    - Authorized domains: `gtm-labs.co`
    - Developer contact: `dovzhikova@gmail.com`
 4. Scopes: Add the `https://www.googleapis.com/auth/webmasters.readonly` scope (read-only Search Console).
@@ -1684,7 +1684,7 @@ warning indefinitely).
 
 1. Navigation menu → APIs & Services → Credentials → "+ CREATE CREDENTIALS" → OAuth client ID.
 2. Application type: **Desktop app**.
-3. Name: `devrel-swarm CLI`.
+3. Name: `devrel-origin CLI`.
 4. Save. Click the download (⤓) icon next to the new credential to grab the
    JSON. The relevant fields are `client_id` and `client_secret`.
 
@@ -1696,7 +1696,7 @@ Google. Anyone could intercept them by inspecting the request, but the actual
 auth happens against the user's Google account, not the client_secret. (Google
 docs: https://developers.google.com/identity/protocols/oauth2/native-app)
 
-Edit `src/devrel_swarm/core/oauth_constants.py` (created in Wave 3, Task 1):
+Edit `src/devrel_origin/core/oauth_constants.py` (created in Wave 3, Task 1):
 
 ```python
 GSC_OAUTH_CLIENT_ID = "<paste here>.apps.googleusercontent.com"
@@ -1722,7 +1722,7 @@ values can be overridden via env vars `GSC_OAUTH_CLIENT_ID` and
 
 The OAuth flow still works with the consent screen showing
 "Google hasn't verified this app". Users can proceed via "Advanced →
-Continue to devrel-swarm". This is acceptable for the first 100 users
+Continue to devrel-origin". This is acceptable for the first 100 users
 (Google's "Testing" mode quota). Document this in
 `docs/seo-setup.md` (Wave 4) so users aren't surprised.
 
@@ -1748,7 +1748,7 @@ during Wave 3.)
 
 ```bash
 git add docs/setup-google-oauth.md
-git commit -m "docs: walkthrough for the shared devrel-swarm GCP OAuth project"
+git commit -m "docs: walkthrough for the shared devrel-origin GCP OAuth project"
 ```
 
 - [ ] **Step 5: (Optional) Push and request the Wave 0 review**

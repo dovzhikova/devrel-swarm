@@ -4,8 +4,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from devrel_swarm.core.kai import ContentPiece, Kai
-from devrel_swarm.tools.search_tools import SearchTools
+from devrel_origin.core.kai import ContentPiece, Kai
+from devrel_origin.tools.search_tools import SearchTools
 
 
 @pytest.fixture
@@ -49,7 +49,7 @@ class TestKaiExecuteWired:
             )
             return content, ["grounded example"], []
 
-        monkeypatch.setattr("devrel_swarm.core.kai.generate_with_pipeline", fake_pipeline)
+        monkeypatch.setattr("devrel_origin.core.kai.generate_with_pipeline", fake_pipeline)
         return Kai(
             api_client=posthog_client,
             knowledge_base_path=knowledge_base_path,
@@ -81,7 +81,7 @@ class TestKaiExecuteWired:
         async def broken_pipeline(**_):
             raise AssertionError("full editorial pipeline should not run in fast mode")
 
-        with patch("devrel_swarm.core.kai.generate_with_pipeline", new=broken_pipeline):
+        with patch("devrel_origin.core.kai.generate_with_pipeline", new=broken_pipeline):
             result = await kai.execute("Write about analytics tracking", editorial_mode="fast")
 
         assert result["status"] == "generated"
@@ -212,7 +212,7 @@ class TestKaiExecuteWired:
             return_value="Use `POST /api/projects/@current/query/` with a documented query payload."
         )
 
-        with patch("devrel_swarm.core.kai.generate_with_pipeline", new=fake_pipeline):
+        with patch("devrel_origin.core.kai.generate_with_pipeline", new=fake_pipeline):
             result = await kai.execute("Write about analytics query freshness")
 
         assert result["status"] == "generated"
@@ -245,7 +245,7 @@ class TestKaiExecuteWired:
             return_value="```python\nposthog_mcp_call('posthog:query-trends', {})\n```"
         )
 
-        with patch("devrel_swarm.core.kai.generate_with_pipeline", new=fake_pipeline):
+        with patch("devrel_origin.core.kai.generate_with_pipeline", new=fake_pipeline):
             result = await kai.execute("Write about analytics query freshness")
 
         assert result["status"] == "blocked_by_grounding_gate"
@@ -392,7 +392,7 @@ print(Team)
         assert "posthog.models" in repaired
 
     def test_remove_invalid_code_blocks_replaces_failed_snippets(self, kai):
-        from devrel_swarm.tools.code_validator import CodeValidator
+        from devrel_origin.tools.code_validator import CodeValidator
 
         content = """
 ```python
@@ -558,7 +558,7 @@ class TestKaiContentTypeRouting:
             captured["content_type"] = content_type
             return ("body", ["s"], [])
 
-        with patch("devrel_swarm.core.kai.generate_with_pipeline", new=fake_pipeline):
+        with patch("devrel_origin.core.kai.generate_with_pipeline", new=fake_pipeline):
             await kai.write_changelog("New SDK")
         assert captured["content_type"] == "landing_page"
 
@@ -580,7 +580,7 @@ class TestKaiContentTypeRouting:
                 ["readability concern", "voice mismatch", "  "],
             )
 
-        with patch("devrel_swarm.core.kai.generate_with_pipeline", new=fake_pipeline):
+        with patch("devrel_origin.core.kai.generate_with_pipeline", new=fake_pipeline):
             result = await kai.execute("Write about analytics tracking")
 
         # String issues should now survive the filter; the empty/whitespace one is dropped

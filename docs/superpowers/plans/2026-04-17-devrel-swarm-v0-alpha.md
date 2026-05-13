@@ -1,6 +1,6 @@
-# devrel-swarm v0 Alpha Implementation Plan [SUPERSEDED 2026-04-18]
+# devrel-origin v0 Alpha Implementation Plan [SUPERSEDED 2026-04-18]
 
-> **⚠ DEPRECATED.** This plan targets a multi-tenant SaaS architecture that was pivoted on 2026-04-18. The live plan is `docs/superpowers/plans/2026-04-18-devrel-swarm-v0-agentic-alpha.md` (per-customer isolated instances, no Postgres RLS, no worker fleet, no queue). This file is retained for rationale reference only — **do not execute it**.
+> **⚠ DEPRECATED.** This plan targets a multi-tenant SaaS architecture that was pivoted on 2026-04-18. The live plan is `docs/superpowers/plans/2026-04-18-devrel-origin-v0-agentic-alpha.md` (per-customer isolated instances, no Postgres RLS, no worker fleet, no queue). This file is retained for rationale reference only — **do not execute it**.
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -50,13 +50,13 @@
 ### Task 0.1: Add monorepo `.gitignore` entries + top-level dir scaffolding
 
 **Files:**
-- Modify: `/Users/macmini/devrel-swarm/.gitignore`
-- Create: `/Users/macmini/devrel-swarm/workers/.gitkeep`
-- Create: `/Users/macmini/devrel-swarm/control-plane/.gitkeep`
+- Modify: `/Users/macmini/devrel-origin/.gitignore`
+- Create: `/Users/macmini/devrel-origin/workers/.gitkeep`
+- Create: `/Users/macmini/devrel-origin/control-plane/.gitkeep`
 
 - [ ] **Step 1: Append to .gitignore**
 
-Add these lines to `/Users/macmini/devrel-swarm/.gitignore`:
+Add these lines to `/Users/macmini/devrel-origin/.gitignore`:
 
 ```
 # Control plane (Next.js)
@@ -77,14 +77,14 @@ docker-data/
 - [ ] **Step 2: Create empty placeholder dirs**
 
 ```bash
-mkdir -p /Users/macmini/devrel-swarm/workers /Users/macmini/devrel-swarm/control-plane
-touch /Users/macmini/devrel-swarm/workers/.gitkeep /Users/macmini/devrel-swarm/control-plane/.gitkeep
+mkdir -p /Users/macmini/devrel-origin/workers /Users/macmini/devrel-origin/control-plane
+touch /Users/macmini/devrel-origin/workers/.gitkeep /Users/macmini/devrel-origin/control-plane/.gitkeep
 ```
 
 - [ ] **Step 3: Commit**
 
 ```bash
-cd /Users/macmini/devrel-swarm
+cd /Users/macmini/devrel-origin
 git add .gitignore workers/.gitkeep control-plane/.gitkeep
 git commit -m "chore: monorepo scaffolding for workers + control-plane"
 ```
@@ -94,12 +94,12 @@ git commit -m "chore: monorepo scaffolding for workers + control-plane"
 ### Task 0.2: Docker Compose for local Postgres + Redis
 
 **Files:**
-- Create: `/Users/macmini/devrel-swarm/docker-compose.yml`
-- Create: `/Users/macmini/devrel-swarm/.env.dev.example`
+- Create: `/Users/macmini/devrel-origin/docker-compose.yml`
+- Create: `/Users/macmini/devrel-origin/.env.dev.example`
 
 - [ ] **Step 1: Write docker-compose.yml**
 
-Create `/Users/macmini/devrel-swarm/docker-compose.yml`:
+Create `/Users/macmini/devrel-origin/docker-compose.yml`:
 
 ```yaml
 services:
@@ -109,13 +109,13 @@ services:
     environment:
       POSTGRES_USER: devrel
       POSTGRES_PASSWORD: devrel
-      POSTGRES_DB: devrel_swarm
+      POSTGRES_DB: devrel_origin
     ports:
       - "5433:5432"
     volumes:
       - ./docker-data/postgres:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U devrel -d devrel_swarm"]
+      test: ["CMD-SHELL", "pg_isready -U devrel -d devrel_origin"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -131,11 +131,11 @@ services:
 
 - [ ] **Step 2: Write env example**
 
-Create `/Users/macmini/devrel-swarm/.env.dev.example`:
+Create `/Users/macmini/devrel-origin/.env.dev.example`:
 
 ```
 # Local Postgres (docker-compose)
-DATABASE_URL=postgresql://devrel:devrel@localhost:5433/devrel_swarm
+DATABASE_URL=postgresql://devrel:devrel@localhost:5433/devrel_origin
 
 # Local Redis
 REDIS_URL=redis://localhost:6380
@@ -160,7 +160,7 @@ BRAVE_API_KEY=
 - [ ] **Step 3: Start stack + verify**
 
 ```bash
-cd /Users/macmini/devrel-swarm
+cd /Users/macmini/devrel-origin
 docker compose up -d
 docker compose ps
 ```
@@ -168,7 +168,7 @@ docker compose ps
 Expected: both `postgres` and `redis` services in `healthy` / `running` state.
 
 ```bash
-docker compose exec postgres psql -U devrel -d devrel_swarm -c "SELECT version();"
+docker compose exec postgres psql -U devrel -d devrel_origin -c "SELECT version();"
 ```
 
 Expected: Postgres 16.x version string, no error.
@@ -187,15 +187,15 @@ git commit -m "chore: local postgres + redis via docker-compose"
 ### Task 1.1: Initialize Next.js skeleton + Drizzle
 
 **Files:**
-- Create: `/Users/macmini/devrel-swarm/control-plane/package.json`
-- Create: `/Users/macmini/devrel-swarm/control-plane/tsconfig.json`
-- Create: `/Users/macmini/devrel-swarm/control-plane/next.config.ts`
-- Create: `/Users/macmini/devrel-swarm/control-plane/drizzle.config.ts`
+- Create: `/Users/macmini/devrel-origin/control-plane/package.json`
+- Create: `/Users/macmini/devrel-origin/control-plane/tsconfig.json`
+- Create: `/Users/macmini/devrel-origin/control-plane/next.config.ts`
+- Create: `/Users/macmini/devrel-origin/control-plane/drizzle.config.ts`
 
 - [ ] **Step 1: Scaffold Next.js app**
 
 ```bash
-cd /Users/macmini/devrel-swarm
+cd /Users/macmini/devrel-origin
 npx create-next-app@15 control-plane --typescript --app --tailwind --eslint --src-dir --import-alias "@/*" --no-git --turbopack
 ```
 
@@ -204,7 +204,7 @@ When prompted, accept defaults. Verify `control-plane/package.json` exists after
 - [ ] **Step 2: Install Drizzle + Postgres deps**
 
 ```bash
-cd /Users/macmini/devrel-swarm/control-plane
+cd /Users/macmini/devrel-origin/control-plane
 pnpm add drizzle-orm postgres
 pnpm add -D drizzle-kit @types/pg
 ```
@@ -213,7 +213,7 @@ pnpm add -D drizzle-kit @types/pg
 
 - [ ] **Step 3: Write drizzle.config.ts**
 
-Create `/Users/macmini/devrel-swarm/control-plane/drizzle.config.ts`:
+Create `/Users/macmini/devrel-origin/control-plane/drizzle.config.ts`:
 
 ```typescript
 import { defineConfig } from "drizzle-kit";
@@ -233,7 +233,7 @@ export default defineConfig({
 - [ ] **Step 4: Verify scaffold**
 
 ```bash
-cd /Users/macmini/devrel-swarm/control-plane
+cd /Users/macmini/devrel-origin/control-plane
 pnpm next build
 ```
 
@@ -242,7 +242,7 @@ Expected: build succeeds (empty app compiles).
 - [ ] **Step 5: Commit**
 
 ```bash
-cd /Users/macmini/devrel-swarm
+cd /Users/macmini/devrel-origin
 git add control-plane/
 git commit -m "feat: scaffold Next.js 15 control-plane with drizzle"
 ```
@@ -252,12 +252,12 @@ git commit -m "feat: scaffold Next.js 15 control-plane with drizzle"
 ### Task 1.2: Core schema — tenants, users, product_profile
 
 **Files:**
-- Create: `/Users/macmini/devrel-swarm/control-plane/src/db/schema/core.ts`
-- Create: `/Users/macmini/devrel-swarm/control-plane/src/db/schema/index.ts`
+- Create: `/Users/macmini/devrel-origin/control-plane/src/db/schema/core.ts`
+- Create: `/Users/macmini/devrel-origin/control-plane/src/db/schema/index.ts`
 
 - [ ] **Step 1: Write core schema**
 
-Create `/Users/macmini/devrel-swarm/control-plane/src/db/schema/core.ts`:
+Create `/Users/macmini/devrel-origin/control-plane/src/db/schema/core.ts`:
 
 ```typescript
 import { pgTable, uuid, text, timestamp, integer, pgEnum } from "drizzle-orm/pg-core";
@@ -298,7 +298,7 @@ export const productProfile = pgTable("product_profile", {
 
 - [ ] **Step 2: Write schema index**
 
-Create `/Users/macmini/devrel-swarm/control-plane/src/db/schema/index.ts`:
+Create `/Users/macmini/devrel-origin/control-plane/src/db/schema/index.ts`:
 
 ```typescript
 export * from "./core";
@@ -307,7 +307,7 @@ export * from "./core";
 - [ ] **Step 3: Commit (will generate migration in Task 1.6)**
 
 ```bash
-cd /Users/macmini/devrel-swarm
+cd /Users/macmini/devrel-origin
 git add control-plane/src/db/schema/
 git commit -m "feat: core schema — tenants, users, product_profile"
 ```
@@ -317,12 +317,12 @@ git commit -m "feat: core schema — tenants, users, product_profile"
 ### Task 1.3: Integrations + voice_profile schema
 
 **Files:**
-- Create: `/Users/macmini/devrel-swarm/control-plane/src/db/schema/integrations.ts`
-- Modify: `/Users/macmini/devrel-swarm/control-plane/src/db/schema/index.ts`
+- Create: `/Users/macmini/devrel-origin/control-plane/src/db/schema/integrations.ts`
+- Modify: `/Users/macmini/devrel-origin/control-plane/src/db/schema/index.ts`
 
 - [ ] **Step 1: Write integrations schema**
 
-Create `/Users/macmini/devrel-swarm/control-plane/src/db/schema/integrations.ts`:
+Create `/Users/macmini/devrel-origin/control-plane/src/db/schema/integrations.ts`:
 
 ```typescript
 import { pgTable, uuid, text, timestamp, jsonb, integer, pgEnum, customType } from "drizzle-orm/pg-core";
@@ -366,7 +366,7 @@ export const voiceProfile = pgTable("voice_profile", {
 
 - [ ] **Step 2: Re-export from index**
 
-Update `/Users/macmini/devrel-swarm/control-plane/src/db/schema/index.ts`:
+Update `/Users/macmini/devrel-origin/control-plane/src/db/schema/index.ts`:
 
 ```typescript
 export * from "./core";
@@ -385,12 +385,12 @@ git commit -m "feat: integrations + voice_profile schema"
 ### Task 1.4: Content pipeline schema — kb_documents, signals, themes, deliverables, publications
 
 **Files:**
-- Create: `/Users/macmini/devrel-swarm/control-plane/src/db/schema/content.ts`
-- Modify: `/Users/macmini/devrel-swarm/control-plane/src/db/schema/index.ts`
+- Create: `/Users/macmini/devrel-origin/control-plane/src/db/schema/content.ts`
+- Modify: `/Users/macmini/devrel-origin/control-plane/src/db/schema/index.ts`
 
 - [ ] **Step 1: Write content schema**
 
-Create `/Users/macmini/devrel-swarm/control-plane/src/db/schema/content.ts`:
+Create `/Users/macmini/devrel-origin/control-plane/src/db/schema/content.ts`:
 
 ```typescript
 import { pgTable, uuid, text, timestamp, jsonb, numeric, pgEnum, index, customType } from "drizzle-orm/pg-core";
@@ -507,7 +507,7 @@ export const publications = pgTable("publications", {
 
 - [ ] **Step 2: Re-export**
 
-Update `/Users/macmini/devrel-swarm/control-plane/src/db/schema/index.ts`:
+Update `/Users/macmini/devrel-origin/control-plane/src/db/schema/index.ts`:
 
 ```typescript
 export * from "./core";
@@ -527,12 +527,12 @@ git commit -m "feat: content pipeline schema — kb, signals, themes, deliverabl
 ### Task 1.5: Execution schema — jobs, checkpoints, cost_events, quality_events
 
 **Files:**
-- Create: `/Users/macmini/devrel-swarm/control-plane/src/db/schema/execution.ts`
-- Modify: `/Users/macmini/devrel-swarm/control-plane/src/db/schema/index.ts`
+- Create: `/Users/macmini/devrel-origin/control-plane/src/db/schema/execution.ts`
+- Modify: `/Users/macmini/devrel-origin/control-plane/src/db/schema/index.ts`
 
 - [ ] **Step 1: Write execution schema**
 
-Create `/Users/macmini/devrel-swarm/control-plane/src/db/schema/execution.ts`:
+Create `/Users/macmini/devrel-origin/control-plane/src/db/schema/execution.ts`:
 
 ```typescript
 import { pgTable, uuid, text, timestamp, jsonb, integer, numeric, pgEnum, index } from "drizzle-orm/pg-core";
@@ -598,7 +598,7 @@ export const qualityEvents = pgTable("quality_events", {
 
 - [ ] **Step 2: Re-export**
 
-Update `/Users/macmini/devrel-swarm/control-plane/src/db/schema/index.ts`:
+Update `/Users/macmini/devrel-origin/control-plane/src/db/schema/index.ts`:
 
 ```typescript
 export * from "./core";
@@ -619,13 +619,13 @@ git commit -m "feat: execution schema — jobs, checkpoints, cost_events, qualit
 ### Task 1.6: Generate + apply migration (with pgvector extension)
 
 **Files:**
-- Create: `/Users/macmini/devrel-swarm/control-plane/drizzle/migrations/0000_initial.sql` (generated)
-- Create: `/Users/macmini/devrel-swarm/control-plane/drizzle/custom/0001_enable_pgvector.sql`
+- Create: `/Users/macmini/devrel-origin/control-plane/drizzle/migrations/0000_initial.sql` (generated)
+- Create: `/Users/macmini/devrel-origin/control-plane/drizzle/custom/0001_enable_pgvector.sql`
 
 - [ ] **Step 1: Generate migration from schema**
 
 ```bash
-cd /Users/macmini/devrel-swarm/control-plane
+cd /Users/macmini/devrel-origin/control-plane
 cp ../.env.dev.example .env.local
 # ensure docker-compose postgres is running (from Task 0.2)
 pnpm drizzle-kit generate
@@ -635,7 +635,7 @@ Expected: `drizzle/migrations/0000_<name>.sql` file created with CREATE TABLE st
 
 - [ ] **Step 2: Hand-write pgvector extension migration**
 
-Create `/Users/macmini/devrel-swarm/control-plane/drizzle/custom/0001_enable_pgvector.sql`:
+Create `/Users/macmini/devrel-origin/control-plane/drizzle/custom/0001_enable_pgvector.sql`:
 
 ```sql
 -- Must run BEFORE 0000_initial if it contains vector(1536) columns.
@@ -647,8 +647,8 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 - [ ] **Step 3: Apply extension migration manually**
 
 ```bash
-cd /Users/macmini/devrel-swarm
-docker compose exec -T postgres psql -U devrel -d devrel_swarm \
+cd /Users/macmini/devrel-origin
+docker compose exec -T postgres psql -U devrel -d devrel_origin \
   < control-plane/drizzle/custom/0001_enable_pgvector.sql
 ```
 
@@ -657,15 +657,15 @@ Expected: `CREATE EXTENSION` output, no error.
 - [ ] **Step 4: Apply Drizzle migration**
 
 ```bash
-cd /Users/macmini/devrel-swarm/control-plane
+cd /Users/macmini/devrel-origin/control-plane
 pnpm drizzle-kit migrate
 ```
 
 Expected: migration applied, tables created. Verify:
 
 ```bash
-cd /Users/macmini/devrel-swarm
-docker compose exec postgres psql -U devrel -d devrel_swarm -c "\dt"
+cd /Users/macmini/devrel-origin
+docker compose exec postgres psql -U devrel -d devrel_origin -c "\dt"
 ```
 
 Expected: 14 tables listed.
@@ -682,11 +682,11 @@ git commit -m "feat: initial migration + pgvector extension"
 ### Task 1.7: Seed OpenClaw as single v0 tenant
 
 **Files:**
-- Create: `/Users/macmini/devrel-swarm/scripts/seed_openclaw_tenant.sql`
+- Create: `/Users/macmini/devrel-origin/scripts/seed_openclaw_tenant.sql`
 
 - [ ] **Step 1: Write seed script**
 
-Create `/Users/macmini/devrel-swarm/scripts/seed_openclaw_tenant.sql`:
+Create `/Users/macmini/devrel-origin/scripts/seed_openclaw_tenant.sql`:
 
 ```sql
 -- v0: manually seed OpenClaw as the single test tenant.
@@ -732,15 +732,15 @@ COMMIT;
 - [ ] **Step 2: Apply seed**
 
 ```bash
-cd /Users/macmini/devrel-swarm
-docker compose exec -T postgres psql -U devrel -d devrel_swarm \
+cd /Users/macmini/devrel-origin
+docker compose exec -T postgres psql -U devrel -d devrel_origin \
   < scripts/seed_openclaw_tenant.sql
 ```
 
 Verify:
 
 ```bash
-docker compose exec postgres psql -U devrel -d devrel_swarm \
+docker compose exec postgres psql -U devrel -d devrel_origin \
   -c "SELECT id, slug, plan FROM tenants;"
 ```
 
@@ -760,17 +760,17 @@ git commit -m "feat: seed OpenClaw as v0 test tenant"
 ### Task 2.1: Worker Python project scaffold + asyncpg pool
 
 **Files:**
-- Create: `/Users/macmini/devrel-swarm/workers/pyproject.toml`
-- Create: `/Users/macmini/devrel-swarm/workers/main.py`
-- Create: `/Users/macmini/devrel-swarm/workers/db.py`
+- Create: `/Users/macmini/devrel-origin/workers/pyproject.toml`
+- Create: `/Users/macmini/devrel-origin/workers/main.py`
+- Create: `/Users/macmini/devrel-origin/workers/db.py`
 
 - [ ] **Step 1: Write pyproject.toml**
 
-Create `/Users/macmini/devrel-swarm/workers/pyproject.toml`:
+Create `/Users/macmini/devrel-origin/workers/pyproject.toml`:
 
 ```toml
 [project]
-name = "devrel-swarm-workers"
+name = "devrel-origin-workers"
 version = "0.0.1"
 description = "HTTP shim that dispatches Inngest jobs to Atlas orchestrator"
 requires-python = ">=3.12"
@@ -788,7 +788,7 @@ py-modules = ["main", "db"]
 
 - [ ] **Step 2: Write db.py with asyncpg pool**
 
-Create `/Users/macmini/devrel-swarm/workers/db.py`:
+Create `/Users/macmini/devrel-origin/workers/db.py`:
 
 ```python
 """Async Postgres pool + tenant config loader for worker jobs."""
@@ -851,7 +851,7 @@ async def load_tenant(tenant_id: str) -> dict[str, Any]:
 
 - [ ] **Step 3: Write main.py FastAPI skeleton**
 
-Create `/Users/macmini/devrel-swarm/workers/main.py`:
+Create `/Users/macmini/devrel-origin/workers/main.py`:
 
 ```python
 """FastAPI worker shim. Receives Inngest HTTP triggers and dispatches to Atlas."""
@@ -880,7 +880,7 @@ async def lifespan(app: FastAPI):
     await close_pool()
 
 
-app = FastAPI(title="devrel-swarm workers", lifespan=lifespan)
+app = FastAPI(title="devrel-origin workers", lifespan=lifespan)
 
 
 @app.get("/health")
@@ -909,7 +909,7 @@ async def weekly_cycle(req: WeeklyCycleRequest) -> dict[str, str]:
 - [ ] **Step 4: Install + start**
 
 ```bash
-cd /Users/macmini/devrel-swarm
+cd /Users/macmini/devrel-origin
 python3.12 -m venv workers/.venv
 source workers/.venv/bin/activate
 pip install -e ./workers
@@ -919,7 +919,7 @@ pip install -e .  # installs existing agents/tools too
 Start in background terminal:
 
 ```bash
-cd /Users/macmini/devrel-swarm
+cd /Users/macmini/devrel-origin
 set -a; source .env.dev; set +a
 uvicorn workers.main:app --host 0.0.0.0 --port 8787
 ```
@@ -943,7 +943,7 @@ Expected: `{"status":"accepted","tenant":"openclaw","job_id":"test-1"}`
 - [ ] **Step 6: Commit**
 
 ```bash
-cd /Users/macmini/devrel-swarm
+cd /Users/macmini/devrel-origin
 git add workers/
 git commit -m "feat: FastAPI worker shim with asyncpg pool + tenant loader"
 ```
@@ -953,13 +953,13 @@ git commit -m "feat: FastAPI worker shim with asyncpg pool + tenant loader"
 ### Task 2.2: Pytest scaffolding for workers
 
 **Files:**
-- Create: `/Users/macmini/devrel-swarm/workers/tests/__init__.py`
-- Create: `/Users/macmini/devrel-swarm/workers/tests/test_health.py`
-- Create: `/Users/macmini/devrel-swarm/workers/tests/conftest.py`
+- Create: `/Users/macmini/devrel-origin/workers/tests/__init__.py`
+- Create: `/Users/macmini/devrel-origin/workers/tests/test_health.py`
+- Create: `/Users/macmini/devrel-origin/workers/tests/conftest.py`
 
 - [ ] **Step 1: Write conftest**
 
-Create `/Users/macmini/devrel-swarm/workers/tests/conftest.py`:
+Create `/Users/macmini/devrel-origin/workers/tests/conftest.py`:
 
 ```python
 """Shared fixtures for worker tests."""
@@ -973,7 +973,7 @@ from fastapi.testclient import TestClient
 
 os.environ.setdefault(
     "DATABASE_URL",
-    "postgresql://devrel:devrel@localhost:5433/devrel_swarm",
+    "postgresql://devrel:devrel@localhost:5433/devrel_origin",
 )
 
 
@@ -986,7 +986,7 @@ def client():
 
 - [ ] **Step 2: Write the failing test for health**
 
-Create `/Users/macmini/devrel-swarm/workers/tests/test_health.py`:
+Create `/Users/macmini/devrel-origin/workers/tests/test_health.py`:
 
 ```python
 def test_health(client):
@@ -1016,7 +1016,7 @@ def test_weekly_cycle_known_tenant(client):
 - [ ] **Step 3: Run tests**
 
 ```bash
-cd /Users/macmini/devrel-swarm
+cd /Users/macmini/devrel-origin
 source workers/.venv/bin/activate
 pytest workers/tests/ -v
 ```
@@ -1037,13 +1037,13 @@ git commit -m "test: worker health + weekly-cycle smoke tests"
 ### Task 3.1: Extract `WeeklyMemory` + `SharedContext` into `agents/memory.py`
 
 **Files:**
-- Create: `/Users/macmini/devrel-swarm/agents/memory.py`
-- Modify: `/Users/macmini/devrel-swarm/agents/atlas.py`
-- Create: `/Users/macmini/devrel-swarm/tests/test_memory_module.py`
+- Create: `/Users/macmini/devrel-origin/agents/memory.py`
+- Modify: `/Users/macmini/devrel-origin/agents/atlas.py`
+- Create: `/Users/macmini/devrel-origin/tests/test_memory_module.py`
 
 - [ ] **Step 1: Write the failing test**
 
-Create `/Users/macmini/devrel-swarm/tests/test_memory_module.py`:
+Create `/Users/macmini/devrel-origin/tests/test_memory_module.py`:
 
 ```python
 """Verifies memory module extraction preserves existing behavior."""
@@ -1076,7 +1076,7 @@ def test_shared_context_default_tenant_is_none():
 - [ ] **Step 2: Run, confirm ImportError / AttributeError**
 
 ```bash
-cd /Users/macmini/devrel-swarm
+cd /Users/macmini/devrel-origin
 pytest tests/test_memory_module.py -v
 ```
 
@@ -1084,9 +1084,9 @@ Expected: FAIL with `ModuleNotFoundError: No module named 'agents.memory'`
 
 - [ ] **Step 3: Create agents/memory.py**
 
-Read lines 43–250 of current `agents/atlas.py` and move them into `/Users/macmini/devrel-swarm/agents/memory.py`. Copy the imports needed (`dataclass`, `field`, `Any`, `json`, `Path`, `datetime`). Add `tenant_id: str | None = None` to `SharedContext`.
+Read lines 43–250 of current `agents/atlas.py` and move them into `/Users/macmini/devrel-origin/agents/memory.py`. Copy the imports needed (`dataclass`, `field`, `Any`, `json`, `Path`, `datetime`). Add `tenant_id: str | None = None` to `SharedContext`.
 
-Create `/Users/macmini/devrel-swarm/agents/memory.py`:
+Create `/Users/macmini/devrel-origin/agents/memory.py`:
 
 ```python
 """WeeklyMemory and SharedContext — extracted from atlas.py for per-tenant scoping."""
@@ -1245,7 +1245,7 @@ class SharedContext:
 
 - [ ] **Step 4: Update atlas.py to re-export for back-compat**
 
-At the top of `/Users/macmini/devrel-swarm/agents/atlas.py` (after existing imports), add:
+At the top of `/Users/macmini/devrel-origin/agents/atlas.py` (after existing imports), add:
 
 ```python
 # Back-compat re-exports — memory classes moved to agents/memory.py in v0 refactor.
@@ -1257,7 +1257,7 @@ Then **delete** the original `WeeklyMemory` class (lines 42–100ish) and `Share
 - [ ] **Step 5: Run all tests to verify no regression**
 
 ```bash
-cd /Users/macmini/devrel-swarm
+cd /Users/macmini/devrel-origin
 pytest tests/ -v
 ```
 
@@ -1278,13 +1278,13 @@ per-tenant scoping in workers."
 ### Task 3.2: Extract `delegate()` + retry logic into `agents/dispatch.py`
 
 **Files:**
-- Create: `/Users/macmini/devrel-swarm/agents/dispatch.py`
-- Modify: `/Users/macmini/devrel-swarm/agents/atlas.py`
-- Create: `/Users/macmini/devrel-swarm/tests/test_dispatch.py`
+- Create: `/Users/macmini/devrel-origin/agents/dispatch.py`
+- Modify: `/Users/macmini/devrel-origin/agents/atlas.py`
+- Create: `/Users/macmini/devrel-origin/tests/test_dispatch.py`
 
 - [ ] **Step 1: Write the failing test**
 
-Create `/Users/macmini/devrel-swarm/tests/test_dispatch.py`:
+Create `/Users/macmini/devrel-origin/tests/test_dispatch.py`:
 
 ```python
 import asyncio
@@ -1341,7 +1341,7 @@ Expected: FAIL `ModuleNotFoundError: No module named 'agents.dispatch'`
 
 - [ ] **Step 3: Write agents/dispatch.py**
 
-Create `/Users/macmini/devrel-swarm/agents/dispatch.py`:
+Create `/Users/macmini/devrel-origin/agents/dispatch.py`:
 
 ```python
 """Agent delegation with exponential-backoff retry — extracted from atlas.py."""
@@ -1406,7 +1406,7 @@ async def delegate_with_retry(
 
 - [ ] **Step 4: Update atlas.py to use it**
 
-In `/Users/macmini/devrel-swarm/agents/atlas.py`, find the existing `async def delegate(...)` method (around line 348) and replace its body to call the new helper. Keep the method for back-compat; thin wrapper:
+In `/Users/macmini/devrel-origin/agents/atlas.py`, find the existing `async def delegate(...)` method (around line 348) and replace its body to call the new helper. Keep the method for back-compat; thin wrapper:
 
 ```python
 from agents.dispatch import DelegationResult, delegate_with_retry  # add near top with other agents.* imports
@@ -1455,12 +1455,12 @@ git commit -m "refactor: extract delegate_with_retry to agents/dispatch.py"
 ### Task 3.3: Postgres-backed checkpoints in `agents/checkpoints.py`
 
 **Files:**
-- Create: `/Users/macmini/devrel-swarm/agents/checkpoints.py`
-- Create: `/Users/macmini/devrel-swarm/tests/test_checkpoints.py`
+- Create: `/Users/macmini/devrel-origin/agents/checkpoints.py`
+- Create: `/Users/macmini/devrel-origin/tests/test_checkpoints.py`
 
 - [ ] **Step 1: Write the failing test**
 
-Create `/Users/macmini/devrel-swarm/tests/test_checkpoints.py`:
+Create `/Users/macmini/devrel-origin/tests/test_checkpoints.py`:
 
 ```python
 """Tests for Postgres-backed checkpoints using respx-less asyncpg mock."""
@@ -1525,7 +1525,7 @@ Expected: FAIL `ModuleNotFoundError: No module named 'agents.checkpoints'`
 
 - [ ] **Step 3: Write agents/checkpoints.py**
 
-Create `/Users/macmini/devrel-swarm/agents/checkpoints.py`:
+Create `/Users/macmini/devrel-origin/agents/checkpoints.py`:
 
 ```python
 """Job checkpoint store — Postgres-backed in workers, in-memory in tests/CLI."""
@@ -1622,12 +1622,12 @@ git commit -m "feat: CheckpointStore with asyncpg + InMemory backends"
 ### Task 3.4: Extract Atlas orchestration into `agents/orchestrator.py`
 
 **Files:**
-- Create: `/Users/macmini/devrel-swarm/agents/orchestrator.py`
-- Modify: `/Users/macmini/devrel-swarm/agents/atlas.py`
+- Create: `/Users/macmini/devrel-origin/agents/orchestrator.py`
+- Modify: `/Users/macmini/devrel-origin/agents/atlas.py`
 
 - [ ] **Step 1: Copy the Atlas class + its helpers into orchestrator.py**
 
-Read the existing `agents/atlas.py` from the `class Atlas:` line to the end of the file (before the `if __name__ == "__main__":` block). Move that block to `/Users/macmini/devrel-swarm/agents/orchestrator.py`, renaming nothing (the class is still `Atlas`).
+Read the existing `agents/atlas.py` from the `class Atlas:` line to the end of the file (before the `if __name__ == "__main__":` block). Move that block to `/Users/macmini/devrel-origin/agents/orchestrator.py`, renaming nothing (the class is still `Atlas`).
 
 Adjust imports at the top of `orchestrator.py` to match the old atlas.py imports, plus:
 
@@ -1661,7 +1661,7 @@ class Atlas:
 
 - [ ] **Step 2: Thin atlas.py into a re-export shim**
 
-Replace the entire contents of `/Users/macmini/devrel-swarm/agents/atlas.py` with:
+Replace the entire contents of `/Users/macmini/devrel-origin/agents/atlas.py` with:
 
 ```python
 """Back-compat shim. Atlas + memory classes live in orchestrator.py and memory.py.
@@ -1715,7 +1715,7 @@ Expected: all tests pass, no regressions.
 - [ ] **Step 4: Smoke-test CLI back-compat**
 
 ```bash
-cd /Users/macmini/devrel-swarm
+cd /Users/macmini/devrel-origin
 python -m agents.atlas --help
 ```
 
@@ -1735,12 +1735,12 @@ atlas.py is now a 30-line re-export shim preserving CLI back-compat."
 ### Task 3.5: Wire workers to instantiate Atlas per tenant
 
 **Files:**
-- Modify: `/Users/macmini/devrel-swarm/workers/main.py`
-- Create: `/Users/macmini/devrel-swarm/workers/dispatcher.py`
+- Modify: `/Users/macmini/devrel-origin/workers/main.py`
+- Create: `/Users/macmini/devrel-origin/workers/dispatcher.py`
 
 - [ ] **Step 1: Write the dispatcher**
 
-Create `/Users/macmini/devrel-swarm/workers/dispatcher.py`:
+Create `/Users/macmini/devrel-origin/workers/dispatcher.py`:
 
 ```python
 """Per-request Atlas construction for the worker shim."""
@@ -1815,7 +1815,7 @@ async def run_weekly_cycle_for_tenant(
 
 - [ ] **Step 2: Add `run_weekly_cycle_with_context` to Atlas**
 
-In `/Users/macmini/devrel-swarm/agents/orchestrator.py`, add alongside the existing `run_weekly_cycle`:
+In `/Users/macmini/devrel-origin/agents/orchestrator.py`, add alongside the existing `run_weekly_cycle`:
 
 ```python
 async def run_weekly_cycle_with_context(self, ctx: SharedContext) -> SharedContext:
@@ -1859,7 +1859,7 @@ async def run_weekly_cycle(self) -> SharedContext:
 
 - [ ] **Step 4: Update workers/main.py to call dispatcher**
 
-Edit `/Users/macmini/devrel-swarm/workers/main.py`, replace the stub body of `weekly_cycle` with:
+Edit `/Users/macmini/devrel-origin/workers/main.py`, replace the stub body of `weekly_cycle` with:
 
 ```python
 from workers.dispatcher import run_weekly_cycle_for_tenant
@@ -1888,7 +1888,7 @@ uvicorn workers.main:app --host 0.0.0.0 --port 8787 &
 sleep 2
 
 # Create a job row first (control-plane normally does this; for now use psql)
-JOB_ID=$(docker compose exec -T postgres psql -U devrel -d devrel_swarm -tAc \
+JOB_ID=$(docker compose exec -T postgres psql -U devrel -d devrel_origin -tAc \
   "insert into jobs (tenant_id, kind, status) values ('00000000-0000-0000-0000-000000000001','weekly_cycle','queued') returning id;")
 
 curl -s -X POST http://localhost:8787/jobs/weekly-cycle \
@@ -1912,12 +1912,12 @@ git commit -m "feat: wire workers to Atlas.run_weekly_cycle_with_context per ten
 ### Task 4.1: Write `BudgetGate` tracking stub with tests
 
 **Files:**
-- Create: `/Users/macmini/devrel-swarm/workers/budget.py`
-- Create: `/Users/macmini/devrel-swarm/workers/tests/test_budget.py`
+- Create: `/Users/macmini/devrel-origin/workers/budget.py`
+- Create: `/Users/macmini/devrel-origin/workers/tests/test_budget.py`
 
 - [ ] **Step 1: Write the failing test**
 
-Create `/Users/macmini/devrel-swarm/workers/tests/test_budget.py`:
+Create `/Users/macmini/devrel-origin/workers/tests/test_budget.py`:
 
 ```python
 from unittest.mock import AsyncMock
@@ -1999,7 +1999,7 @@ async def test_gate_blocks_when_enabled_and_over_cap():
 - [ ] **Step 2: Run, confirm failure**
 
 ```bash
-cd /Users/macmini/devrel-swarm
+cd /Users/macmini/devrel-origin
 pytest workers/tests/test_budget.py -v
 ```
 
@@ -2007,7 +2007,7 @@ Expected: FAIL `ModuleNotFoundError`
 
 - [ ] **Step 3: Write workers/budget.py**
 
-Create `/Users/macmini/devrel-swarm/workers/budget.py`:
+Create `/Users/macmini/devrel-origin/workers/budget.py`:
 
 ```python
 """Cost tracking + budget enforcement gate.
@@ -2148,14 +2148,14 @@ git commit -m "feat: BudgetGate stub (tracking-only in v0)"
 ### Task 4.2: Wire LLMClient through BudgetGate
 
 **Files:**
-- Modify: `/Users/macmini/devrel-swarm/agents/llm.py`
-- Modify: `/Users/macmini/devrel-swarm/workers/dispatcher.py`
-- Create: `/Users/macmini/devrel-swarm/tests/test_llm_budget_wiring.py`
+- Modify: `/Users/macmini/devrel-origin/agents/llm.py`
+- Modify: `/Users/macmini/devrel-origin/workers/dispatcher.py`
+- Create: `/Users/macmini/devrel-origin/tests/test_llm_budget_wiring.py`
 
 - [ ] **Step 1: Inspect current LLMClient**
 
 ```bash
-cd /Users/macmini/devrel-swarm
+cd /Users/macmini/devrel-origin
 grep -n "class LLMClient\|async def generate\|TokenUsage" agents/llm.py | head -30
 ```
 
@@ -2163,7 +2163,7 @@ Identify where Claude API calls happen and where per-call token counts become av
 
 - [ ] **Step 2: Write the failing test**
 
-Create `/Users/macmini/devrel-swarm/tests/test_llm_budget_wiring.py`:
+Create `/Users/macmini/devrel-origin/tests/test_llm_budget_wiring.py`:
 
 ```python
 """Verify LLMClient can emit CostRecord to a sink callback."""
@@ -2201,7 +2201,7 @@ async def test_llm_emits_cost_when_sink_set(monkeypatch):
 
 - [ ] **Step 3: Add cost sink to LLMClient**
 
-Edit `/Users/macmini/devrel-swarm/agents/llm.py`. Near the top of the `LLMClient` class `__init__`, add:
+Edit `/Users/macmini/devrel-origin/agents/llm.py`. Near the top of the `LLMClient` class `__init__`, add:
 
 ```python
 self._cost_sink = None  # Optional[Callable[[str, str, dict], Awaitable[None]]]
@@ -2258,7 +2258,7 @@ Expected: PASS.
 
 - [ ] **Step 5: Wire dispatcher to pass a BudgetGate sink**
 
-Edit `/Users/macmini/devrel-swarm/workers/dispatcher.py`. Inside `run_weekly_cycle_for_tenant`, after constructing Atlas:
+Edit `/Users/macmini/devrel-origin/workers/dispatcher.py`. Inside `run_weekly_cycle_for_tenant`, after constructing Atlas:
 
 ```python
 from workers.budget import BudgetGate, CostRecord
@@ -2308,25 +2308,25 @@ git commit -m "feat: wire LLMClient → BudgetGate via cost_sink callback"
 ### Task 5.1: Install Inngest SDK in control-plane
 
 **Files:**
-- Modify: `/Users/macmini/devrel-swarm/control-plane/package.json`
-- Create: `/Users/macmini/devrel-swarm/control-plane/src/lib/inngest/client.ts`
+- Modify: `/Users/macmini/devrel-origin/control-plane/package.json`
+- Create: `/Users/macmini/devrel-origin/control-plane/src/lib/inngest/client.ts`
 
 - [ ] **Step 1: Install deps**
 
 ```bash
-cd /Users/macmini/devrel-swarm/control-plane
+cd /Users/macmini/devrel-origin/control-plane
 pnpm add inngest
 ```
 
 - [ ] **Step 2: Write Inngest client**
 
-Create `/Users/macmini/devrel-swarm/control-plane/src/lib/inngest/client.ts`:
+Create `/Users/macmini/devrel-origin/control-plane/src/lib/inngest/client.ts`:
 
 ```typescript
 import { Inngest } from "inngest";
 
 export const inngest = new Inngest({
-  id: "devrel-swarm",
+  id: "devrel-origin",
   eventKey: process.env.INNGEST_EVENT_KEY,
 });
 
@@ -2346,7 +2346,7 @@ export type AppEvents = {
 - [ ] **Step 3: Commit**
 
 ```bash
-cd /Users/macmini/devrel-swarm
+cd /Users/macmini/devrel-origin
 git add control-plane/package.json control-plane/pnpm-lock.yaml control-plane/src/lib/inngest/
 git commit -m "feat: inngest client setup"
 ```
@@ -2356,12 +2356,12 @@ git commit -m "feat: inngest client setup"
 ### Task 5.2: Inngest function — weekly-cycle HTTP dispatch
 
 **Files:**
-- Create: `/Users/macmini/devrel-swarm/control-plane/src/lib/inngest/functions.ts`
-- Create: `/Users/macmini/devrel-swarm/control-plane/src/app/api/inngest/route.ts`
+- Create: `/Users/macmini/devrel-origin/control-plane/src/lib/inngest/functions.ts`
+- Create: `/Users/macmini/devrel-origin/control-plane/src/app/api/inngest/route.ts`
 
 - [ ] **Step 1: Write function**
 
-Create `/Users/macmini/devrel-swarm/control-plane/src/lib/inngest/functions.ts`:
+Create `/Users/macmini/devrel-origin/control-plane/src/lib/inngest/functions.ts`:
 
 ```typescript
 import { inngest } from "./client";
@@ -2403,7 +2403,7 @@ export const weeklyCycle = inngest.createFunction(
 
 - [ ] **Step 2: Write HTTP receiver**
 
-Create `/Users/macmini/devrel-swarm/control-plane/src/app/api/inngest/route.ts`:
+Create `/Users/macmini/devrel-origin/control-plane/src/app/api/inngest/route.ts`:
 
 ```typescript
 import { serve } from "inngest/next";
@@ -2420,20 +2420,20 @@ export const { GET, POST, PUT } = serve({
 
 Terminal 1 (Inngest dev):
 ```bash
-cd /Users/macmini/devrel-swarm/control-plane
+cd /Users/macmini/devrel-origin/control-plane
 pnpm dlx inngest-cli@latest dev -u http://localhost:3000/api/inngest
 ```
 
 Terminal 2 (Next.js):
 ```bash
-cd /Users/macmini/devrel-swarm/control-plane
+cd /Users/macmini/devrel-origin/control-plane
 cp ../.env.dev.example .env.local
 pnpm dev
 ```
 
 Terminal 3 (workers):
 ```bash
-cd /Users/macmini/devrel-swarm
+cd /Users/macmini/devrel-origin
 set -a; source .env.dev; source .env; set +a
 source workers/.venv/bin/activate
 uvicorn workers.main:app --port 8787
@@ -2444,7 +2444,7 @@ Visit `http://localhost:8288` (Inngest dev UI) and verify the `weekly-cycle` fun
 - [ ] **Step 4: Commit**
 
 ```bash
-cd /Users/macmini/devrel-swarm
+cd /Users/macmini/devrel-origin
 git add control-plane/src/
 git commit -m "feat: weekly-cycle inngest function dispatches to worker HTTP"
 ```
@@ -2454,12 +2454,12 @@ git commit -m "feat: weekly-cycle inngest function dispatches to worker HTTP"
 ### Task 5.3: "Run now" trigger endpoint
 
 **Files:**
-- Create: `/Users/macmini/devrel-swarm/control-plane/src/db/client.ts`
-- Create: `/Users/macmini/devrel-swarm/control-plane/src/app/api/jobs/run-now/route.ts`
+- Create: `/Users/macmini/devrel-origin/control-plane/src/db/client.ts`
+- Create: `/Users/macmini/devrel-origin/control-plane/src/app/api/jobs/run-now/route.ts`
 
 - [ ] **Step 1: Write db client**
 
-Create `/Users/macmini/devrel-swarm/control-plane/src/db/client.ts`:
+Create `/Users/macmini/devrel-origin/control-plane/src/db/client.ts`:
 
 ```typescript
 import { drizzle } from "drizzle-orm/postgres-js";
@@ -2474,7 +2474,7 @@ export * from "./schema";
 
 - [ ] **Step 2: Write run-now API**
 
-Create `/Users/macmini/devrel-swarm/control-plane/src/app/api/jobs/run-now/route.ts`:
+Create `/Users/macmini/devrel-origin/control-plane/src/app/api/jobs/run-now/route.ts`:
 
 ```typescript
 import { NextRequest, NextResponse } from "next/server";
@@ -2511,7 +2511,7 @@ Expected: `{"jobId":"<uuid>"}`. Then visit Inngest dev UI (`http://localhost:828
 Verify after:
 
 ```bash
-docker compose exec postgres psql -U devrel -d devrel_swarm -c \
+docker compose exec postgres psql -U devrel -d devrel_origin -c \
   "select id, kind, status, cost_cents from jobs order by created_at desc limit 3;"
 ```
 
@@ -2531,14 +2531,14 @@ git commit -m "feat: POST /api/jobs/run-now triggers weekly cycle via Inngest"
 ### Task 6.1: NextAuth v5 with GitHub provider
 
 **Files:**
-- Create: `/Users/macmini/devrel-swarm/control-plane/src/auth.ts`
-- Create: `/Users/macmini/devrel-swarm/control-plane/src/middleware.ts`
-- Create: `/Users/macmini/devrel-swarm/control-plane/src/app/api/auth/[...nextauth]/route.ts`
+- Create: `/Users/macmini/devrel-origin/control-plane/src/auth.ts`
+- Create: `/Users/macmini/devrel-origin/control-plane/src/middleware.ts`
+- Create: `/Users/macmini/devrel-origin/control-plane/src/app/api/auth/[...nextauth]/route.ts`
 
 - [ ] **Step 1: Install**
 
 ```bash
-cd /Users/macmini/devrel-swarm/control-plane
+cd /Users/macmini/devrel-origin/control-plane
 pnpm add next-auth@beta
 ```
 
@@ -2557,7 +2557,7 @@ Put result as `AUTH_SECRET=` in `.env.local`.
 
 - [ ] **Step 3: Write auth config**
 
-Create `/Users/macmini/devrel-swarm/control-plane/src/auth.ts`:
+Create `/Users/macmini/devrel-origin/control-plane/src/auth.ts`:
 
 ```typescript
 import NextAuth from "next-auth";
@@ -2580,7 +2580,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 
 - [ ] **Step 4: Handler route**
 
-Create `/Users/macmini/devrel-swarm/control-plane/src/app/api/auth/[...nextauth]/route.ts`:
+Create `/Users/macmini/devrel-origin/control-plane/src/app/api/auth/[...nextauth]/route.ts`:
 
 ```typescript
 import { handlers } from "@/auth";
@@ -2589,7 +2589,7 @@ export const { GET, POST } = handlers;
 
 - [ ] **Step 5: Middleware (protect dashboard)**
 
-Create `/Users/macmini/devrel-swarm/control-plane/src/middleware.ts`:
+Create `/Users/macmini/devrel-origin/control-plane/src/middleware.ts`:
 
 ```typescript
 import { auth } from "@/auth";
@@ -2626,12 +2626,12 @@ git commit -m "feat: NextAuth v5 with GitHub provider + email allowlist"
 ### Task 6.2: Dashboard Home page
 
 **Files:**
-- Create: `/Users/macmini/devrel-swarm/control-plane/src/app/page.tsx`
-- Create: `/Users/macmini/devrel-swarm/control-plane/src/lib/queries.ts`
+- Create: `/Users/macmini/devrel-origin/control-plane/src/app/page.tsx`
+- Create: `/Users/macmini/devrel-origin/control-plane/src/lib/queries.ts`
 
 - [ ] **Step 1: Write data queries**
 
-Create `/Users/macmini/devrel-swarm/control-plane/src/lib/queries.ts`:
+Create `/Users/macmini/devrel-origin/control-plane/src/lib/queries.ts`:
 
 ```typescript
 import { db, jobs, deliverables, tenants } from "@/db/client";
@@ -2692,7 +2692,7 @@ export async function getHomeData() {
 
 - [ ] **Step 2: Write home page**
 
-Create `/Users/macmini/devrel-swarm/control-plane/src/app/page.tsx`:
+Create `/Users/macmini/devrel-origin/control-plane/src/app/page.tsx`:
 
 ```tsx
 import { getHomeData } from "@/lib/queries";
@@ -2797,12 +2797,12 @@ git commit -m "feat: dashboard Home with jobs list + run-now trigger"
 ### Task 6.3: Deliverables list page with detail view
 
 **Files:**
-- Create: `/Users/macmini/devrel-swarm/control-plane/src/app/deliverables/page.tsx`
-- Create: `/Users/macmini/devrel-swarm/control-plane/src/app/deliverables/[id]/page.tsx`
+- Create: `/Users/macmini/devrel-origin/control-plane/src/app/deliverables/page.tsx`
+- Create: `/Users/macmini/devrel-origin/control-plane/src/app/deliverables/[id]/page.tsx`
 
 - [ ] **Step 1: Write list page**
 
-Create `/Users/macmini/devrel-swarm/control-plane/src/app/deliverables/page.tsx`:
+Create `/Users/macmini/devrel-origin/control-plane/src/app/deliverables/page.tsx`:
 
 ```tsx
 import Link from "next/link";
@@ -2853,7 +2853,7 @@ export default async function DeliverablesPage() {
 
 - [ ] **Step 2: Write detail page**
 
-Create `/Users/macmini/devrel-swarm/control-plane/src/app/deliverables/[id]/page.tsx`:
+Create `/Users/macmini/devrel-origin/control-plane/src/app/deliverables/[id]/page.tsx`:
 
 ```tsx
 import { notFound } from "next/navigation";
@@ -2911,12 +2911,12 @@ git commit -m "feat: deliverables list + detail pages"
 ### Task 6.4: Persist Kai deliverables to Postgres from the worker
 
 **Files:**
-- Modify: `/Users/macmini/devrel-swarm/workers/dispatcher.py`
-- Modify: `/Users/macmini/devrel-swarm/agents/orchestrator.py`
+- Modify: `/Users/macmini/devrel-origin/workers/dispatcher.py`
+- Modify: `/Users/macmini/devrel-origin/agents/orchestrator.py`
 
 - [ ] **Step 1: Add deliverable persistence hook**
 
-In `/Users/macmini/devrel-swarm/agents/orchestrator.py`, inside `_run_pipeline` after each Kai invocation (and after Sentinel brand audit), add a persistence call. The simplest approach: add a `deliverable_sink` callback to Atlas and invoke after relevant stages.
+In `/Users/macmini/devrel-origin/agents/orchestrator.py`, inside `_run_pipeline` after each Kai invocation (and after Sentinel brand audit), add a persistence call. The simplest approach: add a `deliverable_sink` callback to Atlas and invoke after relevant stages.
 
 In Atlas `__init__`:
 ```python
@@ -2958,7 +2958,7 @@ if ctx.okr_progress.get("brand_audit"):
 
 - [ ] **Step 2: Wire sink in dispatcher**
 
-Edit `/Users/macmini/devrel-swarm/workers/dispatcher.py`. Inside `run_weekly_cycle_for_tenant`, after creating Atlas:
+Edit `/Users/macmini/devrel-origin/workers/dispatcher.py`. Inside `run_weekly_cycle_for_tenant`, after creating Atlas:
 
 ```python
 async def deliverable_sink(record: dict) -> None:
@@ -2981,7 +2981,7 @@ atlas.set_deliverable_sink(deliverable_sink)
 ```bash
 curl -s -X POST http://localhost:3000/api/jobs/run-now
 # Wait for completion (check Inngest UI)
-docker compose exec postgres psql -U devrel -d devrel_swarm -c \
+docker compose exec postgres psql -U devrel -d devrel_origin -c \
   "select kind, title, status, quality_score from deliverables order by created_at desc limit 5;"
 ```
 
@@ -2990,7 +2990,7 @@ Expected: at least one tutorial + one brand_audit row.
 - [ ] **Step 4: Commit**
 
 ```bash
-cd /Users/macmini/devrel-swarm
+cd /Users/macmini/devrel-origin
 git add agents/orchestrator.py workers/dispatcher.py
 git commit -m "feat: persist Kai + Sentinel deliverables to Postgres during runs"
 ```
@@ -3002,11 +3002,11 @@ git commit -m "feat: persist Kai + Sentinel deliverables to Postgres during runs
 ### Task 7.1: Full cycle E2E + cost reconciliation
 
 **Files:**
-- Create: `/Users/macmini/devrel-swarm/scripts/verify_v0_exit.sh`
+- Create: `/Users/macmini/devrel-origin/scripts/verify_v0_exit.sh`
 
 - [ ] **Step 1: Write verification script**
 
-Create `/Users/macmini/devrel-swarm/scripts/verify_v0_exit.sh`:
+Create `/Users/macmini/devrel-origin/scripts/verify_v0_exit.sh`:
 
 ```bash
 #!/usr/bin/env bash
@@ -3021,12 +3021,12 @@ echo "   job_id: $JOB_ID"
 echo "==> 2. Polling job status (timeout 25 min)..."
 END=$((SECONDS + 1500))
 while (( SECONDS < END )); do
-  STATUS=$(docker compose exec -T postgres psql -U devrel -d devrel_swarm -tAc \
+  STATUS=$(docker compose exec -T postgres psql -U devrel -d devrel_origin -tAc \
     "select status from jobs where id = '$JOB_ID'")
   echo "   [$(date +%H:%M:%S)] status=$STATUS"
   if [[ "$STATUS" == "completed" ]]; then break; fi
   if [[ "$STATUS" == "failed" ]]; then
-    ERR=$(docker compose exec -T postgres psql -U devrel -d devrel_swarm -tAc \
+    ERR=$(docker compose exec -T postgres psql -U devrel -d devrel_origin -tAc \
       "select error_message from jobs where id = '$JOB_ID'")
     echo "   FAILED: $ERR" >&2
     exit 1
@@ -3040,7 +3040,7 @@ if [[ "$STATUS" != "completed" ]]; then
 fi
 
 echo "==> 3. Verifying deliverables..."
-DELIV_COUNT=$(docker compose exec -T postgres psql -U devrel -d devrel_swarm -tAc \
+DELIV_COUNT=$(docker compose exec -T postgres psql -U devrel -d devrel_origin -tAc \
   "select count(*) from deliverables where job_id = '$JOB_ID'")
 echo "   deliverables: $DELIV_COUNT"
 if (( DELIV_COUNT < 1 )); then
@@ -3049,13 +3049,13 @@ if (( DELIV_COUNT < 1 )); then
 fi
 
 echo "==> 4. Cost tracking summary..."
-docker compose exec -T postgres psql -U devrel -d devrel_swarm -c \
+docker compose exec -T postgres psql -U devrel -d devrel_origin -c \
   "select agent, model, sum(input_tokens) as in_tok, sum(output_tokens) as out_tok,
           round(sum(cost_cents)::numeric, 2) as cents
    from cost_events where job_id = '$JOB_ID'
    group by agent, model order by cents desc;"
 
-TOTAL=$(docker compose exec -T postgres psql -U devrel -d devrel_swarm -tAc \
+TOTAL=$(docker compose exec -T postgres psql -U devrel -d devrel_origin -tAc \
   "select round(sum(cost_cents)::numeric, 2) from cost_events where job_id = '$JOB_ID'")
 echo "   total tracked cost: \$${TOTAL} cents = \$$(echo "scale=2; $TOTAL/100" | bc)"
 
@@ -3066,7 +3066,7 @@ echo "   Target: within 5% of invoice line items for this period."
 ```
 
 ```bash
-chmod +x /Users/macmini/devrel-swarm/scripts/verify_v0_exit.sh
+chmod +x /Users/macmini/devrel-origin/scripts/verify_v0_exit.sh
 ```
 
 - [ ] **Step 2: Run the E2E**
@@ -3074,7 +3074,7 @@ chmod +x /Users/macmini/devrel-swarm/scripts/verify_v0_exit.sh
 With all services running (Inngest dev, Next.js, workers, Postgres):
 
 ```bash
-cd /Users/macmini/devrel-swarm
+cd /Users/macmini/devrel-origin
 ./scripts/verify_v0_exit.sh
 ```
 
@@ -3105,7 +3105,7 @@ git commit -m "chore: add v0 exit-gate verification script"
 - [ ] **Step 1: Verify tree is clean**
 
 ```bash
-cd /Users/macmini/devrel-swarm
+cd /Users/macmini/devrel-origin
 git status
 ```
 
@@ -3153,7 +3153,7 @@ The v0 alpha is complete when:
 
 ## Notes for executor
 
-- **OpenClaw env vars:** copy `.env` from the existing `devrel-swarm` repo (Anthropic, GitHub, Firecrawl keys) into the same location. The worker reads from `.env` + `.env.dev`.
+- **OpenClaw env vars:** copy `.env` from the existing `devrel-origin` repo (Anthropic, GitHub, Firecrawl keys) into the same location. The worker reads from `.env` + `.env.dev`.
 - **Local model:** use Sonnet 4.6 default per existing `config/agent_config.yaml`. Model routing (Haiku/Sonnet/Opus) is v1, not v0.
 - **KB content:** v0 still reads markdown files from `knowledge_base/` on disk. pgvector column is created but unpopulated. Kai uses existing TF-IDF search. pgvector migration is v1.
 - **Time budget per alpha run:** Anthropic Sonnet-4.6 a full weekly cycle = ~5–10 minutes wall clock. Inngest `AbortSignal.timeout(1_200_000)` (20 min) gives headroom.

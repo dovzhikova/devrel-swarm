@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from devrel_swarm.core.atlas import Atlas, SharedContext, process_draft
+from devrel_origin.core.atlas import Atlas, SharedContext, process_draft
 
 
 class TestSharedContextInstantly:

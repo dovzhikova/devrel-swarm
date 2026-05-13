@@ -4,7 +4,7 @@
 
 **Goal:** Ship Selene, the SEO auditor — sitemap-driven crawl with on-page heuristic checks, LLM gap analysis using Rex's competitor pages, and Google Search Console keyword performance via OAuth user-flow.
 
-**Architecture:** New `core/selene.py` agent class. Net-new `tools/gsc_client.py` (full OAuth installed-app flow + searchanalytics.query wrapper) and `tools/seo_crawler.py` (async sitemap walker + BeautifulSoup parser, honors robots.txt). New `core/oauth_constants.py` carries the shared "devrel-swarm" GCP project's client_id/secret. Crawl HTML cached at `.devrel/seo/crawls/`. Persistence + lifecycle via `core/growth/recommendations.py` (Wave 0).
+**Architecture:** New `core/selene.py` agent class. Net-new `tools/gsc_client.py` (full OAuth installed-app flow + searchanalytics.query wrapper) and `tools/seo_crawler.py` (async sitemap walker + BeautifulSoup parser, honors robots.txt). New `core/oauth_constants.py` carries the shared "devrel-origin" GCP project's client_id/secret. Crawl HTML cached at `.devrel/seo/crawls/`. Persistence + lifecycle via `core/growth/recommendations.py` (Wave 0).
 
 **Tech Stack:** Python 3.12 async, httpx, BeautifulSoup4, google-api-python-client + google-auth-oauthlib, Anthropic Claude Sonnet for gap analysis, pytest + respx + httpx mocks.
 
@@ -18,13 +18,13 @@
 
 | File | Status | Responsibility |
 |------|--------|----------------|
-| `src/devrel_swarm/core/oauth_constants.py` | Create | Holds the shared `GSC_OAUTH_CLIENT_ID`/`SECRET` — env-overridable for self-hosters |
-| `src/devrel_swarm/tools/gsc_client.py` | Create | OAuth installed-app flow, token storage, `searchanalytics.query` wrapper |
-| `src/devrel_swarm/tools/seo_crawler.py` | Create | Async sitemap walker + page parser + robots.txt enforcement |
-| `src/devrel_swarm/core/selene.py` | Create | Selene agent — orchestrator + heuristic checks + gap analysis + decay detection |
-| `src/devrel_swarm/core/__init__.py` | Modify | Export `Selene` |
-| `src/devrel_swarm/cli/seo.py` | Create | Typer `seo_app` with `connect-gsc`/`crawl`/`report`/`history`/`diff`/`calibration` |
-| `src/devrel_swarm/cli/__init__.py` | Modify | Register `seo_app` |
+| `src/devrel_origin/core/oauth_constants.py` | Create | Holds the shared `GSC_OAUTH_CLIENT_ID`/`SECRET` — env-overridable for self-hosters |
+| `src/devrel_origin/tools/gsc_client.py` | Create | OAuth installed-app flow, token storage, `searchanalytics.query` wrapper |
+| `src/devrel_origin/tools/seo_crawler.py` | Create | Async sitemap walker + page parser + robots.txt enforcement |
+| `src/devrel_origin/core/selene.py` | Create | Selene agent — orchestrator + heuristic checks + gap analysis + decay detection |
+| `src/devrel_origin/core/__init__.py` | Modify | Export `Selene` |
+| `src/devrel_origin/cli/seo.py` | Create | Typer `seo_app` with `connect-gsc`/`crawl`/`report`/`history`/`diff`/`calibration` |
+| `src/devrel_origin/cli/__init__.py` | Modify | Register `seo_app` |
 | `tests/test_gsc_client.py` | Create | OAuth flow + searchanalytics tests |
 | `tests/test_seo_crawler.py` | Create | Sitemap + page parser + robots tests |
 | `tests/test_selene.py` | Create | Selene end-to-end (heuristics + gap + decay + persist + brief) |
@@ -35,7 +35,7 @@
 ## Task 1: `core/oauth_constants.py`
 
 **Files:**
-- Create: `src/devrel_swarm/core/oauth_constants.py`
+- Create: `src/devrel_origin/core/oauth_constants.py`
 - Test: `tests/core/test_oauth_constants.py`
 
 - [ ] **Step 1: Write the failing test**
@@ -47,7 +47,7 @@ Create `tests/core/test_oauth_constants.py`:
 
 import importlib
 
-from devrel_swarm.core import oauth_constants
+from devrel_origin.core import oauth_constants
 
 
 def test_default_client_id_is_set():
@@ -73,10 +73,10 @@ Expected: ImportError.
 
 - [ ] **Step 3: Create the module**
 
-Create `src/devrel_swarm/core/oauth_constants.py`:
+Create `src/devrel_origin/core/oauth_constants.py`:
 
 ```python
-"""OAuth client constants for the shared `devrel-swarm` GCP project.
+"""OAuth client constants for the shared `devrel-origin` GCP project.
 
 These identify the installed-app OAuth client. Embedding `client_secret`
 in the package is intentional and safe per Google's installed-app guidance:
@@ -91,7 +91,7 @@ from __future__ import annotations
 
 import os
 
-# Default values point at the shared "devrel-swarm" GCP project owned by Daria.
+# Default values point at the shared "devrel-origin" GCP project owned by Daria.
 # Self-hosters override via env vars to point at their own project.
 GSC_OAUTH_CLIENT_ID: str = os.getenv(
     "GSC_OAUTH_CLIENT_ID",
@@ -130,7 +130,7 @@ def test_default_client_id_is_set():
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/devrel_swarm/core/oauth_constants.py tests/core/test_oauth_constants.py
+git add src/devrel_origin/core/oauth_constants.py tests/core/test_oauth_constants.py
 git commit -m "feat(oauth): GSC OAuth constants with env-var override path"
 ```
 
@@ -139,7 +139,7 @@ git commit -m "feat(oauth): GSC OAuth constants with env-var override path"
 ## Task 2: GSC OAuth flow scaffolding
 
 **Files:**
-- Create: `src/devrel_swarm/tools/gsc_client.py`
+- Create: `src/devrel_origin/tools/gsc_client.py`
 - Test: `tests/test_gsc_client.py`
 
 - [ ] **Step 1: Write the failing test**
@@ -159,7 +159,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from devrel_swarm.tools.gsc_client import GSCClient, OAuthError
+from devrel_origin.tools.gsc_client import GSCClient, OAuthError
 
 
 class TestTokenStorage:
@@ -192,7 +192,7 @@ class TestOAuthFlowEntrypoint:
     def test_connect_raises_when_constants_unset(self, tmp_path, monkeypatch):
         """If oauth_constants is still placeholder, connect() raises clearly."""
         monkeypatch.setattr(
-            "devrel_swarm.core.oauth_constants.GSC_OAUTH_CLIENT_ID",
+            "devrel_origin.core.oauth_constants.GSC_OAUTH_CLIENT_ID",
             "REPLACE_AFTER_WAVE0_TASK10.apps.googleusercontent.com",
         )
         client = GSCClient(creds_path=tmp_path / "gsc.json")
@@ -210,12 +210,12 @@ Expected: ImportError.
 
 - [ ] **Step 3: Implement the OAuth flow + storage**
 
-Create `src/devrel_swarm/tools/gsc_client.py`:
+Create `src/devrel_origin/tools/gsc_client.py`:
 
 ```python
 """Google Search Console client.
 
-OAuth: installed-app flow against the shared `devrel-swarm` GCP project.
+OAuth: installed-app flow against the shared `devrel-origin` GCP project.
 Tokens stored at `.devrel/credentials/gsc.json` with mode 0600.
 
 API: `searchanalytics.query` wrapper for keyword performance metrics.
@@ -256,7 +256,7 @@ class GSCClient:
         listens on localhost:8765 for the callback, exchanges the code
         for a refresh token, and persists credentials to `creds_path`.
         """
-        from devrel_swarm.core.oauth_constants import (
+        from devrel_origin.core.oauth_constants import (
             GSC_OAUTH_CLIENT_ID,
             GSC_OAUTH_CLIENT_SECRET,
             GSC_SCOPES,
@@ -276,7 +276,7 @@ class GSCClient:
             from google_auth_oauthlib.flow import InstalledAppFlow
         except ImportError as e:
             raise ImportError(
-                "GSCClient requires `pip install 'devrel-swarm[seo]'`"
+                "GSCClient requires `pip install 'devrel-origin[seo]'`"
             ) from e
 
         flow = InstalledAppFlow.from_client_config(
@@ -333,7 +333,7 @@ Expected: PASS (3 tests).
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/devrel_swarm/tools/gsc_client.py tests/test_gsc_client.py
+git add src/devrel_origin/tools/gsc_client.py tests/test_gsc_client.py
 git commit -m "feat(gsc): OAuth installed-app flow scaffolding + token storage"
 ```
 
@@ -342,7 +342,7 @@ git commit -m "feat(gsc): OAuth installed-app flow scaffolding + token storage"
 ## Task 3: GSC `searchanalytics.query` wrapper
 
 **Files:**
-- Modify: `src/devrel_swarm/tools/gsc_client.py`
+- Modify: `src/devrel_origin/tools/gsc_client.py`
 - Modify: `tests/test_gsc_client.py`
 
 - [ ] **Step 1: Write the failing test**
@@ -424,7 +424,7 @@ Append to `GSCClient`:
             from googleapiclient.discovery import build
         except ImportError as e:
             raise ImportError(
-                "GSCClient requires `pip install 'devrel-swarm[seo]'`"
+                "GSCClient requires `pip install 'devrel-origin[seo]'`"
             ) from e
 
         data = self._load_credentials()
@@ -482,7 +482,7 @@ Expected: PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/devrel_swarm/tools/gsc_client.py tests/test_gsc_client.py
+git add src/devrel_origin/tools/gsc_client.py tests/test_gsc_client.py
 git commit -m "feat(gsc): searchanalytics.query wrapper with date+dimension support"
 ```
 
@@ -491,7 +491,7 @@ git commit -m "feat(gsc): searchanalytics.query wrapper with date+dimension supp
 ## Task 4: SEO crawler — sitemap walker + robots.txt
 
 **Files:**
-- Create: `src/devrel_swarm/tools/seo_crawler.py`
+- Create: `src/devrel_origin/tools/seo_crawler.py`
 - Test: `tests/test_seo_crawler.py`
 
 - [ ] **Step 1: Write the failing test**
@@ -505,7 +505,7 @@ import pytest
 import respx
 from httpx import Response
 
-from devrel_swarm.tools.seo_crawler import SEOCrawler, SitemapEntry
+from devrel_origin.tools.seo_crawler import SEOCrawler, SitemapEntry
 
 
 @pytest.fixture
@@ -572,7 +572,7 @@ Expected: ImportError.
 
 - [ ] **Step 3: Implement the crawler scaffold**
 
-Create `src/devrel_swarm/tools/seo_crawler.py`:
+Create `src/devrel_origin/tools/seo_crawler.py`:
 
 ```python
 """Async sitemap walker + page parser + robots.txt enforcement.
@@ -597,7 +597,7 @@ import httpx
 
 logger = logging.getLogger(__name__)
 
-USER_AGENT = "devrel-swarm/0.3 (Selene SEO crawler; +https://gtm-labs.co/devrel-swarm)"
+USER_AGENT = "devrel-origin/0.3 (Selene SEO crawler; +https://gtm-labs.co/devrel-origin)"
 
 
 @dataclass
@@ -708,7 +708,7 @@ Expected: PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/devrel_swarm/tools/seo_crawler.py tests/test_seo_crawler.py
+git add src/devrel_origin/tools/seo_crawler.py tests/test_seo_crawler.py
 git commit -m "feat(seo): async sitemap walker with robots.txt + max_pages cap"
 ```
 
@@ -717,7 +717,7 @@ git commit -m "feat(seo): async sitemap walker with robots.txt + max_pages cap"
 ## Task 5: Page parser with BeautifulSoup → `PageProfile`
 
 **Files:**
-- Modify: `src/devrel_swarm/tools/seo_crawler.py`
+- Modify: `src/devrel_origin/tools/seo_crawler.py`
 - Modify: `tests/test_seo_crawler.py`
 
 - [ ] **Step 1: Write the failing test**
@@ -801,7 +801,7 @@ async def _parse_page_impl(html: str, *, page_url: str) -> PageProfile:
         from bs4 import BeautifulSoup
     except ImportError as e:
         raise ImportError(
-            "SEO crawler requires `pip install 'devrel-swarm[seo]'`"
+            "SEO crawler requires `pip install 'devrel-origin[seo]'`"
         ) from e
 
     soup = BeautifulSoup(html, "html.parser")
@@ -909,7 +909,7 @@ Expected: all PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/devrel_swarm/tools/seo_crawler.py tests/test_seo_crawler.py
+git add src/devrel_origin/tools/seo_crawler.py tests/test_seo_crawler.py
 git commit -m "feat(seo): page parser → PageProfile with all SEO signals"
 ```
 
@@ -918,7 +918,7 @@ git commit -m "feat(seo): page parser → PageProfile with all SEO signals"
 ## Task 6: Selene heuristic checks
 
 **Files:**
-- Create: `src/devrel_swarm/core/selene.py`
+- Create: `src/devrel_origin/core/selene.py`
 - Test: `tests/test_selene.py`
 
 - [ ] **Step 1: Write the failing test**
@@ -932,12 +932,12 @@ from datetime import date, datetime, timezone
 
 import pytest
 
-from devrel_swarm.core.selene import (
+from devrel_origin.core.selene import (
     HeuristicIssue,
     Selene,
     SeoReport,
 )
-from devrel_swarm.tools.seo_crawler import PageProfile
+from devrel_origin.tools.seo_crawler import PageProfile
 
 
 def _profile(**kwargs) -> PageProfile:
@@ -1001,7 +1001,7 @@ Expected: ImportError.
 
 - [ ] **Step 3: Create `core/selene.py` with heuristic checks**
 
-Create `src/devrel_swarm/core/selene.py`:
+Create `src/devrel_origin/core/selene.py`:
 
 ```python
 """Selene — SEO auditor.
@@ -1022,13 +1022,13 @@ from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Optional
 
-from devrel_swarm.core.growth import (
+from devrel_origin.core.growth import (
     Pillar,
     Recommendation,
     TargetKind,
     persist_recommendation,
 )
-from devrel_swarm.tools.seo_crawler import PageProfile, SEOCrawler
+from devrel_origin.tools.seo_crawler import PageProfile, SEOCrawler
 
 logger = logging.getLogger(__name__)
 
@@ -1166,7 +1166,7 @@ Expected: PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/devrel_swarm/core/selene.py tests/test_selene.py
+git add src/devrel_origin/core/selene.py tests/test_selene.py
 git commit -m "feat(selene): heuristic on-page checks (meta, title, h1, schema, thin)"
 ```
 
@@ -1175,7 +1175,7 @@ git commit -m "feat(selene): heuristic on-page checks (meta, title, h1, schema, 
 ## Task 7: GSC trend analysis (decay/opportunity classification)
 
 **Files:**
-- Modify: `src/devrel_swarm/core/selene.py`
+- Modify: `src/devrel_origin/core/selene.py`
 - Modify: `tests/test_selene.py`
 
 - [ ] **Step 1: Write the failing test**
@@ -1290,7 +1290,7 @@ Expected: PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/devrel_swarm/core/selene.py tests/test_selene.py
+git add src/devrel_origin/core/selene.py tests/test_selene.py
 git commit -m "feat(selene): keyword decay/opportunity classification from GSC trend"
 ```
 
@@ -1299,7 +1299,7 @@ git commit -m "feat(selene): keyword decay/opportunity classification from GSC t
 ## Task 8: LLM gap analysis
 
 **Files:**
-- Modify: `src/devrel_swarm/core/selene.py`
+- Modify: `src/devrel_origin/core/selene.py`
 - Modify: `tests/test_selene.py`
 
 - [ ] **Step 1: Write the failing test**
@@ -1425,7 +1425,7 @@ Expected: PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/devrel_swarm/core/selene.py tests/test_selene.py
+git add src/devrel_origin/core/selene.py tests/test_selene.py
 git commit -m "feat(selene): LLM gap analysis vs competitor pages"
 ```
 
@@ -1434,7 +1434,7 @@ git commit -m "feat(selene): LLM gap analysis vs competitor pages"
 ## Task 9: Selene persistence (SEO recommendations + fact tables)
 
 **Files:**
-- Modify: `src/devrel_swarm/core/selene.py`
+- Modify: `src/devrel_origin/core/selene.py`
 - Modify: `tests/test_selene.py`
 
 - [ ] **Step 1: Write the failing test**
@@ -1443,7 +1443,7 @@ Append to `tests/test_selene.py`:
 
 ```python
 import sqlite3
-from devrel_swarm.project import state
+from devrel_origin.project import state
 
 
 @pytest.fixture
@@ -1659,7 +1659,7 @@ Expected: PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/devrel_swarm/core/selene.py tests/test_selene.py
+git add src/devrel_origin/core/selene.py tests/test_selene.py
 git commit -m "feat(selene): persist keyword + page metrics + Recommendations"
 ```
 
@@ -1668,7 +1668,7 @@ git commit -m "feat(selene): persist keyword + page metrics + Recommendations"
 ## Task 10: Selene brief generation + `execute()`
 
 **Files:**
-- Modify: `src/devrel_swarm/core/selene.py`
+- Modify: `src/devrel_origin/core/selene.py`
 - Modify: `tests/test_selene.py`
 
 - [ ] **Step 1: Write the failing tests**
@@ -1875,7 +1875,7 @@ Expected: all PASS; full suite green.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/devrel_swarm/core/selene.py tests/test_selene.py
+git add src/devrel_origin/core/selene.py tests/test_selene.py
 git commit -m "feat(selene): brief generation + Selene.execute end-to-end"
 ```
 
@@ -1884,8 +1884,8 @@ git commit -m "feat(selene): brief generation + Selene.execute end-to-end"
 ## Task 11: `cli/seo.py` — `connect-gsc` + `crawl` verbs
 
 **Files:**
-- Create: `src/devrel_swarm/cli/seo.py`
-- Modify: `src/devrel_swarm/cli/__init__.py`
+- Create: `src/devrel_origin/cli/seo.py`
+- Modify: `src/devrel_origin/cli/__init__.py`
 - Test: `tests/cli/test_seo_command.py`
 
 - [ ] **Step 1: Write the failing tests**
@@ -1897,7 +1897,7 @@ Create `tests/cli/test_seo_command.py`:
 
 from typer.testing import CliRunner
 
-from devrel_swarm.cli import app
+from devrel_origin.cli import app
 
 
 def test_seo_help_lists_subcommands():
@@ -1930,7 +1930,7 @@ Expected: `seo` not registered.
 
 - [ ] **Step 3: Create `cli/seo.py` skeleton with `connect-gsc` and `crawl`**
 
-Create `src/devrel_swarm/cli/seo.py`:
+Create `src/devrel_origin/cli/seo.py`:
 
 ```python
 """`devrel seo ...` — SEO auditor verbs (Selene)."""
@@ -1947,12 +1947,12 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
-from devrel_swarm.cli._common import find_paths_or_exit
-from devrel_swarm.core.growth.target_kinds import Pillar
-from devrel_swarm.core.llm import LLMClient
-from devrel_swarm.core.selene import Selene
-from devrel_swarm.tools.gsc_client import GSCClient, OAuthError
-from devrel_swarm.tools.seo_crawler import SEOCrawler
+from devrel_origin.cli._common import find_paths_or_exit
+from devrel_origin.core.growth.target_kinds import Pillar
+from devrel_origin.core.llm import LLMClient
+from devrel_origin.core.selene import Selene
+from devrel_origin.tools.gsc_client import GSCClient, OAuthError
+from devrel_origin.tools.seo_crawler import SEOCrawler
 
 seo_app = typer.Typer(
     name="seo",
@@ -1976,7 +1976,7 @@ def _build_selene(paths) -> Selene:
     gsc = GSCClient(creds_path=paths.devrel_dir / "credentials" / "gsc.json")
     # PSI client wired for the Multi-Surface upgrade (Task 16). Free tier;
     # cached 30d on disk so we don't re-call on every cycle.
-    from devrel_swarm.tools.psi_client import PsiClient
+    from devrel_origin.tools.psi_client import PsiClient
     psi = PsiClient(cache_dir=paths.devrel_dir / "seo" / "psi-cache", cache_ttl_days=30)
     return Selene(
         crawler=crawler, gsc_client=gsc, llm_client=LLMClient.from_env(),
@@ -2047,10 +2047,10 @@ def crawl(
     _console.print(f"[green]Persisted {len(profiles)} profiles for {period_end}.[/green]")
 ```
 
-Update `src/devrel_swarm/cli/__init__.py`:
+Update `src/devrel_origin/cli/__init__.py`:
 
 ```python
-from devrel_swarm.cli.seo import seo_app
+from devrel_origin.cli.seo import seo_app
 # ...
 app.add_typer(seo_app, name="seo")
 ```
@@ -2077,7 +2077,7 @@ Expected: PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/devrel_swarm/cli/seo.py src/devrel_swarm/cli/__init__.py tests/cli/test_seo_command.py
+git add src/devrel_origin/cli/seo.py src/devrel_origin/cli/__init__.py tests/cli/test_seo_command.py
 git commit -m "feat(cli): devrel seo {connect-gsc,crawl}"
 ```
 
@@ -2086,7 +2086,7 @@ git commit -m "feat(cli): devrel seo {connect-gsc,crawl}"
 ## Task 12: `cli/seo.py` — `report` + `history` + `diff` + `calibration`
 
 **Files:**
-- Modify: `src/devrel_swarm/cli/seo.py`
+- Modify: `src/devrel_origin/cli/seo.py`
 - Modify: `tests/cli/test_seo_command.py`
 
 - [ ] **Step 1: Add the failing tests**
@@ -2262,7 +2262,7 @@ def calibration() -> None:
         _console.print("[yellow]No state.db yet.[/yellow]")
         raise typer.Exit(code=0)
 
-    from devrel_swarm.core.growth.recommendations import calibrate
+    from devrel_origin.core.growth.recommendations import calibrate
 
     def _score_outcome(rec) -> str:
         if rec.applied_at is None:
@@ -2325,7 +2325,7 @@ Expected: all PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/devrel_swarm/cli/seo.py tests/cli/test_seo_command.py
+git add src/devrel_origin/cli/seo.py tests/cli/test_seo_command.py
 git commit -m "feat(cli): devrel seo {report,history,diff,calibration}"
 ```
 
@@ -2334,8 +2334,8 @@ git commit -m "feat(cli): devrel seo {report,history,diff,calibration}"
 ## Task 13: Atlas Stage 5c registration (Selene) + export Selene
 
 **Files:**
-- Modify: `src/devrel_swarm/core/atlas.py`
-- Modify: `src/devrel_swarm/core/__init__.py`
+- Modify: `src/devrel_origin/core/atlas.py`
+- Modify: `src/devrel_origin/core/__init__.py`
 - Test: `tests/test_atlas.py`
 
 - [ ] **Step 1: Add the failing test**
@@ -2359,7 +2359,7 @@ Expected: AssertionError.
 
 - [ ] **Step 3: Wire Selene + export**
 
-In `src/devrel_swarm/core/atlas.py`, after the Vega block from Wave 2, add:
+In `src/devrel_origin/core/atlas.py`, after the Vega block from Wave 2, add:
 
 ```python
 if self.config.orchestration.seo_in_run:
@@ -2386,10 +2386,10 @@ Add the helpers:
 
 ```python
     def _build_selene(self):
-        from devrel_swarm.core.selene import Selene
-        from devrel_swarm.tools.gsc_client import GSCClient
-        from devrel_swarm.tools.psi_client import PsiClient
-        from devrel_swarm.tools.seo_crawler import SEOCrawler
+        from devrel_origin.core.selene import Selene
+        from devrel_origin.tools.gsc_client import GSCClient
+        from devrel_origin.tools.psi_client import PsiClient
+        from devrel_origin.tools.seo_crawler import SEOCrawler
 
         seo_cfg = getattr(self.config, "seo", {}) or {}
         if not isinstance(seo_cfg, dict):
@@ -2431,7 +2431,7 @@ Add the helpers:
 
 Add `seo_report: dict = field(default_factory=dict)` to `SharedContext`.
 
-In `src/devrel_swarm/core/__init__.py`, add `Selene` to imports + `__all__`.
+In `src/devrel_origin/core/__init__.py`, add `Selene` to imports + `__all__`.
 
 - [ ] **Step 4: Run tests + full gate**
 
@@ -2448,7 +2448,7 @@ Expected: all PASS; full suite green; ruff clean; build clean.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/devrel_swarm/core/atlas.py src/devrel_swarm/core/__init__.py tests/test_atlas.py
+git add src/devrel_origin/core/atlas.py src/devrel_origin/core/__init__.py tests/test_atlas.py
 git commit -m "feat(atlas): Stage 5c (Selene) gated by seo_in_run config + export Selene"
 ```
 
@@ -2498,7 +2498,7 @@ Total added budget: 2 days (matches the spec's 6 → 8 day Wave 3 update).
 ## Task 14: Extend crawler with `llms.txt` parsing + AI-bot directive checks
 
 **Files:**
-- Modify: `src/devrel_swarm/tools/seo_crawler.py`
+- Modify: `src/devrel_origin/tools/seo_crawler.py`
 - Modify: `tests/test_seo_crawler.py`
 
 - [ ] **Step 1: Write the failing tests**
@@ -2564,7 +2564,7 @@ already pass (RobotFileParser handles per-user-agent rules natively).
 
 - [ ] **Step 3: Add `LlmsTxt` dataclass + `fetch_llms_txt`**
 
-Append to `src/devrel_swarm/tools/seo_crawler.py`:
+Append to `src/devrel_origin/tools/seo_crawler.py`:
 
 ```python
 @dataclass
@@ -2632,7 +2632,7 @@ Expected: PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/devrel_swarm/tools/seo_crawler.py tests/test_seo_crawler.py
+git add src/devrel_origin/tools/seo_crawler.py tests/test_seo_crawler.py
 git commit -m "feat(seo): llms.txt parser + AI-bot directive support"
 ```
 
@@ -2641,7 +2641,7 @@ git commit -m "feat(seo): llms.txt parser + AI-bot directive support"
 ## Task 15: Extend `PageProfile` with schema types + Core Web Vitals + redirect chain
 
 **Files:**
-- Modify: `src/devrel_swarm/tools/seo_crawler.py`
+- Modify: `src/devrel_origin/tools/seo_crawler.py`
 - Modify: `tests/test_seo_crawler.py`
 
 This task amends Task 5's `PageProfile` dataclass. New fields:
@@ -2716,7 +2716,7 @@ Expected: AttributeError on the new fields.
 
 - [ ] **Step 3: Extend `PageProfile` + parsing logic**
 
-In `src/devrel_swarm/tools/seo_crawler.py`, modify the `PageProfile` dataclass:
+In `src/devrel_origin/tools/seo_crawler.py`, modify the `PageProfile` dataclass:
 
 ```python
 @dataclass
@@ -2815,7 +2815,7 @@ Expected: all PASS (existing PageParse tests + new TestPageProfileExtended).
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/devrel_swarm/tools/seo_crawler.py tests/test_seo_crawler.py
+git add src/devrel_origin/tools/seo_crawler.py tests/test_seo_crawler.py
 git commit -m "feat(seo): PageProfile +schema_types +inp_ms/lcp_ms +redirect_chain_len"
 ```
 
@@ -2824,7 +2824,7 @@ git commit -m "feat(seo): PageProfile +schema_types +inp_ms/lcp_ms +redirect_cha
 ## Task 16: PageSpeed Insights client
 
 **Files:**
-- Create: `src/devrel_swarm/tools/psi_client.py`
+- Create: `src/devrel_origin/tools/psi_client.py`
 - Test: `tests/test_psi_client.py`
 
 - [ ] **Step 1: Write the failing tests**
@@ -2841,7 +2841,7 @@ import pytest
 import respx
 from httpx import Response
 
-from devrel_swarm.tools.psi_client import PsiClient, PsiResult
+from devrel_origin.tools.psi_client import PsiClient, PsiResult
 
 
 @pytest.fixture
@@ -2919,7 +2919,7 @@ Expected: ImportError.
 
 - [ ] **Step 3: Implement the client**
 
-Create `src/devrel_swarm/tools/psi_client.py`:
+Create `src/devrel_origin/tools/psi_client.py`:
 
 ```python
 """PageSpeed Insights API client.
@@ -3064,7 +3064,7 @@ Expected: all PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/devrel_swarm/tools/psi_client.py tests/test_psi_client.py
+git add src/devrel_origin/tools/psi_client.py tests/test_psi_client.py
 git commit -m "feat(seo): PageSpeed Insights client with 30d on-disk cache"
 ```
 
@@ -3073,7 +3073,7 @@ git commit -m "feat(seo): PageSpeed Insights client with 30d on-disk cache"
 ## Task 17: Multi-Surface heuristic checks (extends Task 6)
 
 **Files:**
-- Modify: `src/devrel_swarm/core/selene.py`
+- Modify: `src/devrel_origin/core/selene.py`
 - Modify: `tests/test_selene.py`
 
 Modifies Task 6's `_heuristic_issues_for` static method. Adds new issue kinds:
@@ -3152,7 +3152,7 @@ Expected: AssertionError — checks not implemented.
 
 - [ ] **Step 3: Extend `_heuristic_issues_for`**
 
-In `src/devrel_swarm/core/selene.py`, modify the static method:
+In `src/devrel_origin/core/selene.py`, modify the static method:
 
 ```python
     @staticmethod
@@ -3205,7 +3205,7 @@ Expected: all PASS (existing + new).
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/devrel_swarm/core/selene.py tests/test_selene.py
+git add src/devrel_origin/core/selene.py tests/test_selene.py
 git commit -m "feat(selene): Multi-Surface heuristics (typed schema, INP, LCP, redirect chain)"
 ```
 
@@ -3214,7 +3214,7 @@ git commit -m "feat(selene): Multi-Surface heuristics (typed schema, INP, LCP, r
 ## Task 18: Reframed gap-analysis prompt (entity-mapping + atomic answer + information gain)
 
 **Files:**
-- Modify: `src/devrel_swarm/core/selene.py`
+- Modify: `src/devrel_origin/core/selene.py`
 - Modify: `tests/test_selene.py`
 
 Replaces the `_GAP_PROMPT` constant from Task 8 with a longer prompt grounded
@@ -3258,7 +3258,7 @@ Expected: AttributeError on `atomic_answer` field.
 
 - [ ] **Step 3: Extend `GapFinding` + replace `_GAP_PROMPT`**
 
-In `src/devrel_swarm/core/selene.py`:
+In `src/devrel_origin/core/selene.py`:
 
 ```python
 @dataclass
@@ -3341,7 +3341,7 @@ Expected: PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/devrel_swarm/core/selene.py tests/test_selene.py
+git add src/devrel_origin/core/selene.py tests/test_selene.py
 git commit -m "feat(selene): reframed gap-analysis prompt with atomic answer + information gain"
 ```
 
@@ -3350,7 +3350,7 @@ git commit -m "feat(selene): reframed gap-analysis prompt with atomic answer + i
 ## Task 19: Multi-Surface cross-pillar read of Vega's `geo_visibility`
 
 **Files:**
-- Modify: `src/devrel_swarm/core/selene.py`
+- Modify: `src/devrel_origin/core/selene.py`
 - Modify: `tests/test_selene.py`
 
 Adds a `_multi_surface_aggregate` method that reads `geo_visibility` rows for
@@ -3568,7 +3568,7 @@ Expected: all PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/devrel_swarm/core/selene.py tests/test_selene.py
+git add src/devrel_origin/core/selene.py tests/test_selene.py
 git commit -m "feat(selene): Multi-Surface aggregate (cross-pillar geo_visibility) + PSI in execute"
 ```
 
@@ -3577,7 +3577,7 @@ git commit -m "feat(selene): Multi-Surface aggregate (cross-pillar geo_visibilit
 ## Task 20: Persist + brief integration for Multi-Surface fields
 
 **Files:**
-- Modify: `src/devrel_swarm/core/selene.py`
+- Modify: `src/devrel_origin/core/selene.py`
 - Modify: `tests/test_selene.py`
 
 Touches Task 9's `_persist_page_profiles` to write the new columns
@@ -3742,7 +3742,7 @@ Expected: all PASS; ruff clean.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/devrel_swarm/core/selene.py tests/test_selene.py
+git add src/devrel_origin/core/selene.py tests/test_selene.py
 git commit -m "feat(selene): persist Multi-Surface profile fields + brief integration"
 ```
 

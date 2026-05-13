@@ -4,7 +4,7 @@ Common failures and their fixes. Anchored on issues that have actually
 bitten users in the wild, not hypothetical ones.
 
 If your problem isn't here, run `devrel doctor --json` and open an
-issue at <https://github.com/dovzhikova/devrel-swarm/issues> with the
+issue at <https://github.com/dovzhikova/devrel-origin/issues> with the
 output attached.
 
 ---
@@ -26,7 +26,7 @@ accept. OpenRouter uses dot notation without a date suffix
 **Fix:** Upgrade to v0.2.11 or later:
 
 ```bash
-pipx upgrade devrel-swarm
+pipx upgrade devrel-origin
 devrel --version  # should print 0.2.11+
 ```
 
@@ -246,7 +246,7 @@ the Haiku output.
 
 ## Reporting a new issue
 
-Open an issue at <https://github.com/dovzhikova/devrel-swarm/issues>
+Open an issue at <https://github.com/dovzhikova/devrel-origin/issues>
 with:
 
 1. `devrel --version`

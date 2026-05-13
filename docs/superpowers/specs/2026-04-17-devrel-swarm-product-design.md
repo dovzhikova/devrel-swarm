@@ -1,15 +1,15 @@
-# devrel-swarm → SaaS Product Design
+# devrel-origin → SaaS Product Design
 
 **Date:** 2026-04-17 · **Revised:** 2026-04-18
 **Author:** Daria Dovzhikova (+ Claude)
-**Status:** Revision 2 approved; implementation plan at `docs/superpowers/plans/2026-04-18-devrel-swarm-v0-agentic-alpha.md`
+**Status:** Revision 2 approved; implementation plan at `docs/superpowers/plans/2026-04-18-devrel-origin-v0-agentic-alpha.md`
 **Codename:** TBD (working title: "the DevRel engine")
 
 ---
 
 ## Revision 2 (2026-04-18) — architectural pivot
 
-After initial approval, the architecture was simplified from classical multi-tenant SaaS to **per-customer isolated instances orchestrated by a central control app**. Rationale: the existing `devrel-swarm` codebase was designed to be cloned + retargeted (see `CLAUDE.md` — product is switched via `product_name` config + KB swap). The original design fought that shape; Revision 2 leans into it.
+After initial approval, the architecture was simplified from classical multi-tenant SaaS to **per-customer isolated instances orchestrated by a central control app**. Rationale: the existing `devrel-origin` codebase was designed to be cloned + retargeted (see `CLAUDE.md` — product is switched via `product_name` config + KB swap). The original design fought that shape; Revision 2 leans into it.
 
 **What changed:**
 - **§2 Architecture:** no multi-tenant Postgres + RLS + Inngest worker fleet. Instead: each customer gets their own Fly Machine running the full repo, SQLite for persistence, HTTP-bridged MCP server for API access. The "control plane" is a thin Next.js app that provisions instances, proxies chat to their MCP server, reads dashboard data via HTTP, and writes prompt edits to their `optimize/` directory.
@@ -31,7 +31,7 @@ The sections below retain original language where still valid. Where a section i
 
 ## 1. Context & TL;DR
 
-`devrel-swarm` is a 12-agent autonomous DevRel + Sales system currently usable as a CLI tool (see `CLAUDE.md`, `README.md`). This spec turns it into a **self-serve SaaS product** sold to DevTool founders and seed-to-Series-A startups.
+`devrel-origin` is a 12-agent autonomous DevRel + Sales system currently usable as a CLI tool (see `CLAUDE.md`, `README.md`). This spec turns it into a **self-serve SaaS product** sold to DevTool founders and seed-to-Series-A startups.
 
 **Headline promise:** "Your weekly DevRel engine. Ship tutorials, triage community, keep your brand voice. No DevRel hire needed."
 
@@ -47,7 +47,7 @@ The sections below retain original language where still valid. Where a section i
 | Architecture | Control plane (Next.js) + agent runtime (Python workers) + Inngest queue | Clean separation; scales per-layer; matches existing OpenClaw pattern |
 | Pricing | $0 trial · $99 · $299 · $799 monthly; 20% off annual | Standard SaaS ladder, ~60% target gross margin |
 
-**MVP agent count:** 12 — 8 kept from `devrel-swarm` + 4 new (Publisher, Seed, Mimic, Meter).
+**MVP agent count:** 12 — 8 kept from `devrel-origin` + 4 new (Publisher, Seed, Mimic, Meter).
 
 **Timeline:** v0 alpha weeks 1–3 · v1 private beta weeks 4–9 · v1.1 public beta weeks 10–14 · v2 GA months 4–6 · v3 Sales SKU months 6–8. First revenue ~week 12.
 
@@ -72,7 +72,7 @@ The sections below retain original language where still valid. Where a section i
        │ HTTPS + per-instance API token
        ▼
 ┌─ Customer A instance (Fly Machine) ┐  ┌─ Customer B instance ┐
-│  • Full devrel-swarm repo (cloned)  │  │ • Full repo clone    │
+│  • Full devrel-origin repo (cloned)  │  │ • Full repo clone    │
 │  • Their KB + prompts + voice       │  │ • Their everything   │
 │  • SQLite on persistent volume      │  │ • SQLite             │
 │  • HTTP bridge (FastAPI) → MCP tools│  │ • Same               │
@@ -94,7 +94,7 @@ The sections below retain original language where still valid. Where a section i
 2. Provisioning agent (runs in central app's Inngest or direct async task):
    - Creates Fly app under customer's slug
    - Generates API token, encrypts, stores in central Postgres
-   - Builds + pushes devrel-swarm image with customer's base config baked in
+   - Builds + pushes devrel-origin image with customer's base config baked in
    - Injects per-instance secrets via Fly secrets API (Anthropic key from pooled budget, customer OAuth tokens)
    - Runs initial KB harvest via HTTP bridge call
    - Installs cron for weekly cycle at customer's chosen cadence
@@ -389,14 +389,14 @@ Every table below has `tenant_id uuid not null` + RLS policy.
 
 ## 6. Build sequence
 
-> **Revision 2 note:** v0 collapsed from 3 weeks to ~2 weeks. Sections below are from the original plan; the live roadmap is in `docs/superpowers/plans/2026-04-18-devrel-swarm-v0-agentic-alpha.md`. v1/v1.1/v2/v3 phasing below remains valid at the feature-set level — only v0's mechanics changed.
+> **Revision 2 note:** v0 collapsed from 3 weeks to ~2 weeks. Sections below are from the original plan; the live roadmap is in `docs/superpowers/plans/2026-04-18-devrel-origin-v0-agentic-alpha.md`. v1/v1.1/v2/v3 phasing below remains valid at the feature-set level — only v0's mechanics changed.
 
 ### v0 — Private alpha (weeks 1–2) — REVISED
 
 **Goal (unchanged):** Daria runs OpenClaw's DevRel loop through the product, end-to-end.
 
 **Mechanics (revised):**
-- Package devrel-swarm as a deployable instance: add SQLite storage, HTTP bridge around MCP server, auth-token middleware, Dockerfile with persistent volume
+- Package devrel-origin as a deployable instance: add SQLite storage, HTTP bridge around MCP server, auth-token middleware, Dockerfile with persistent volume
 - Build thin central Next.js app: auth, instance registry, dashboard (HTTP-reads), chat (Claude Agent SDK → instance MCP), prompt editor (HTTP-writes to `optimize/`)
 - Provisioning: Fly Machines API client + "Add instance" flow
 - Manual v0 option: paste Fly app URL + API token (for first OpenClaw instance before full provisioning agent lands)
@@ -409,7 +409,7 @@ Every table below has `tenant_id uuid not null` + RLS policy.
 
 **Goal:** Run OpenClaw's DevRel loop through the product, end-to-end. Single tenant, no billing.
 
-- Fork `devrel-swarm` → `product-core` (workers repo)
+- Fork `devrel-origin` → `product-core` (workers repo)
 - Next.js + Postgres + NextAuth skeleton (control plane repo)
 - Inngest cron + HTTP worker endpoint
 - Strip `SharedContext` singleton → per-job instance

@@ -2,7 +2,7 @@
 
 import pytest
 
-from devrel_swarm.core.growth.target_kinds import (
+from devrel_origin.core.growth.target_kinds import (
     Pillar,
     TargetKind,
     validate_target_kind_for_pillar,

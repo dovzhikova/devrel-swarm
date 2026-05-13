@@ -188,7 +188,7 @@ CLI verb that pitches the editorial pipeline now actually uses the KB.
 
 ## 0.2.9: BYO-key onboarding polish (2026-05-08)
 
-Reduces the friction between `pipx install devrel-swarm` and a working
+Reduces the friction between `pipx install devrel-origin` and a working
 `devrel run`. None of the policy-disallowed Claude-Code-session-auth paths
 (see Anthropic's Agent SDK terms); the goal is just to make BYO-key as
 short a setup as possible.
@@ -439,14 +439,14 @@ pipx end users; the headline change is a lighter default install.
 
 ### Changed
 
-- **Dependency footprint reduced**: `openai`, `playwright`, `pyautogui` moved from core dependencies into a new `[video]` optional extra. Default `pip install devrel-swarm` now skips ~150MB of Playwright browsers + pyobjc + the OpenAI SDK. Vox users opt in with `pip install 'devrel-swarm[video]'` (or `pipx install 'devrel-swarm[video]'`). Calling `TTSEngine` without the extra raises a clear `ImportError` pointing at the install command.
+- **Dependency footprint reduced**: `openai`, `playwright`, `pyautogui` moved from core dependencies into a new `[video]` optional extra. Default `pip install devrel-origin` now skips ~150MB of Playwright browsers + pyobjc + the OpenAI SDK. Vox users opt in with `pip install 'devrel-origin[video]'` (or `pipx install 'devrel-origin[video]'`). Calling `TTSEngine` without the extra raises a clear `ImportError` pointing at the install command.
 - **`tts_engine`**: `openai.AsyncOpenAI` is now imported lazily inside `_require_openai()`. Module-load no longer touches `openai`. Locked in by `tests/core/test_video_lazy_imports.py`.
 - **Dropped unused dependencies**: `requests`, `aiohttp`, and `ffmpeg-python` had zero imports across `src/` and `tests/` and have been removed from `pyproject.toml`. Pure cruft from earlier scaffolding; CLAUDE.md already mandates `httpx` for all HTTP work.
 - **Codebase ruff-clean**: full lint pass + format pass; CI now enforces both `ruff check` and `ruff format --check` (the format gate had been deferred since the original ruff adoption).
 
 ### Fixed
 
-- **`load_agent_prompt` actually loads on-disk prompts now**: `_OPTIMIZE_DIR` had been resolving to `src/devrel_swarm/optimize/` (a path that never existed) since the Phase 1 src/-layout move, so every agent silently fell through to its inline default. Replaced with a `_resolve_optimize_dir()` walk-up that finds the repo root via `pyproject.toml`+`optimize/` co-location, returns `None` for installed users (preserving their current behavior), and accepts both layouts the repo currently uses (top-level `optimize/{agent}/` and nested `optimize/agents/{agent}/`). Dev-tree users will see the maintainer's optimized prompts taking effect for the first time. Coverage in `tests/core/test_load_agent_prompt.py`.
+- **`load_agent_prompt` actually loads on-disk prompts now**: `_OPTIMIZE_DIR` had been resolving to `src/devrel_origin/optimize/` (a path that never existed) since the Phase 1 src/-layout move, so every agent silently fell through to its inline default. Replaced with a `_resolve_optimize_dir()` walk-up that finds the repo root via `pyproject.toml`+`optimize/` co-location, returns `None` for installed users (preserving their current behavior), and accepts both layouts the repo currently uses (top-level `optimize/{agent}/` and nested `optimize/agents/{agent}/`). Dev-tree users will see the maintainer's optimized prompts taking effect for the first time. Coverage in `tests/core/test_load_agent_prompt.py`.
 - **`tests/test_vox.py`**: `DesktopRecorder` tests now skip on headless Linux (CI was breaking because `pyautogui` needs an X11 `DISPLAY`). Marked with `_NEEDS_DISPLAY`.
 
 ### Internal
@@ -558,7 +558,7 @@ Wave 1 bug sweep — 13 high-impact fixes from the 2026-04-29 agent review. Ever
 
 ## 0.2.0 — 2026-04-29
 
-The CLI direction. `devrel-swarm` is now a `pipx`-installable Python CLI that operates on a project repo (`.devrel/` per project, like `git`/`npm`/`cargo`).
+The CLI direction. `devrel-origin` is now a `pipx`-installable Python CLI that operates on a project repo (`.devrel/` per project, like `git`/`npm`/`cargo`).
 
 ### Added
 
@@ -567,11 +567,11 @@ The CLI direction. `devrel-swarm` is now a `pipx`-installable Python CLI that op
 - **Project bootstrap** (`devrel init`): `.devrel/` scaffold with `config.toml`, `voice.md`, `style.md`, `slop-blocklist.md`, `kb/`, `deliverables/`, `state.db`.
 - **Cost ledger**: every LLM call records token usage + USD into `.devrel/state.db`'s `costs` table; `devrel cost [--month YYYY-MM]` aggregates.
 - **`devrel doctor`**: project + env health checks with `--json` mode.
-- **Console script entry-point**: `devrel = "devrel_swarm.cli:app"` in `pyproject.toml`.
+- **Console script entry-point**: `devrel = "devrel_origin.cli:app"` in `pyproject.toml`.
 
 ### Changed
 
-- **Repo restructure**: `agents/` → `src/devrel_swarm/core/`, `tools/` → `src/devrel_swarm/tools/`. `agents/config.py` renamed to `core/agent_config.py`.
+- **Repo restructure**: `agents/` → `src/devrel_origin/core/`, `tools/` → `src/devrel_origin/tools/`. `agents/config.py` renamed to `core/agent_config.py`.
 - **Content agents** (Kai, Mox, Pax): replaced single `generate_with_revision` call with `quality.editorial.run_pipeline`. Falls back to legacy revision when no `.devrel/` project exists.
 - **Dependencies**: added Typer, Rich, tomli-w. `pyproject.toml` deps now match `requirements.txt`.
 

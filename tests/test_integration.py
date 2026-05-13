@@ -10,10 +10,10 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from devrel_swarm.core.atlas import Atlas, SharedContext
-from devrel_swarm.core.llm import LLMClient
-from devrel_swarm.tools.api_client import PostHogClient
-from devrel_swarm.tools.github_tools import GitHubTools
+from devrel_origin.core.atlas import Atlas, SharedContext
+from devrel_origin.core.llm import LLMClient
+from devrel_origin.tools.api_client import PostHogClient
+from devrel_origin.tools.github_tools import GitHubTools
 
 # ---------------------------------------------------------------------------
 # Helpers

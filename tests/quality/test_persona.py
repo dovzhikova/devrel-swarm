@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from devrel_swarm.quality.persona import (
+from devrel_origin.quality.persona import (
     PersonaResult,
     test_against_persona,
 )

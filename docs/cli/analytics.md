@@ -232,7 +232,7 @@ $ devrel analytics summary --root ~/projects
 | /Users/me/projects/sandbox | — | 0 | 0 | $0.00 |
 ```
 
-For consultants or solo founders running `devrel-swarm` across multiple products, this is the closest thing to a portfolio dashboard without a hosted backend (which the CLI design rules out).
+For consultants or solo founders running `devrel-origin` across multiple products, this is the closest thing to a portfolio dashboard without a hosted backend (which the CLI design rules out).
 
 ---
 

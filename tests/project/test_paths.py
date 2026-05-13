@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from devrel_swarm.project.paths import (
+from devrel_origin.project.paths import (
     DEVREL_DIR_NAME,
     ProjectNotFoundError,
     ProjectPaths,

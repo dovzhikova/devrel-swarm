@@ -1,10 +1,10 @@
-# devrel-swarm v0 Agentic Alpha Implementation Plan
+# devrel-origin v0 Agentic Alpha Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Stand up the central control app + a Fly-hosted OpenClaw instance, provisioned (manually first, then automated) by the central app. Dashboard + chat + prompt editor all functional against the live instance. Cost tracking accurate to ±5% of Anthropic invoice.
 
-**Architecture:** Each customer gets their own Fly Machine running the full `devrel-swarm` repo. Persistence is SQLite on a persistent volume inside the Machine. An HTTP bridge (FastAPI wrapping the existing MCP server + adding run/deliverables/cost endpoints) is the only external surface. A thin central Next.js app authenticates users, registers instances, proxies chat (Claude Agent SDK → instance MCP tools), reads dashboard data via HTTP, and writes prompt edits to the instance's `optimize/` directory.
+**Architecture:** Each customer gets their own Fly Machine running the full `devrel-origin` repo. Persistence is SQLite on a persistent volume inside the Machine. An HTTP bridge (FastAPI wrapping the existing MCP server + adding run/deliverables/cost endpoints) is the only external surface. A thin central Next.js app authenticates users, registers instances, proxies chat (Claude Agent SDK → instance MCP tools), reads dashboard data via HTTP, and writes prompt edits to the instance's `optimize/` directory.
 
 **Tech Stack:** Existing Python 3.12 stack (unchanged), FastAPI + uvicorn (HTTP bridge, added), SQLite + aiosqlite (instance persistence, added), Next.js 15 + NextAuth v5 + Drizzle + small Postgres (central app, new), Fly Machines API (provisioning), Claude Agent SDK (chat), Tailwind + shadcn/ui (dashboard), Docker Compose for local dev.
 
@@ -20,7 +20,7 @@
 
 ## File structure (what gets created/modified)
 
-### In `devrel-swarm/` repo (instance template)
+### In `devrel-origin/` repo (instance template)
 
 **New:**
 - `tools/storage.py` — SQLite persistence (deliverables, signals, cost_events, checkpoints)
@@ -64,12 +64,12 @@
 ### Task A.1: SQLite storage layer
 
 **Files:**
-- Create: `/Users/macmini/devrel-swarm/tools/storage.py`
-- Create: `/Users/macmini/devrel-swarm/tests/test_storage.py`
+- Create: `/Users/macmini/devrel-origin/tools/storage.py`
+- Create: `/Users/macmini/devrel-origin/tests/test_storage.py`
 
 - [ ] **Step 1: Write failing test**
 
-Create `/Users/macmini/devrel-swarm/tests/test_storage.py`:
+Create `/Users/macmini/devrel-origin/tests/test_storage.py`:
 
 ```python
 """SQLite storage layer for deliverables, signals, cost events, checkpoints."""
@@ -143,7 +143,7 @@ async def test_save_and_latest_checkpoint(storage):
 - [ ] **Step 2: Run, confirm ImportError**
 
 ```bash
-cd /Users/macmini/devrel-swarm
+cd /Users/macmini/devrel-origin
 pip install aiosqlite
 pytest tests/test_storage.py -v
 ```
@@ -152,10 +152,10 @@ Expected: FAIL `ModuleNotFoundError: No module named 'tools.storage'`
 
 - [ ] **Step 3: Write `tools/storage.py`**
 
-Create `/Users/macmini/devrel-swarm/tools/storage.py`:
+Create `/Users/macmini/devrel-origin/tools/storage.py`:
 
 ```python
-"""SQLite persistence for a single devrel-swarm instance.
+"""SQLite persistence for a single devrel-origin instance.
 
 Schema is flat + denormalized. Each instance has its own DB file under /data.
 v0: no migration tooling — `init()` is idempotent CREATE TABLE IF NOT EXISTS.
@@ -436,13 +436,13 @@ git commit -m "feat: SQLite storage layer for instance persistence"
 ### Task A.2: BudgetGate (tracking-only in v0)
 
 **Files:**
-- Create: `/Users/macmini/devrel-swarm/workers/__init__.py`
-- Create: `/Users/macmini/devrel-swarm/workers/budget.py`
-- Create: `/Users/macmini/devrel-swarm/tests/test_budget.py`
+- Create: `/Users/macmini/devrel-origin/workers/__init__.py`
+- Create: `/Users/macmini/devrel-origin/workers/budget.py`
+- Create: `/Users/macmini/devrel-origin/tests/test_budget.py`
 
 - [ ] **Step 1: Write failing test**
 
-Create `/Users/macmini/devrel-swarm/tests/test_budget.py`:
+Create `/Users/macmini/devrel-origin/tests/test_budget.py`:
 
 ```python
 from unittest.mock import AsyncMock
@@ -519,9 +519,9 @@ Expected: FAIL `ModuleNotFoundError`
 
 - [ ] **Step 3: Write modules**
 
-Create `/Users/macmini/devrel-swarm/workers/__init__.py` (empty file).
+Create `/Users/macmini/devrel-origin/workers/__init__.py` (empty file).
 
-Create `/Users/macmini/devrel-swarm/workers/budget.py`:
+Create `/Users/macmini/devrel-origin/workers/budget.py`:
 
 ```python
 """Cost tracking + budget enforcement gate.
@@ -636,13 +636,13 @@ git commit -m "feat: BudgetGate with Anthropic pricing table (tracking-only v0)"
 ### Task A.3: Wire LLMClient → BudgetGate via cost_sink
 
 **Files:**
-- Modify: `/Users/macmini/devrel-swarm/agents/llm.py`
-- Create: `/Users/macmini/devrel-swarm/tests/test_llm_cost_sink.py`
+- Modify: `/Users/macmini/devrel-origin/agents/llm.py`
+- Create: `/Users/macmini/devrel-origin/tests/test_llm_cost_sink.py`
 
 - [ ] **Step 1: Inspect existing LLMClient**
 
 ```bash
-cd /Users/macmini/devrel-swarm
+cd /Users/macmini/devrel-origin
 grep -n "class LLMClient\|def set_agent\|usage\|TokenUsage\|messages.create" agents/llm.py | head -40
 ```
 
@@ -650,7 +650,7 @@ Note which method receives the Anthropic response with `.usage` on it — that's
 
 - [ ] **Step 2: Write the failing test**
 
-Create `/Users/macmini/devrel-swarm/tests/test_llm_cost_sink.py`:
+Create `/Users/macmini/devrel-origin/tests/test_llm_cost_sink.py`:
 
 ```python
 import pytest
@@ -693,7 +693,7 @@ async def test_emit_cost_noop_without_sink():
 
 - [ ] **Step 3: Add `set_cost_sink` + `_emit_cost` to LLMClient**
 
-Edit `/Users/macmini/devrel-swarm/agents/llm.py`. In the `LLMClient.__init__` method, after the existing attribute initializations, add:
+Edit `/Users/macmini/devrel-origin/agents/llm.py`. In the `LLMClient.__init__` method, after the existing attribute initializations, add:
 
 ```python
 self._cost_sink = None  # Optional[Callable[[str, str, dict], Awaitable[None]]]
@@ -765,17 +765,17 @@ git commit -m "feat: LLMClient cost_sink hook for BudgetGate wiring"
 ### Task A.4: HTTP bridge — FastAPI wrapping MCP + adding instance endpoints
 
 **Files:**
-- Create: `/Users/macmini/devrel-swarm/workers/pyproject.toml`
-- Create: `/Users/macmini/devrel-swarm/tools/http_bridge.py`
-- Create: `/Users/macmini/devrel-swarm/tests/test_http_bridge.py`
+- Create: `/Users/macmini/devrel-origin/workers/pyproject.toml`
+- Create: `/Users/macmini/devrel-origin/tools/http_bridge.py`
+- Create: `/Users/macmini/devrel-origin/tests/test_http_bridge.py`
 
 - [ ] **Step 1: Worker deps pyproject**
 
-Create `/Users/macmini/devrel-swarm/workers/pyproject.toml`:
+Create `/Users/macmini/devrel-origin/workers/pyproject.toml`:
 
 ```toml
 [project]
-name = "devrel-swarm-bridge"
+name = "devrel-origin-bridge"
 version = "0.0.1"
 requires-python = ">=3.12"
 dependencies = [
@@ -789,13 +789,13 @@ dependencies = [
 - [ ] **Step 2: Install deps**
 
 ```bash
-cd /Users/macmini/devrel-swarm
+cd /Users/macmini/devrel-origin
 pip install fastapi uvicorn aiosqlite python-multipart httpx
 ```
 
 - [ ] **Step 3: Write failing test**
 
-Create `/Users/macmini/devrel-swarm/tests/test_http_bridge.py`:
+Create `/Users/macmini/devrel-origin/tests/test_http_bridge.py`:
 
 ```python
 """Tests for the HTTP bridge FastAPI app."""
@@ -895,7 +895,7 @@ Expected: FAIL `ModuleNotFoundError: No module named 'tools.http_bridge'`
 
 - [ ] **Step 5: Write `tools/http_bridge.py`**
 
-Create `/Users/macmini/devrel-swarm/tools/http_bridge.py`:
+Create `/Users/macmini/devrel-origin/tools/http_bridge.py`:
 
 ```python
 """HTTP bridge around MCP server + instance state for the central app."""
@@ -971,7 +971,7 @@ def create_app() -> FastAPI:
             await _storage.close()
             _storage = None
 
-    app = FastAPI(title="devrel-swarm instance bridge", lifespan=lifespan)
+    app = FastAPI(title="devrel-origin instance bridge", lifespan=lifespan)
 
     @app.get("/health")
     async def health() -> dict[str, str]:
@@ -1049,13 +1049,13 @@ git commit -m "feat: HTTP bridge exposing instance state + prompt editor endpoin
 ### Task A.5: Wire `/api/run` to invoke Atlas with storage + BudgetGate
 
 **Files:**
-- Modify: `/Users/macmini/devrel-swarm/tools/http_bridge.py`
-- Modify: `/Users/macmini/devrel-swarm/agents/atlas.py`
-- Create: `/Users/macmini/devrel-swarm/tools/run_dispatch.py`
+- Modify: `/Users/macmini/devrel-origin/tools/http_bridge.py`
+- Modify: `/Users/macmini/devrel-origin/agents/atlas.py`
+- Create: `/Users/macmini/devrel-origin/tools/run_dispatch.py`
 
 - [ ] **Step 1: Write the dispatch helper**
 
-Create `/Users/macmini/devrel-swarm/tools/run_dispatch.py`:
+Create `/Users/macmini/devrel-origin/tools/run_dispatch.py`:
 
 ```python
 """Bridges HTTP /api/run to Atlas.run_weekly_cycle with instance wiring."""
@@ -1124,7 +1124,7 @@ async def run_weekly_cycle_in_instance(
 
 - [ ] **Step 2: Add sink hooks to Atlas (minimal change)**
 
-In `/Users/macmini/devrel-swarm/agents/atlas.py`, inside `Atlas.__init__`, after existing init lines, add:
+In `/Users/macmini/devrel-origin/agents/atlas.py`, inside `Atlas.__init__`, after existing init lines, add:
 
 ```python
 self._deliverable_sink = None  # Optional[Callable[[dict], Awaitable[None]]]
@@ -1184,7 +1184,7 @@ if brand:
 
 - [ ] **Step 3: Wire `/api/run` to spawn the cycle in background**
 
-Edit `/Users/macmini/devrel-swarm/tools/http_bridge.py`. Replace the stub `trigger_run` body with:
+Edit `/Users/macmini/devrel-origin/tools/http_bridge.py`. Replace the stub `trigger_run` body with:
 
 ```python
 import asyncio
@@ -1210,7 +1210,7 @@ Expected: all pass.
 Manual smoke (from repo root, with `.env` populated with real ANTHROPIC_API_KEY etc.):
 
 ```bash
-cd /Users/macmini/devrel-swarm
+cd /Users/macmini/devrel-origin
 export INSTANCE_DB_PATH=/tmp/devrel-instance.db
 export INSTANCE_API_TOKEN=smoke-token
 export OPTIMIZE_DIR=$PWD/optimize
@@ -1253,21 +1253,21 @@ Anthropic call is tracked and every Kai/Sentinel output lands in SQLite."
 ### Task A.6: Dockerfile for instance deployment
 
 **Files:**
-- Modify: `/Users/macmini/devrel-swarm/Dockerfile`
-- Create: `/Users/macmini/devrel-swarm/scripts/entrypoint.sh`
-- Create: `/Users/macmini/devrel-swarm/.dockerignore`
+- Modify: `/Users/macmini/devrel-origin/Dockerfile`
+- Create: `/Users/macmini/devrel-origin/scripts/entrypoint.sh`
+- Create: `/Users/macmini/devrel-origin/.dockerignore`
 
 - [ ] **Step 1: Read existing Dockerfile**
 
 ```bash
-cd /Users/macmini/devrel-swarm && cat Dockerfile
+cd /Users/macmini/devrel-origin && cat Dockerfile
 ```
 
 Compare against the new needs: install bridge deps, expose 8787, run entrypoint that starts uvicorn + cron.
 
 - [ ] **Step 2: Rewrite Dockerfile**
 
-Replace `/Users/macmini/devrel-swarm/Dockerfile`:
+Replace `/Users/macmini/devrel-origin/Dockerfile`:
 
 ```dockerfile
 FROM python:3.12-slim
@@ -1306,7 +1306,7 @@ ENTRYPOINT ["/app/scripts/entrypoint.sh"]
 
 - [ ] **Step 3: Write entrypoint**
 
-Create `/Users/macmini/devrel-swarm/scripts/entrypoint.sh`:
+Create `/Users/macmini/devrel-origin/scripts/entrypoint.sh`:
 
 ```bash
 #!/usr/bin/env bash
@@ -1344,7 +1344,7 @@ exec uvicorn tools.http_bridge:app --host 0.0.0.0 --port 8787 --workers 1
 
 - [ ] **Step 4: Write .dockerignore**
 
-Create `/Users/macmini/devrel-swarm/.dockerignore`:
+Create `/Users/macmini/devrel-origin/.dockerignore`:
 
 ```
 .git/
@@ -1365,19 +1365,19 @@ docker-data/
 - [ ] **Step 5: Local Docker build + smoke**
 
 ```bash
-cd /Users/macmini/devrel-swarm
-docker build -t devrel-swarm-instance .
+cd /Users/macmini/devrel-origin
+docker build -t devrel-origin-instance .
 docker run --rm \
   -e INSTANCE_API_TOKEN=docker-smoke \
   -e ANTHROPIC_API_KEY=$ANTHROPIC_API_KEY \
   -e GITHUB_TOKEN=$GITHUB_TOKEN \
   -v devrel_data:/data \
   -p 8787:8787 \
-  devrel-swarm-instance &
+  devrel-origin-instance &
 sleep 5
 curl -fsS http://localhost:8787/health
 # → {"status":"ok"}
-docker kill $(docker ps -q --filter ancestor=devrel-swarm-instance)
+docker kill $(docker ps -q --filter ancestor=devrel-origin-instance)
 ```
 
 - [ ] **Step 6: Commit**
@@ -1399,21 +1399,21 @@ git commit -m "feat: Dockerfile for instance deployment with persistent /data + 
 - [ ] **Step 1: Scaffold**
 
 ```bash
-cd /Users/macmini/devrel-swarm
+cd /Users/macmini/devrel-origin
 npx create-next-app@15 central-app --typescript --app --tailwind --eslint --src-dir --import-alias "@/*" --no-git --turbopack
 ```
 
 - [ ] **Step 2: Install deps**
 
 ```bash
-cd /Users/macmini/devrel-swarm/central-app
+cd /Users/macmini/devrel-origin/central-app
 pnpm add drizzle-orm postgres next-auth@beta @anthropic-ai/sdk
 pnpm add -D drizzle-kit @types/pg
 ```
 
 - [ ] **Step 3: Write drizzle.config.ts**
 
-Create `/Users/macmini/devrel-swarm/central-app/drizzle.config.ts`:
+Create `/Users/macmini/devrel-origin/central-app/drizzle.config.ts`:
 
 ```typescript
 import { defineConfig } from "drizzle-kit";
@@ -1429,7 +1429,7 @@ export default defineConfig({
 
 - [ ] **Step 4: Env**
 
-Create `/Users/macmini/devrel-swarm/central-app/.env.local`:
+Create `/Users/macmini/devrel-origin/central-app/.env.local`:
 
 ```
 DATABASE_URL=postgresql://devrel:devrel@localhost:5433/devrel_central
@@ -1445,13 +1445,13 @@ INSTANCE_TOKEN_ENCRYPTION_KEY=<output of: openssl rand -hex 32>
 Also spin a `devrel_central` database via the existing docker-compose Postgres (reuse container, different DB name):
 
 ```bash
-cd /Users/macmini/devrel-swarm
+cd /Users/macmini/devrel-origin
 docker compose up -d postgres  # existing docker-compose.yml doesn't exist yet from new plan; add it below
 ```
 
 - [ ] **Step 5: Local Postgres for central app**
 
-Create `/Users/macmini/devrel-swarm/docker-compose.yml`:
+Create `/Users/macmini/devrel-origin/docker-compose.yml`:
 
 ```yaml
 services:
@@ -1491,7 +1491,7 @@ git commit -m "feat: scaffold central-app with Next.js 15 + Drizzle + Postgres"
 
 - [ ] **Step 1: Write schema**
 
-Create `/Users/macmini/devrel-swarm/central-app/src/db/schema.ts`:
+Create `/Users/macmini/devrel-origin/central-app/src/db/schema.ts`:
 
 ```typescript
 import {
@@ -1548,7 +1548,7 @@ export const chatMessages = pgTable("chat_messages", {
 
 - [ ] **Step 2: Write db client**
 
-Create `/Users/macmini/devrel-swarm/central-app/src/db/client.ts`:
+Create `/Users/macmini/devrel-origin/central-app/src/db/client.ts`:
 
 ```typescript
 import { drizzle } from "drizzle-orm/postgres-js";
@@ -1563,7 +1563,7 @@ export * from "./schema";
 - [ ] **Step 3: Generate + apply migration**
 
 ```bash
-cd /Users/macmini/devrel-swarm/central-app
+cd /Users/macmini/devrel-origin/central-app
 pnpm drizzle-kit generate
 pnpm drizzle-kit migrate
 ```
@@ -1579,7 +1579,7 @@ Expected: 4 tables + `instance_status` enum.
 - [ ] **Step 4: Commit**
 
 ```bash
-cd /Users/macmini/devrel-swarm
+cd /Users/macmini/devrel-origin
 git add central-app/src/db/ central-app/drizzle/
 git commit -m "feat: central schema — users, instances, chat_threads, chat_messages"
 ```
@@ -1599,7 +1599,7 @@ Manual: `https://github.com/settings/developers` → New OAuth App, callback `ht
 
 - [ ] **Step 2: Auth config**
 
-Create `/Users/macmini/devrel-swarm/central-app/src/auth.ts`:
+Create `/Users/macmini/devrel-origin/central-app/src/auth.ts`:
 
 ```typescript
 import NextAuth from "next-auth";
@@ -1643,14 +1643,14 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 
 - [ ] **Step 3: Handler + middleware**
 
-Create `/Users/macmini/devrel-swarm/central-app/src/app/api/auth/[...nextauth]/route.ts`:
+Create `/Users/macmini/devrel-origin/central-app/src/app/api/auth/[...nextauth]/route.ts`:
 
 ```typescript
 import { handlers } from "@/auth";
 export const { GET, POST } = handlers;
 ```
 
-Create `/Users/macmini/devrel-swarm/central-app/src/middleware.ts`:
+Create `/Users/macmini/devrel-origin/central-app/src/middleware.ts`:
 
 ```typescript
 import { auth } from "@/auth";
@@ -1671,7 +1671,7 @@ export const config = {
 - [ ] **Step 4: Smoke**
 
 ```bash
-cd /Users/macmini/devrel-swarm/central-app
+cd /Users/macmini/devrel-origin/central-app
 pnpm dev
 ```
 
@@ -1680,7 +1680,7 @@ Visit `http://localhost:3000` — redirects to GitHub sign-in; allowlisted email
 - [ ] **Step 5: Commit**
 
 ```bash
-cd /Users/macmini/devrel-swarm
+cd /Users/macmini/devrel-origin
 git add central-app/src/auth.ts central-app/src/middleware.ts central-app/src/app/api/auth/
 git commit -m "feat: NextAuth GitHub provider with email allowlist + user upsert"
 ```
@@ -1697,7 +1697,7 @@ git commit -m "feat: NextAuth GitHub provider with email allowlist + user upsert
 
 - [ ] **Step 1: Encryption helper**
 
-Create `/Users/macmini/devrel-swarm/central-app/src/lib/crypto.ts`:
+Create `/Users/macmini/devrel-origin/central-app/src/lib/crypto.ts`:
 
 ```typescript
 import crypto from "node:crypto";
@@ -1733,7 +1733,7 @@ export function decryptToken(blob: Buffer): string {
 
 - [ ] **Step 2: InstanceClient**
 
-Create `/Users/macmini/devrel-swarm/central-app/src/lib/instance-client.ts`:
+Create `/Users/macmini/devrel-origin/central-app/src/lib/instance-client.ts`:
 
 ```typescript
 export type Job = {
@@ -1816,7 +1816,7 @@ git commit -m "feat: encryption helper + typed InstanceClient for HTTP bridge"
 
 - [ ] **Step 1: Server action to add instance**
 
-Create `/Users/macmini/devrel-swarm/central-app/src/app/instances/new/actions.ts`:
+Create `/Users/macmini/devrel-origin/central-app/src/app/instances/new/actions.ts`:
 
 ```typescript
 "use server";
@@ -1859,7 +1859,7 @@ export async function addInstanceManually(formData: FormData) {
 
 - [ ] **Step 2: Form page**
 
-Create `/Users/macmini/devrel-swarm/central-app/src/app/instances/new/page.tsx`:
+Create `/Users/macmini/devrel-origin/central-app/src/app/instances/new/page.tsx`:
 
 ```tsx
 import { addInstanceManually } from "./actions";
@@ -1869,7 +1869,7 @@ export default function NewInstancePage() {
     <main className="p-8 max-w-lg mx-auto">
       <h1 className="text-2xl font-semibold mb-6">Add an instance</h1>
       <p className="text-sm text-gray-500 mb-6">
-        v0: paste the URL + API token of a running devrel-swarm instance. v0.5
+        v0: paste the URL + API token of a running devrel-origin instance. v0.5
         replaces this with automated Fly provisioning.
       </p>
       <form action={addInstanceManually} className="space-y-4">
@@ -1907,7 +1907,7 @@ export default function NewInstancePage() {
 
 - [ ] **Step 3: Home page (instance list)**
 
-Create `/Users/macmini/devrel-swarm/central-app/src/app/page.tsx`:
+Create `/Users/macmini/devrel-origin/central-app/src/app/page.tsx`:
 
 ```tsx
 import Link from "next/link";
@@ -1974,7 +1974,7 @@ git commit -m "feat: home (instance list) + manual add-instance form"
 
 - [ ] **Step 1: Instance loader**
 
-Create `/Users/macmini/devrel-swarm/central-app/src/lib/get-instance.ts`:
+Create `/Users/macmini/devrel-origin/central-app/src/lib/get-instance.ts`:
 
 ```typescript
 import { db, instances, users } from "@/db/client";
@@ -2003,7 +2003,7 @@ export async function loadInstanceForUser(instanceId: string) {
 
 - [ ] **Step 2: Dashboard home**
 
-Create `/Users/macmini/devrel-swarm/central-app/src/app/instances/[id]/page.tsx`:
+Create `/Users/macmini/devrel-origin/central-app/src/app/instances/[id]/page.tsx`:
 
 ```tsx
 import Link from "next/link";
@@ -2076,7 +2076,7 @@ export default async function InstanceHome({
 
 - [ ] **Step 3: Deliverables list**
 
-Create `/Users/macmini/devrel-swarm/central-app/src/app/instances/[id]/deliverables/page.tsx`:
+Create `/Users/macmini/devrel-origin/central-app/src/app/instances/[id]/deliverables/page.tsx`:
 
 ```tsx
 import Link from "next/link";
@@ -2123,7 +2123,7 @@ export default async function Deliverables({
 
 - [ ] **Step 4: Deliverable detail**
 
-Create `/Users/macmini/devrel-swarm/central-app/src/app/instances/[id]/deliverables/[dId]/page.tsx`:
+Create `/Users/macmini/devrel-origin/central-app/src/app/instances/[id]/deliverables/[dId]/page.tsx`:
 
 ```tsx
 import { loadInstanceForUser } from "@/lib/get-instance";
@@ -2160,7 +2160,7 @@ With the instance running locally (from Task A.5) and central app running:
 
 ```bash
 # Terminal 1: instance
-cd /Users/macmini/devrel-swarm
+cd /Users/macmini/devrel-origin
 set -a; source .env; set +a
 export INSTANCE_DB_PATH=/tmp/openclaw.db
 export INSTANCE_API_TOKEN=local-openclaw-token
@@ -2168,7 +2168,7 @@ export OPTIMIZE_DIR=$PWD/optimize
 uvicorn tools.http_bridge:app --host 0.0.0.0 --port 8787
 
 # Terminal 2: central app
-cd /Users/macmini/devrel-swarm/central-app
+cd /Users/macmini/devrel-origin/central-app
 pnpm dev
 ```
 
@@ -2182,7 +2182,7 @@ Browser:
 - [ ] **Step 6: Commit**
 
 ```bash
-cd /Users/macmini/devrel-swarm
+cd /Users/macmini/devrel-origin
 git add central-app/src/lib/get-instance.ts central-app/src/app/instances/
 git commit -m "feat: instance dashboard with jobs + deliverables list + detail"
 ```
@@ -2202,7 +2202,7 @@ git commit -m "feat: instance dashboard with jobs + deliverables list + detail"
 
 - [ ] **Step 1: Write the chat tool definitions + loop**
 
-Create `/Users/macmini/devrel-swarm/central-app/src/lib/chat.ts`:
+Create `/Users/macmini/devrel-origin/central-app/src/lib/chat.ts`:
 
 ```typescript
 import Anthropic from "@anthropic-ai/sdk";
@@ -2286,7 +2286,7 @@ async function runTool(
 }
 
 const SYSTEM_PROMPT = `You are the control interface for a DevRel AI swarm.
-The user owns an instance of devrel-swarm that runs agents (Sage, Echo, Iris, Kai, Sentinel, Rex, etc.).
+The user owns an instance of devrel-origin that runs agents (Sage, Echo, Iris, Kai, Sentinel, Rex, etc.).
 You help them: inspect recent runs + deliverables, trigger new cycles, read/edit agent system prompts, track cost.
 
 When the user asks to change a prompt, show them the current prompt first and confirm the new version before writing.
@@ -2350,7 +2350,7 @@ export async function* streamChat(
 
 - [ ] **Step 2: Streaming chat route**
 
-Create `/Users/macmini/devrel-swarm/central-app/src/app/api/chat/[threadId]/route.ts`:
+Create `/Users/macmini/devrel-origin/central-app/src/app/api/chat/[threadId]/route.ts`:
 
 ```typescript
 import { NextRequest } from "next/server";
@@ -2414,7 +2414,7 @@ export async function POST(
 
 - [ ] **Step 3: Chat UI page**
 
-Create `/Users/macmini/devrel-swarm/central-app/src/app/instances/[id]/chat/page.tsx`:
+Create `/Users/macmini/devrel-origin/central-app/src/app/instances/[id]/chat/page.tsx`:
 
 ```tsx
 "use client";
@@ -2552,7 +2552,7 @@ export default function ChatPage() {
 
 - [ ] **Step 4: Thread-create endpoint**
 
-Create `/Users/macmini/devrel-swarm/central-app/src/app/api/instances/[id]/threads/route.ts`:
+Create `/Users/macmini/devrel-origin/central-app/src/app/api/instances/[id]/threads/route.ts`:
 
 ```typescript
 import { NextResponse } from "next/server";
@@ -2586,7 +2586,7 @@ Type "what's my spend this month?" — should call `month_cost_cents`.
 - [ ] **Step 6: Commit**
 
 ```bash
-cd /Users/macmini/devrel-swarm
+cd /Users/macmini/devrel-origin
 git add central-app/src/lib/chat.ts central-app/src/app/api/ central-app/src/app/instances/[id]/chat/
 git commit -m "feat: chat interface with Claude tool-calling against instance bridge"
 ```
@@ -2604,7 +2604,7 @@ git commit -m "feat: chat interface with Claude tool-calling against instance br
 
 - [ ] **Step 1: Agent list**
 
-Create `/Users/macmini/devrel-swarm/central-app/src/app/instances/[id]/prompts/page.tsx`:
+Create `/Users/macmini/devrel-origin/central-app/src/app/instances/[id]/prompts/page.tsx`:
 
 ```tsx
 import Link from "next/link";
@@ -2638,7 +2638,7 @@ export default async function Prompts({
 
 - [ ] **Step 2: Edit action**
 
-Create `/Users/macmini/devrel-swarm/central-app/src/app/instances/[id]/prompts/[agent]/actions.ts`:
+Create `/Users/macmini/devrel-origin/central-app/src/app/instances/[id]/prompts/[agent]/actions.ts`:
 
 ```typescript
 "use server";
@@ -2660,7 +2660,7 @@ export async function savePrompt(
 
 - [ ] **Step 3: Editor page**
 
-Create `/Users/macmini/devrel-swarm/central-app/src/app/instances/[id]/prompts/[agent]/page.tsx`:
+Create `/Users/macmini/devrel-origin/central-app/src/app/instances/[id]/prompts/[agent]/page.tsx`:
 
 ```tsx
 import { loadInstanceForUser } from "@/lib/get-instance";
@@ -2707,7 +2707,7 @@ Visit `http://localhost:3000/instances/<id>/prompts/kai`. Edit the prompt, save,
 - [ ] **Step 5: Commit**
 
 ```bash
-cd /Users/macmini/devrel-swarm
+cd /Users/macmini/devrel-origin
 git add central-app/src/app/instances/[id]/prompts/
 git commit -m "feat: prompt editor writing to instance optimize/ via bridge"
 ```
@@ -2725,7 +2725,7 @@ git commit -m "feat: prompt editor writing to instance optimize/ via bridge"
 - [ ] **Step 1: Install Vitest for central-app unit tests**
 
 ```bash
-cd /Users/macmini/devrel-swarm/central-app
+cd /Users/macmini/devrel-origin/central-app
 pnpm add -D vitest @vitest/ui
 ```
 
@@ -2739,7 +2739,7 @@ Add to `package.json` scripts:
 
 - [ ] **Step 2: Write the Fly client**
 
-Create `/Users/macmini/devrel-swarm/central-app/src/lib/fly-api.ts`:
+Create `/Users/macmini/devrel-origin/central-app/src/lib/fly-api.ts`:
 
 ```typescript
 /**
@@ -2835,7 +2835,7 @@ export async function createMachine(
 
 - [ ] **Step 3: Basic unit test**
 
-Create `/Users/macmini/devrel-swarm/central-app/tests/fly-api.test.ts`:
+Create `/Users/macmini/devrel-origin/central-app/tests/fly-api.test.ts`:
 
 ```typescript
 import { describe, it, expect, vi, beforeEach } from "vitest";
@@ -2878,7 +2878,7 @@ describe("fly-api", () => {
 Run:
 
 ```bash
-cd /Users/macmini/devrel-swarm/central-app
+cd /Users/macmini/devrel-origin/central-app
 pnpm test
 ```
 
@@ -2887,7 +2887,7 @@ Expected: 3 pass.
 - [ ] **Step 4: Commit**
 
 ```bash
-cd /Users/macmini/devrel-swarm
+cd /Users/macmini/devrel-origin
 git add central-app/src/lib/fly-api.ts central-app/tests/fly-api.test.ts central-app/package.json
 git commit -m "feat: Fly Machines API client with unit tests"
 ```
@@ -2902,7 +2902,7 @@ git commit -m "feat: Fly Machines API client with unit tests"
 
 - [ ] **Step 1: Orchestration**
 
-Create `/Users/macmini/devrel-swarm/central-app/src/lib/provision.ts`:
+Create `/Users/macmini/devrel-origin/central-app/src/lib/provision.ts`:
 
 ```typescript
 import crypto from "node:crypto";
@@ -2916,7 +2916,7 @@ import { and, eq } from "drizzle-orm";
 const FLY_ORG = process.env.FLY_ORG_SLUG ?? "personal";
 const FLY_REGION = process.env.FLY_REGION ?? "ams";
 const INSTANCE_IMAGE = process.env.INSTANCE_IMAGE
-  ?? "registry.fly.io/devrel-swarm-base:latest";
+  ?? "registry.fly.io/devrel-origin-base:latest";
 
 export async function provisionInstance(params: {
   ownerUserId: string;
@@ -2979,7 +2979,7 @@ export async function provisionInstance(params: {
 
 - [ ] **Step 2: Provisioning endpoint**
 
-Create `/Users/macmini/devrel-swarm/central-app/src/app/api/instances/provision/route.ts`:
+Create `/Users/macmini/devrel-origin/central-app/src/app/api/instances/provision/route.ts`:
 
 ```typescript
 import { NextResponse } from "next/server";
@@ -3013,7 +3013,7 @@ export async function POST(req: Request) {
 
 - [ ] **Step 3: Update "new instance" form to offer both modes**
 
-Edit `/Users/macmini/devrel-swarm/central-app/src/app/instances/new/page.tsx` to add a second form (provisioned) alongside the manual one. A simple approach: two sections in the same file, one `<form action={addInstanceManually}>` and one `<form action={provisionAction}>`.
+Edit `/Users/macmini/devrel-origin/central-app/src/app/instances/new/page.tsx` to add a second form (provisioned) alongside the manual one. A simple approach: two sections in the same file, one `<form action={addInstanceManually}>` and one `<form action={provisionAction}>`.
 
 Add a `provisionAction` to the existing `actions.ts` that wraps the API route:
 
@@ -3043,16 +3043,16 @@ export async function provisionInstanceAction(formData: FormData) {
 Manual one-time step before using provisioning:
 
 ```bash
-cd /Users/macmini/devrel-swarm
+cd /Users/macmini/devrel-origin
 fly auth login  # if not already
-fly apps create devrel-swarm-base --org personal
-fly deploy --app devrel-swarm-base --build-only --push --image-label latest
+fly apps create devrel-origin-base --org personal
+fly deploy --app devrel-origin-base --build-only --push --image-label latest
 # Or if you prefer a separate builder:
-docker build -t registry.fly.io/devrel-swarm-base:latest .
-docker push registry.fly.io/devrel-swarm-base:latest
+docker build -t registry.fly.io/devrel-origin-base:latest .
+docker push registry.fly.io/devrel-origin-base:latest
 ```
 
-Set `INSTANCE_IMAGE=registry.fly.io/devrel-swarm-base:latest` in central-app `.env.local`.
+Set `INSTANCE_IMAGE=registry.fly.io/devrel-origin-base:latest` in central-app `.env.local`.
 
 - [ ] **Step 5: E2E provisioning smoke**
 
@@ -3067,7 +3067,7 @@ curl -fsS https://swarm-<slug>-<rand>.fly.dev/health
 - [ ] **Step 6: Commit**
 
 ```bash
-cd /Users/macmini/devrel-swarm
+cd /Users/macmini/devrel-origin
 git add central-app/src/lib/provision.ts central-app/src/app/api/instances/provision/ central-app/src/app/instances/new/
 git commit -m "feat: automated Fly Machines provisioning for new instances"
 ```
@@ -3081,7 +3081,7 @@ git commit -m "feat: automated Fly Machines provisioning for new instances"
 - [ ] **Step 1: Start central app + Postgres**
 
 ```bash
-cd /Users/macmini/devrel-swarm
+cd /Users/macmini/devrel-origin
 docker compose up -d postgres
 cd central-app && pnpm dev
 ```
@@ -3150,7 +3150,7 @@ If drift > 5%:
 - [ ] **Step 6: Tag v0.1-agentic-alpha**
 
 ```bash
-cd /Users/macmini/devrel-swarm
+cd /Users/macmini/devrel-origin
 git tag -a v0.1-agentic-alpha -m "v0 agentic alpha: OpenClaw instance provisioned via central app, dashboard + chat + prompt editor operational"
 ```
 

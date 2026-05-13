@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from devrel_swarm.quality.slop import (
+from devrel_origin.quality.slop import (
     SlopHit,
     find_slop,
     force_rewrite,
