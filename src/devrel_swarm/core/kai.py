@@ -39,6 +39,53 @@ _SQL_TABLE_RE = re.compile(
 )
 _SOURCE_LABEL_RE = re.compile(r"(?im)^\s*(?:[-*]\s*)?(?:\*\*)?Sources?(?:\*\*)?\s*:\s*(.+)$")
 _SOURCE_HEADING_RE = re.compile(r"^\s{0,3}#{1,4}\s+sources?\b", re.IGNORECASE)
+_INTERNAL_MARKER_RE = re.compile(
+    r"\s*\((?:evidence|context)\s+truncated[^)]*\)|\b(?:evidence|context)\s+truncated\b[:;,.]?",
+    re.IGNORECASE,
+)
+_UNSUPPORTED_PLACEHOLDER_RE = re.compile(r"\bYOUR(?:_[A-Z0-9]+)+\b")
+_SQL_BLOCK_RE = re.compile(r"```sql\s*\n(.*?)```", re.IGNORECASE | re.DOTALL)
+_CODE_BLOCK_RE = re.compile(r"```(\w*)\s*\n(.*?)```", re.IGNORECASE | re.DOTALL)
+_CHECK_SECTION_RE = re.compile(
+    r"(?ms)^###\s+Check\s+\d+:\s*(.*?)\n(.*?)(?=^###\s+Check\s+\d+:|^##\s+|\Z)"
+)
+_SQL_IDENTIFIER_RE = re.compile(r"\b[A-Za-z_][A-Za-z0-9_]*\b")
+_INTERNAL_IMPORT_RE = re.compile(
+    r"(?m)^\s*(?:from\s+((?:posthog|products)\.[A-Za-z0-9_.]+)\s+import|import\s+((?:posthog|products)\.[A-Za-z0-9_.]+))"
+)
+_SQL_IDENTIFIER_SKIP = {
+    "and",
+    "as",
+    "by",
+    "case",
+    "desc",
+    "distinct",
+    "from",
+    "group",
+    "having",
+    "in",
+    "interval",
+    "join",
+    "limit",
+    "not",
+    "null",
+    "on",
+    "or",
+    "order",
+    "select",
+    "table",
+    "then",
+    "where",
+    "with",
+    "count",
+    "sum",
+    "avg",
+    "min",
+    "max",
+    "now",
+    "clusterallreplicas",
+    "siphash64",
+}
 
 
 @dataclass
@@ -127,13 +174,18 @@ Always cite which knowledge base documents you referenced."""
             ),
         )
 
-    def search_knowledge_base(self, query: str, max_results: int = 5) -> list[dict[str, str]]:
+    def search_knowledge_base(
+        self,
+        query: str,
+        max_results: int = 5,
+        content_truncate: int = 3000,
+    ) -> list[dict[str, str]]:
         """Search the knowledge base for relevant documents.
 
         Delegates to the shared KnowledgeBaseSearch. Kept as a public method
         for backward compatibility with tests and external callers.
         """
-        return self._kb.search(query, limit=max_results)
+        return self._kb.search(query, limit=max_results, content_truncate=content_truncate)
 
     def _extract_upstream_context(self, context: dict[str, Any] | None) -> dict[str, Any]:
         """Extract structured upstream context from SharedContext for content grounding."""
@@ -367,6 +419,30 @@ Always cite which knowledge base documents you referenced."""
         return paths
 
     @staticmethod
+    def _sanitize_internal_markers(text: str) -> str:
+        """Remove generation-context leakage such as '(evidence truncated)'."""
+        cleaned = _INTERNAL_MARKER_RE.sub("", text)
+        cleaned = re.sub(r"[ \t]+([.,;:])", r"\1", cleaned)
+        cleaned = re.sub(r"\n{3,}", "\n\n", cleaned)
+        return cleaned.strip()
+
+    @staticmethod
+    def _normalize_unsupported_placeholders(text: str) -> str:
+        """Turn config-looking placeholder constants into reader placeholders."""
+
+        def replace(match: re.Match[str]) -> str:
+            value = match.group(0)
+            if "API_KEY" in value:
+                return "<your-api-key>"
+            if "TOKEN" in value:
+                return "<your-token>"
+            if "PROJECT" in value:
+                return "<project-id>"
+            return "<value>"
+
+        return _UNSUPPORTED_PLACEHOLDER_RE.sub(replace, text)
+
+    @staticmethod
     def _source_citation_lines(content: str) -> list[str]:
         lines = content.splitlines()
         citation_lines = [match.group(1) for match in _SOURCE_LABEL_RE.finditer(content)]
@@ -387,6 +463,7 @@ Always cite which knowledge base documents you referenced."""
         evidence_text: str,
         *,
         allowed_source_ids: list[str] | None = None,
+        task: str = "",
     ) -> list[dict[str, str]]:
         """Find high-risk execution claims that are unsupported by evidence.
 
@@ -398,10 +475,18 @@ Always cite which knowledge base documents you referenced."""
         """
         issues: list[dict[str, str]] = []
         allowed_sources = set(allowed_source_ids or [])
+        content_lower = content.lower()
 
         def add(severity: str, issue: str, fix: str) -> None:
             if not any(existing["issue"] == issue for existing in issues):
                 issues.append({"severity": severity, "issue": issue, "fix": fix})
+
+        if _INTERNAL_MARKER_RE.search(content):
+            add(
+                "medium",
+                "content leaks an internal context-truncation marker",
+                "Remove phrases such as '(evidence truncated)' and write clean reader-facing prose.",
+            )
 
         for citation_line in self._source_citation_lines(content):
             for cited_path in sorted(set(self._extract_file_paths(citation_line))):
@@ -427,6 +512,16 @@ Always cite which knowledge base documents you referenced."""
                     "high",
                     f"content references unsupported MCP tool `{tool_name}`",
                     "Remove the tool call or replace it with an API/table that appears in evidence.",
+                )
+
+        for tool_name in sorted(
+            set(re.findall(r"(?i)\bMCP\s+`?([A-Za-z0-9_-]+)`?\s+tool\b", content))
+        ):
+            if not self._is_evidenced(tool_name, evidence_text):
+                add(
+                    "high",
+                    f"content references unsupported MCP tool `{tool_name}`",
+                    "Remove the MCP tool reference or replace it with a supported API/table that appears in evidence.",
                 )
 
         for file_path in sorted(set(self._extract_file_paths(content))):
@@ -457,8 +552,18 @@ Always cite which knowledge base documents you referenced."""
                     "Remove the setting name or replace it with an evidenced configuration key.",
                 )
 
-        for table_name in sorted(set(_SQL_TABLE_RE.findall(content))):
+        for match in _SQL_TABLE_RE.finditer(content):
+            table_name = match.group(1)
             if "." not in table_name and "_" not in table_name:
+                continue
+            line_start = content.rfind("\n", 0, match.start()) + 1
+            line_end = content.find("\n", match.start())
+            line = content[line_start : line_end if line_end != -1 else len(content)]
+            if re.match(
+                rf"\s*from\s+{re.escape(table_name)}\s+import\b",
+                line,
+                flags=re.IGNORECASE,
+            ):
                 continue
             if not self._is_evidenced(table_name, evidence_text):
                 add(
@@ -466,6 +571,61 @@ Always cite which knowledge base documents you referenced."""
                     f"content references unsupported database table `{table_name}`",
                     "Use only table names present in evidence or describe the storage layer generically.",
                 )
+
+        for block in _SQL_BLOCK_RE.findall(content):
+            for identifier in sorted(set(_SQL_IDENTIFIER_RE.findall(block))):
+                ident_lower = identifier.lower()
+                if ident_lower in _SQL_IDENTIFIER_SKIP:
+                    continue
+                if "_" not in identifier:
+                    continue
+                if self._is_evidenced(identifier, evidence_text):
+                    continue
+                add(
+                    "medium",
+                    f"SQL block references unsupported identifier or column `{identifier}`",
+                    "Remove the SQL identifier or replace it with a column/function name that appears verbatim in the evidence.",
+                )
+
+        task_lower = task.lower()
+        if "web analytics" in task_lower:
+            diagnostic_web_heading = re.search(
+                r"(?im)^#{2,4}\s+(?=.*web analytics)(?=.*(?:diagnos|check|troubleshoot|freshness|live|path|verify))",
+                content,
+            )
+            if not diagnostic_web_heading:
+                add(
+                    "medium",
+                    "task asks for web analytics coverage but output lacks a dedicated diagnostic web analytics section",
+                    "Add an actionable web analytics diagnostic section grounded in the provided web analytics evidence.",
+                )
+            if (
+                any("managing-path-cleaning-rules" in source for source in allowed_sources)
+                and "path cleaning" not in content_lower
+            ):
+                add(
+                    "medium",
+                    "web analytics path-cleaning evidence is available but output does not cover path-cleaning freshness checks",
+                    "Add a path-cleaning freshness-perception check or remove the unused source from the draft.",
+                )
+            if (
+                any("exploring-live-traffic" in source for source in allowed_sources)
+                and "live traffic" not in content_lower
+            ):
+                add(
+                    "medium",
+                    "web analytics live-traffic evidence is available but output does not cover live-traffic checks",
+                    "Add a live-traffic verification step grounded in the web analytics evidence or remove the unused source from the draft.",
+                )
+
+        for line in content.splitlines():
+            if self._is_dead_end_line(line):
+                add(
+                    "medium",
+                    "content creates a dead-end by requiring source-code inspection where evidence is insufficient",
+                    "Remove the required diagnostic step or rewrite it as a limitation; do not force readers to inspect source code to continue.",
+                )
+                break
 
         direct_only_tables = (
             "system.replicas",
@@ -526,6 +686,11 @@ Hard requirements:
 - Do not invent environment variables, settings, log paths, table schemas, function signatures, or latency numbers.
 - Treat native ClickHouse system tables as direct ClickHouse access only, not normal PostHog HogQL.
 - If an implementation detail is internal, describe it as a file to inspect rather than a public API to import.
+- Do not create a required diagnostic step that only says to inspect source code because evidence is missing.
+- If evidence is insufficient for a command/schema/query, state the limitation or remove that step.
+- Do not tell readers to inspect, review, or consult source files as a required diagnostic step.
+- Do not create limitation-only diagnostic checks. If a check has no concrete grounded action,
+  move it to an evidence-limitation note instead of presenting it as a step.
 - Cite source documents only by the allowed KB source ids below. Do not cite repository file paths as source labels.
 - Return only the revised content.
 
@@ -548,6 +713,231 @@ Draft:
             max_tokens=5000,
             model="sonnet" if content_type in {"tutorial", "blog_post"} else None,
         )
+
+    @staticmethod
+    def _coverage_requirements(task: str, grounding_source_ids: list[str]) -> str:
+        requirements: list[str] = []
+        task_lower = task.lower()
+        if "web analytics" in task_lower:
+            requirements.append(
+                "- Web analytics: include a dedicated diagnostic section with concrete checks "
+                "grounded in the web analytics/query-runner evidence, not only architecture context."
+            )
+            if any("managing-path-cleaning-rules" in source for source in grounding_source_ids):
+                requirements.append(
+                    "- Web analytics path cleaning: include a freshness-perception check for URL/path "
+                    "normalization when path-cleaning evidence is available."
+                )
+            if any("exploring-live-traffic" in source for source in grounding_source_ids):
+                requirements.append(
+                    "- Web analytics live traffic: include a concrete check for whether the live "
+                    "traffic view is receiving events when live-traffic evidence is available."
+                )
+        if "lazy computation" in task_lower:
+            requirements.append(
+                "- Lazy computation: include a dedicated diagnostic section for precomputation, "
+                "replication, and verified table/settings evidence."
+            )
+        if any(source.startswith("web-analytics/") for source in grounding_source_ids):
+            requirements.append(
+                "- If web-analytics KB docs are cited, use them for at least one actionable "
+                "verification or troubleshooting step."
+            )
+        return "\n".join(dict.fromkeys(requirements))
+
+    async def _generate_fast_draft(
+        self,
+        *,
+        prompt: str,
+        content_type: str,
+    ) -> tuple[str, list[str], list[str]]:
+        fast_prompt = f"""{prompt}
+
+## FAST DRAFT MODE
+Produce a concise, publishable first draft in one pass.
+
+Hard limits:
+- Keep the piece under 1,400 words unless the task explicitly asks for long-form.
+- Avoid generic operational filler and vague runbook phrases.
+- Do not leak internal notes such as "(evidence truncated)" or "context truncated".
+- Do not select SQL columns or identifiers unless those exact names appear in the evidence.
+- Do not put angle-bracket placeholders inside runnable code blocks. If a placeholder would
+  make code invalid, describe the value in prose instead.
+- If evidence does not provide a concrete command, state the limitation instead of inventing one.
+- If the task names multiple domains, include a dedicated actionable section for each domain.
+- Avoid dead-end steps that only redirect readers to source files. Use the evidence to provide
+  a self-contained check, or state that the evidence is insufficient for that check.
+- Never tell readers to inspect, review, or consult source files as a required diagnostic step.
+- Do not create limitation-only diagnostic checks. If evidence cannot support a concrete action,
+  make it an evidence-limitation note rather than a numbered check.
+"""
+        content = await self.llm_client.generate(
+            system_prompt=self.SYSTEM_PROMPT,
+            user_prompt=fast_prompt,
+            temperature=0.2,
+            max_tokens=5000,
+            model="sonnet" if content_type in {"tutorial", "blog_post"} else None,
+        )
+        return content, ["fast grounded draft"], []
+
+    @staticmethod
+    def _is_dead_end_line(line: str) -> bool:
+        lower = line.lower()
+        missing_evidence_markers = (
+            "evidence does not",
+            "source material does not",
+            "does not provide",
+            "does not specify",
+            "does not verify",
+            "not provided",
+            "not specified",
+            "not verified",
+        )
+        inspection_terms = ("inspect", "see `", "review `", "consult", "determine")
+        return (
+            (
+                any(marker in lower for marker in missing_evidence_markers)
+                and any(term in lower for term in inspection_terms)
+            )
+            or (
+                any(marker in lower for marker in missing_evidence_markers)
+                and _FILE_PATH_RE.search(line) is not None
+            )
+            or (any(marker in lower for marker in missing_evidence_markers) and "mcp tool" in lower)
+            or re.search(r"(?i)\bsee\s+`[^`]+`\s+for\s+example", line) is not None
+            or re.search(
+                r"(?i)\b(?:inspect|review|consult)\s+`?[^`\s]+\.(?:py|md|ts|tsx|js|jsx|xml)`?",
+                line,
+            )
+            is not None
+            or ("for deeper investigation" in lower and "consult" in lower and "source" in lower)
+        )
+
+    def _remove_dead_end_lines(self, content: str) -> str:
+        """Replace source-inspection dead ends with a reader-facing limitation."""
+        repaired_lines: list[str] = []
+        inserted_note = False
+        changed = False
+        for line in content.splitlines():
+            if not self._is_dead_end_line(line):
+                repaired_lines.append(line)
+                continue
+            changed = True
+            if not inserted_note:
+                repaired_lines.append(
+                    "> Evidence limitation: the current KB evidence does not verify a "
+                    "self-contained command, schema, or example for this step."
+                )
+                inserted_note = True
+        if not changed:
+            return content
+        return re.sub(r"\n{3,}", "\n\n", "\n".join(repaired_lines)).strip()
+
+    def _remove_unsupported_internal_imports(self, content: str, evidence_text: str) -> str:
+        """Replace runnable internal imports that are not verified by evidence."""
+
+        def unsupported_modules(text: str) -> list[str]:
+            modules: list[str] = []
+            for match in _INTERNAL_IMPORT_RE.finditer(text):
+                module = match.group(1) or match.group(2) or ""
+                if module and not (
+                    self._is_evidenced(f"from {module}", evidence_text)
+                    or self._is_evidenced(f"import {module}", evidence_text)
+                ):
+                    modules.append(module)
+            return sorted(set(modules))
+
+        def replace_block(match: re.Match[str]) -> str:
+            modules = unsupported_modules(match.group(2))
+            if not modules:
+                return match.group(0)
+            names = ", ".join(f"`{module}`" for module in modules[:4])
+            return (
+                "> Evidence limitation: the current KB evidence does not verify "
+                f"a runnable internal import example for {names}."
+            )
+
+        repaired = _CODE_BLOCK_RE.sub(replace_block, content)
+        if repaired == content:
+            modules = unsupported_modules(content)
+            if modules:
+                names = ", ".join(f"`{module}`" for module in modules[:4])
+                repaired = _INTERNAL_IMPORT_RE.sub(
+                    "> Evidence limitation: the current KB evidence does not verify "
+                    f"a runnable internal import example for {names}.",
+                    content,
+                )
+        return re.sub(r"\n{3,}", "\n\n", repaired).strip()
+
+    @staticmethod
+    def _remove_invalid_code_blocks(content: str, errors: list[Any]) -> str:
+        """Replace fenced code blocks that failed syntax validation with a limitation note."""
+        invalid_blocks = {
+            (str(error.block.language).lower(), error.block.code.strip()) for error in errors
+        }
+        if not invalid_blocks:
+            return content
+
+        def replace(match: re.Match[str]) -> str:
+            language = match.group(1).lower().strip()
+            code = match.group(2).strip()
+            if (language, code) not in invalid_blocks:
+                return match.group(0)
+            return (
+                "> Evidence limitation: this runnable code example was removed because "
+                "it failed syntax validation. Use the surrounding verified data model "
+                "and source notes instead of copying an invalid snippet."
+            )
+
+        return re.sub(r"\n{3,}", "\n\n", _CODE_BLOCK_RE.sub(replace, content)).strip()
+
+    @staticmethod
+    def _demote_limitation_only_checks(content: str) -> str:
+        """Avoid numbered diagnostic checks that only contain limitations."""
+
+        def replace(match: re.Match[str]) -> str:
+            title = match.group(1).strip()
+            body = match.group(2).strip()
+            if len(body) < 20:
+                return ""
+            has_limitation = "Evidence limitation" in body or "Evidence note" in body
+            if has_limitation and "```" not in body:
+                return (
+                    f"### Evidence limitation: {title}\n\n"
+                    "The current KB evidence does not verify a self-contained command, "
+                    "schema, or example for this diagnostic.\n\n"
+                )
+            return match.group(0)
+
+        return re.sub(r"\n{3,}", "\n\n", _CHECK_SECTION_RE.sub(replace, content)).strip()
+
+    def _remove_unsupported_sql_blocks(self, content: str, evidence_text: str) -> str:
+        """Replace SQL blocks containing unevidenced identifiers with prose.
+
+        This keeps a draft publishable without shipping copy-paste SQL that
+        selected columns or placeholders the evidence did not verify.
+        """
+
+        def replace(match: re.Match[str]) -> str:
+            block = match.group(1)
+            unsupported = []
+            for identifier in sorted(set(_SQL_IDENTIFIER_RE.findall(block))):
+                ident_lower = identifier.lower()
+                if ident_lower in _SQL_IDENTIFIER_SKIP or "_" not in identifier:
+                    continue
+                if not self._is_evidenced(identifier, evidence_text):
+                    unsupported.append(identifier)
+            if not unsupported:
+                return match.group(0)
+            names = ", ".join(f"`{name}`" for name in unsupported[:6])
+            return (
+                "> Evidence note: the source material does not verify a safe "
+                f"copy-paste SQL query for this check because {names} "
+                "did not appear in the provided evidence. Treat this as a "
+                "current evidence limitation rather than a runnable query."
+            )
+
+        return _SQL_BLOCK_RE.sub(replace, content)
 
     @staticmethod
     def _code_validation_payload(report: Any) -> dict[str, Any]:
@@ -574,6 +964,7 @@ Draft:
         task: str,
         context: Optional[dict[str, Any]] = None,
         content_type: str = "tutorial",
+        editorial_mode: str = "pipeline",
     ) -> dict[str, Any]:
         """
         Execute a content creation task.
@@ -592,7 +983,11 @@ Draft:
 
         # 1. Search knowledge base — cap total context to ~12K chars
         search_query = self._search_query_from_task(task)
-        raw_grounding_docs = self.search_knowledge_base(search_query, max_results=5)
+        raw_grounding_docs = self.search_knowledge_base(
+            search_query,
+            max_results=5,
+            content_truncate=5000,
+        )
         task_lower = task.lower()
         grounding_docs = [
             doc
@@ -603,11 +998,14 @@ Draft:
                 and self._contains_file_path(f"{doc.get('content', '')}\n{doc.get('source', '')}")
             )
         ]
+        per_doc_budget = max(1200, 11500 // max(len(grounding_docs), 1))
         grounding_context = "\n\n".join(
-            f"[Source: {doc['source']}]\n{doc['content']}" for doc in grounding_docs
+            f"[Source: {doc['source']}]\n{str(doc['content'])[:per_doc_budget]}"
+            for doc in grounding_docs
         )[:12000]
         grounding_source_ids = [doc["source"] for doc in grounding_docs]
         citation_source_section = "\n".join(f"- {source}" for source in grounding_source_ids)
+        coverage_section = self._coverage_requirements(task, grounding_source_ids)
 
         # 2. Fetch official docs from GitMCP (capped)
         official_docs = ""
@@ -702,6 +1100,9 @@ Draft:
 ## Content Brief
 {brief_section if brief_section else "No explicit content brief available."}
 
+## Required Coverage
+{coverage_section if coverage_section else "No additional domain coverage requirements."}
+
 ## Community Context
 {pain_section if pain_section else "No pain point data from upstream agents."}
 
@@ -738,6 +1139,18 @@ Draft:
     them, say the evidence does not specify them.
 14. For maintainer diagnostics, attach a KB source id to each concrete path, table,
     setting, endpoint, or command claim so the reader can verify it.
+15. Never output internal context-management notes such as "evidence truncated",
+    "context truncated", or similar meta commentary.
+16. If SQL examples include selected columns, every non-generic column or identifier
+    must appear verbatim in the evidence. Otherwise state the evidence limitation in prose.
+17. Satisfy every Required Coverage bullet with a concrete section in the draft.
+18. Do not tell readers to inspect, review, or consult source files as a required diagnostic
+    step. If the evidence is missing details, state that limitation without turning it into
+    a required step.
+19. Do not create limitation-only diagnostic checks. If a check has no concrete grounded action,
+    move it to an evidence-limitation note instead of presenting it as a step.
+20. Do not put angle-bracket placeholders inside runnable code blocks. If a placeholder would
+    make code invalid, describe the value in prose instead.
 """
 
         base_result = {
@@ -747,6 +1160,7 @@ Draft:
             "pain_points_addressed": [pp["title"] for pp in pain_points[:3]],
             "real_issues_referenced": [i["number"] for i in real_issues[:5]],
             "status": "generated",
+            "editorial_mode": editorial_mode,
         }
 
         evidence_gaps = self._evidence_gaps(
@@ -763,13 +1177,20 @@ Draft:
 
         if self.llm_client:
             try:
-                content, strengths, issues = await generate_with_pipeline(
-                    llm_client=self.llm_client,
-                    system_prompt=self.SYSTEM_PROMPT,
-                    user_prompt=prompt,
-                    content_type=content_type,
-                    logger=logger,
-                )
+                mode = editorial_mode.strip().lower()
+                if mode in {"fast", "direct"}:
+                    content, strengths, issues = await self._generate_fast_draft(
+                        prompt=prompt,
+                        content_type=content_type,
+                    )
+                else:
+                    content, strengths, issues = await generate_with_pipeline(
+                        llm_client=self.llm_client,
+                        system_prompt=self.SYSTEM_PROMPT,
+                        user_prompt=prompt,
+                        content_type=content_type,
+                        logger=logger,
+                    )
                 base_result["content"] = content
                 if issues and isinstance(issues[0], dict):
                     remaining_issues = [
@@ -782,15 +1203,6 @@ Draft:
                     "remaining_issues": remaining_issues,
                 }
 
-                # Validate code blocks in generated content
-                report = self.code_validator.validate_content(content)
-                base_result["code_validation"] = self._code_validation_payload(report)
-                if not report.all_passed:
-                    logger.warning(
-                        f"Code validation: {report.failed}/{report.validated} "
-                        f"blocks failed syntax checks"
-                    )
-
                 evidence_text = "\n\n".join(
                     [
                         grounding_context,
@@ -799,12 +1211,19 @@ Draft:
                         source_section,
                         official_docs,
                         brief_section,
+                        coverage_section,
                     ]
                 )
+                content = self._normalize_unsupported_placeholders(
+                    self._sanitize_internal_markers(content)
+                )
+                content = self._demote_limitation_only_checks(content)
+                base_result["content"] = content
                 grounding_issues = self._grounded_output_issues(
                     content,
                     evidence_text,
                     allowed_source_ids=grounding_source_ids,
+                    task=task,
                 )
                 if grounding_issues:
                     rewritten = await self._rewrite_ungrounded_content(
@@ -814,16 +1233,40 @@ Draft:
                         content_type=content_type,
                         allowed_source_ids=grounding_source_ids,
                     )
+                    rewritten = self._normalize_unsupported_placeholders(
+                        self._sanitize_internal_markers(rewritten)
+                    )
+                    rewritten = self._demote_limitation_only_checks(rewritten)
                     rewritten_issues = self._grounded_output_issues(
                         rewritten,
                         evidence_text,
                         allowed_source_ids=grounding_source_ids,
+                        task=task,
                     )
-                    rewritten_report = self.code_validator.validate_content(rewritten)
+                    deterministic_repair = False
+                    if rewritten_issues:
+                        repaired = self._remove_unsupported_sql_blocks(rewritten, evidence_text)
+                        repaired = self._remove_unsupported_internal_imports(
+                            repaired,
+                            evidence_text,
+                        )
+                        repaired = self._remove_dead_end_lines(repaired)
+                        repaired = self._demote_limitation_only_checks(repaired)
+                        if repaired != rewritten:
+                            deterministic_repair = True
+                            rewritten = self._normalize_unsupported_placeholders(
+                                self._sanitize_internal_markers(repaired)
+                            )
+                            rewritten_issues = self._grounded_output_issues(
+                                rewritten,
+                                evidence_text,
+                                allowed_source_ids=grounding_source_ids,
+                                task=task,
+                            )
                     base_result["content"] = rewritten
-                    base_result["code_validation"] = self._code_validation_payload(rewritten_report)
                     base_result["grounding_validation"] = {
                         "rewritten": True,
+                        "deterministic_repair": deterministic_repair,
                         "initial_issues": grounding_issues,
                         "remaining_issues": rewritten_issues,
                         "all_passed": not rewritten_issues,
@@ -842,6 +1285,28 @@ Draft:
                         "remaining_issues": [],
                         "all_passed": True,
                     }
+
+                code_repair = False
+                report = self.code_validator.validate_content(base_result.get("content", ""))
+                if not report.all_passed:
+                    repaired = self._remove_invalid_code_blocks(
+                        base_result.get("content", ""),
+                        report.errors,
+                    )
+                    if repaired != base_result.get("content", ""):
+                        code_repair = True
+                        base_result["content"] = repaired
+                        report = self.code_validator.validate_content(repaired)
+                code_payload = self._code_validation_payload(report)
+                code_payload["deterministic_repair"] = code_repair
+                base_result["code_validation"] = code_payload
+                if not report.all_passed:
+                    logger.warning(
+                        f"Code validation: {report.failed}/{report.validated} "
+                        f"blocks failed syntax checks"
+                    )
+                    base_result["status"] = "blocked_by_code_validation"
+                    base_result["content"] = ""
             except AbortLoud as exc:
                 logger.warning("Content generation blocked by quality gate: %s", exc)
                 base_result["status"] = "blocked_by_quality_gate"

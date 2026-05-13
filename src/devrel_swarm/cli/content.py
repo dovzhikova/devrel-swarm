@@ -90,8 +90,20 @@ def draft_command(
         min=0.1,
         help="Maximum seconds to wait for Kai before exiting with a clear timeout.",
     ),
+    editorial_mode: str = typer.Option(
+        "fast",
+        "--editorial-mode",
+        help="Generation path: fast for a bounded first draft, full for the full editorial pipeline.",
+    ),
 ) -> None:
-    """Generate new content through Kai: KB-grounded prompt + editorial pipeline + code validation."""
+    """Generate new content through Kai: KB-grounded prompt + grounding/code validation."""
+    editorial_mode = editorial_mode.strip().lower()
+    if editorial_mode == "full":
+        editorial_mode = "pipeline"
+    if editorial_mode not in {"fast", "pipeline"}:
+        console.print("[red]--editorial-mode must be 'fast' or 'full'.[/red]")
+        raise typer.Exit(code=1)
+
     try:
         root = find_devrel_root()
     except ProjectNotFoundError as e:
@@ -103,7 +115,8 @@ def draft_command(
 
     async def _do() -> None:
         console.print(
-            f"[cyan]Generating with Kai[/cyan] ({content_type}, timeout {timeout_seconds:g}s)..."
+            f"[cyan]Generating with Kai[/cyan] "
+            f"({content_type}, {editorial_mode}, timeout {timeout_seconds:g}s)..."
         )
 
         async def _heartbeat() -> None:
@@ -116,7 +129,11 @@ def draft_command(
         heartbeat = asyncio.create_task(_heartbeat())
         try:
             result = await asyncio.wait_for(
-                kai.execute(task=prompt, content_type=content_type),
+                kai.execute(
+                    task=prompt,
+                    content_type=content_type,
+                    editorial_mode=editorial_mode,
+                ),
                 timeout=timeout_seconds,
             )
         except TimeoutError:
@@ -144,6 +161,7 @@ def draft_command(
             "agent": "kai",
             "task": result.get("task"),
             "content_type": content_type,
+            "editorial_mode": result.get("editorial_mode", editorial_mode),
             "grounding_sources": result.get("grounding_sources", []),
             "pain_points_addressed": result.get("pain_points_addressed", []),
             "real_issues_referenced": result.get("real_issues_referenced", []),
