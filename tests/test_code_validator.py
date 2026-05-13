@@ -267,6 +267,12 @@ class TestSqlValidation:
         result = validator.validate_block(block)
         assert result.is_valid
 
+    def test_clickhouse_system_statement(self, validator):
+        code = "SYSTEM SYNC REPLICA sharded_preaggregation_results;"
+        block = CodeBlock(language="sql", code=code, line_number=1)
+        result = validator.validate_block(block)
+        assert result.is_valid
+
 
 # ---------------------------------------------------------------------------
 # Skip / unknown languages

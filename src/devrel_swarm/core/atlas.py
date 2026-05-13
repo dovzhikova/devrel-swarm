@@ -13,7 +13,7 @@ import random
 import re
 import shutil
 import subprocess
-from contextlib import nullcontext as _nullcontext
+from contextlib import nullcontext as _nullcontext, suppress
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -253,6 +253,7 @@ class Atlas:
     MAX_RETRIES = 2
     BASE_DELAY = 2.0  # seconds
     AGENT_TIMEOUT = 300.0  # default per-agent timeout (seconds); see DEFAULT_AGENT_TIMEOUTS
+    AGENT_CANCEL_GRACE = 5.0  # max seconds to wait for an agent to acknowledge cancellation
 
     # Editorial-pipeline agents (Kai/Mox/Pax) run an 8-stage pipeline with revision
     # loops on top of repo-scale prompts. Empirically, on a PostHog-scale codebase
@@ -403,9 +404,15 @@ class Atlas:
 
         Resolution order: config override → class default (DEFAULT_AGENT_TIMEOUTS) →
         global AGENT_TIMEOUT (300s). Editorial-pipeline agents (Kai/Mox/Pax) default
-        to 600s because their 8-stage revision-looped pipeline routinely exceeds 300s.
+        to 1800s because their 8-stage revision-looped pipeline routinely exceeds 300s.
         """
         return self.agent_timeouts.get(agent_name, self.AGENT_TIMEOUT)
+
+    @staticmethod
+    def _consume_task_exception(task: asyncio.Task) -> None:
+        """Drain late task results so forced timeouts do not emit warnings."""
+        with suppress(asyncio.CancelledError, Exception):
+            task.result()
 
     async def delegate(
         self,
@@ -442,10 +449,32 @@ class Atlas:
                     self.llm_client.agent_context(agent_name) if self.llm_client else _nullcontext()
                 )
                 with ctx_mgr:
-                    result = await asyncio.wait_for(
+                    execution = asyncio.create_task(
                         agent.execute(task=task, context=merged_context),
-                        timeout=timeout,
+                        name=f"devrel-{agent_name}-attempt-{attempt}",
                     )
+                    done, _ = await asyncio.wait({execution}, timeout=timeout)
+                    if not done:
+                        execution.cancel()
+                        cancelled, _ = await asyncio.wait(
+                            {execution}, timeout=self.AGENT_CANCEL_GRACE
+                        )
+                        if not cancelled:
+                            execution.add_done_callback(self._consume_task_exception)
+                            logger.error(
+                                "delegation_cancel_grace_exceeded",
+                                extra={
+                                    "agent": agent_name,
+                                    "task": task[:80],
+                                    "timeout": timeout,
+                                    "cancel_grace": self.AGENT_CANCEL_GRACE,
+                                },
+                            )
+                        else:
+                            with suppress(asyncio.CancelledError):
+                                execution.result()
+                        raise asyncio.TimeoutError
+                    result = execution.result()
                 logger.info(
                     "delegation_success",
                     extra={"agent": agent_name, "task": task[:80], "attempts": attempt},

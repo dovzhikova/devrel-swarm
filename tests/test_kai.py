@@ -96,6 +96,161 @@ class TestKaiExecuteWired:
         assert result["status"] == "insufficient_evidence"
         assert result["evidence_gaps"]
 
+    @pytest.mark.asyncio
+    async def test_negated_github_issue_wording_does_not_require_issues(self, kai):
+        result = await kai.execute(
+            "Write about analytics tracking. Avoid GitHub issue claims unless issue evidence is available."
+        )
+        assert result["status"] == "generated"
+        assert not result.get("evidence_gaps")
+
+    @pytest.mark.asyncio
+    async def test_negated_issue_wording_does_not_pollute_kb_search(self, posthog_client, tmp_path):
+        kb = tmp_path / "kb"
+        kb.mkdir()
+        (kb / "analytics.md").write_text("# Analytics tracking\nTrack events and query insights.")
+        (kb / "error-issues.md").write_text("# Error tracking issues\nQuery error tracking issues.")
+        kai = Kai(api_client=posthog_client, knowledge_base_path=kb)
+
+        result = await kai.execute(
+            "Write about analytics tracking. Avoid GitHub issue claims unless issue evidence is available."
+        )
+
+        assert result["status"] == "generated"
+        assert result["grounding_sources"][0] == "analytics.md"
+
+    @pytest.mark.asyncio
+    async def test_file_path_request_accepts_kb_path_evidence(self, posthog_client, tmp_path):
+        kb = tmp_path / "kb"
+        kb.mkdir()
+        (kb / "analytics.md").write_text(
+            "# Analytics\nDebug analytics tracking in `posthog/hogql_queries/query_runner.py`."
+        )
+        kai = Kai(api_client=posthog_client, knowledge_base_path=kb)
+        result = await kai.execute(
+            "Write about analytics tracking and include concrete file paths."
+        )
+        assert result["status"] == "generated"
+        assert not result.get("evidence_gaps")
+
+    @pytest.mark.asyncio
+    async def test_grounding_gate_rewrites_unsupported_mcp_calls(
+        self, posthog_client, tmp_path, mock_llm_client
+    ):
+        kb = tmp_path / "kb"
+        kb.mkdir()
+        (kb / "analytics.md").write_text(
+            "# Analytics\nUse `POST /api/projects/@current/query/` for query execution."
+        )
+        (kb / "billing.md").write_text("# Billing\nInvoices and subscriptions.")
+        kai = Kai(
+            api_client=posthog_client,
+            knowledge_base_path=kb,
+            llm_client=mock_llm_client,
+        )
+
+        async def fake_pipeline(**_):
+            return (
+                "```python\nposthog_mcp_call('posthog:query-trends', {})\n```",
+                ["structure"],
+                [],
+            )
+
+        mock_llm_client.generate = AsyncMock(
+            return_value="Use `POST /api/projects/@current/query/` with a documented query payload."
+        )
+
+        with patch("devrel_swarm.core.kai.generate_with_pipeline", new=fake_pipeline):
+            result = await kai.execute("Write about analytics query freshness")
+
+        assert result["status"] == "generated"
+        assert "posthog_mcp_call" not in result["content"]
+        assert result["grounding_validation"]["rewritten"] is True
+        assert result["grounding_validation"]["all_passed"] is True
+
+    @pytest.mark.asyncio
+    async def test_grounding_gate_blocks_when_rewrite_still_unsupported(
+        self, posthog_client, tmp_path, mock_llm_client
+    ):
+        kb = tmp_path / "kb"
+        kb.mkdir()
+        (kb / "analytics.md").write_text("# Analytics\nTrack events.")
+        (kb / "billing.md").write_text("# Billing\nInvoices and subscriptions.")
+        kai = Kai(
+            api_client=posthog_client,
+            knowledge_base_path=kb,
+            llm_client=mock_llm_client,
+        )
+
+        async def fake_pipeline(**_):
+            return (
+                "```python\nposthog_mcp_call('posthog:query-trends', {})\n```",
+                ["structure"],
+                [],
+            )
+
+        mock_llm_client.generate = AsyncMock(
+            return_value="```python\nposthog_mcp_call('posthog:query-trends', {})\n```"
+        )
+
+        with patch("devrel_swarm.core.kai.generate_with_pipeline", new=fake_pipeline):
+            result = await kai.execute("Write about analytics query freshness")
+
+        assert result["status"] == "blocked_by_grounding_gate"
+        assert result["content"] == ""
+        assert result["grounding_validation"]["all_passed"] is False
+
+    def test_grounding_guard_flags_unverified_posthog_diagnostics(self, kai):
+        evidence = (
+            "[Source: analytics/lazy-computation-consistency.md]\n"
+            "preaggregation_results, sharded_preaggregation_results, system.replicas"
+        )
+        content = """
+**Source**: `products/analytics_platform/backend/lazy_computation/CONSISTENCY.md`
+
+Check `docker/clickhouse/users.xml`, enable `HOGQL_QUERY_LOG`, and tail
+`/var/log/posthog/hogql.log`.
+
+```sql
+SELECT id, status FROM lazy_computation_jobs;
+```
+"""
+
+        issues = kai._grounded_output_issues(
+            content,
+            evidence,
+            allowed_source_ids=["analytics/lazy-computation-consistency.md"],
+        )
+        issue_text = "\n".join(issue["issue"] for issue in issues)
+
+        assert (
+            "cites `products/analytics_platform/backend/lazy_computation/CONSISTENCY.md`"
+            in issue_text
+        )
+        assert "unsupported file path `docker/clickhouse/users.xml`" in issue_text
+        assert "unsupported setting or constant `HOGQL_QUERY_LOG`" in issue_text
+        assert "unsupported file path `/var/log/posthog/hogql.log`" in issue_text
+        assert "unsupported database table `lazy_computation_jobs`" in issue_text
+
+    def test_grounding_guard_allows_evidenced_repo_paths_when_not_source_labels(self, kai):
+        evidence = (
+            "[Source: repo/query-api-and-web-analytics-source-evidence.md]\n"
+            "`posthog/hogql_queries/query_runner.py` contains get_query_runner."
+        )
+        content = (
+            "Inspect `posthog/hogql_queries/query_runner.py` for the query runner.\n\n"
+            "## Sources\n"
+            "- `repo/query-api-and-web-analytics-source-evidence.md`\n"
+        )
+
+        issues = kai._grounded_output_issues(
+            content,
+            evidence,
+            allowed_source_ids=["repo/query-api-and-web-analytics-source-evidence.md"],
+        )
+
+        assert issues == []
+
 
 class TestKaiOfficialDocsValidation:
     """Test that Kai consults official docs when search_tools is provided."""

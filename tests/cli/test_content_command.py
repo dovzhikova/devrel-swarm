@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import os
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -154,12 +155,73 @@ def test_audit_fails_without_project(tmp_path):
     assert result.exit_code != 0
 
 
-def test_build_llm_client_raises_without_api_key(monkeypatch):
+def test_build_llm_client_raises_without_api_key(monkeypatch, tmp_path):
     from devrel_swarm.cli import content as content_mod
+    from devrel_swarm.project.paths import ProjectPaths
 
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
-    with pytest.raises(typer.BadParameter):
-        content_mod._build_llm_client()
+    monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
+    with pytest.raises(typer.Exit):
+        content_mod._build_llm_client(ProjectPaths.from_root(tmp_path))
+
+
+@patch("devrel_swarm.cli.content._build_kai")
+def test_draft_loads_llm_key_from_project_env(mock_build_kai, monkeypatch, tmp_path):
+    _init_project(tmp_path)
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
+    (tmp_path / ".devrel" / ".env").write_text("ANTHROPIC_API_KEY=sk-ant-from-file\n")
+    fake_kai = MagicMock()
+    fake_kai.execute = AsyncMock(
+        return_value={
+            "agent": "kai",
+            "task": "topic",
+            "status": "generated",
+            "content": "Final.",
+            "grounding_sources": ["sdks/python.md"],
+            "code_validation": {"all_passed": True, "failed": 0, "validated": 0},
+        }
+    )
+    mock_build_kai.return_value = fake_kai
+
+    cwd = os.getcwd()
+    os.chdir(tmp_path)
+    try:
+        result = runner.invoke(app, ["content", "draft", "topic", "--type", "tutorial"])
+    finally:
+        os.chdir(cwd)
+        os.environ.pop("ANTHROPIC_API_KEY", None)
+
+    assert result.exit_code == 0, result.output
+    assert "ANTHROPIC_API_KEY is required" not in result.output
+
+
+@patch("devrel_swarm.cli.content._build_llm_client")
+@patch("devrel_swarm.cli.content._build_kai")
+def test_draft_times_out_cleanly(mock_build_kai, mock_client, tmp_path):
+    _init_project(tmp_path)
+    mock_client.return_value = MagicMock(generate=AsyncMock(return_value="draft"))
+    fake_kai = MagicMock()
+
+    async def slow_execute(**_kwargs):
+        await asyncio.sleep(60)
+
+    fake_kai.execute = slow_execute
+    mock_build_kai.return_value = fake_kai
+
+    cwd = os.getcwd()
+    os.chdir(tmp_path)
+    try:
+        result = runner.invoke(
+            app,
+            ["content", "draft", "topic", "--type", "tutorial", "--timeout", "0.1"],
+            env={"ANTHROPIC_API_KEY": "sk-ant-test", **os.environ},
+        )
+    finally:
+        os.chdir(cwd)
+
+    assert result.exit_code == 1
+    assert "Kai timed out after 0.1s" in result.output
 
 
 @patch("devrel_swarm.cli.content._build_llm_client")
