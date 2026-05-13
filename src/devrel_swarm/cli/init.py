@@ -321,11 +321,11 @@ def _step_first_draft(paths: ProjectPaths) -> None:
     # would print twice; easier to import the helpers and replay the body.
     from devrel_swarm.cli.content import _build_kai, _build_llm_client, _slug, _write_outputs
 
-    try:
-        client = _build_llm_client()
-    except typer.BadParameter as exc:
-        console.print(f"[red]{exc}[/red]")
-        return
+    # _build_llm_client now resolves the LLM key from .devrel/.env (Anthropic
+    # OR OpenRouter) and raises typer.Exit(1) with a helpful message if neither
+    # is configured. Letting Exit propagate exits the wizard cleanly with the
+    # missing-key help; the user can then run `devrel auth` and re-run.
+    client = _build_llm_client(paths)
     kai = _build_kai(paths, client)
 
     console.print(f"[dim]Generating draft on '{topic[:60]}'...[/dim]")
