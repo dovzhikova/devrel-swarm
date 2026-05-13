@@ -727,6 +727,21 @@ class TestAtlasContentBriefAndDeliverables:
         assert brief["github_issues"][0]["number"] == 101
         assert brief["source_files"][0]["path"] == "frontend/src/sdk/init.ts"
 
+    def test_build_kai_task_requires_evidence_only_when_present(self):
+        brief_with_evidence = {
+            "github_issues": [{"number": 1}],
+            "source_files": [{"path": "x.py"}],
+        }
+        task = Atlas._build_kai_task(brief_with_evidence)
+        assert "Reference real GitHub issues" in task
+        assert "actual file paths" in task
+
+        brief_empty = {"github_issues": [], "source_files": []}
+        task = Atlas._build_kai_task(brief_empty)
+        # Without evidence, the task must NOT demand it (the bug PR #6 fixes).
+        assert "Avoid GitHub issue claims" in task
+        assert "Avoid source-code and file-path claims" in task
+
     def test_write_weekly_deliverables_persists_content_and_trace(
         self, posthog_client, knowledge_base_path, tmp_path
     ):

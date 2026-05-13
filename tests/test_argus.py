@@ -79,6 +79,33 @@ def test_recommendation_carries_source_ids():
     assert r.source_ids == ["blog/cli-launch"]
 
 
+def test_recommendation_normalizes_string_evidence_and_source_ids():
+    r = Recommendation(
+        action="rewrite",
+        target="blog/cli-launch",
+        target_type="content",
+        rationale="Weak hook.",
+        evidence="blog/cli-launch: p20",  # type: ignore[arg-type]
+        confidence=0.7,
+        source_ids="blog/cli-launch",  # type: ignore[arg-type]
+    )
+
+    report = PerformanceReport(
+        period_start=_utc(2026, 4, 25),
+        period_end=_utc(2026, 5, 2),
+        top_performers=[],
+        bottom_performers=[],
+        trend_signals="One strong signal",  # type: ignore[arg-type]
+        recommendations=[r],
+        sources_ok={"posthog": True},
+    )
+
+    payload = report.to_json()
+    assert payload["recommendations"][0]["evidence"] == ["blog/cli-launch: p20"]
+    assert payload["recommendations"][0]["source_ids"] == ["blog/cli-launch"]
+    assert payload["trend_signals"] == ["One strong signal"]
+
+
 @pytest.mark.asyncio
 async def test_argus_propagates_source_ids_from_llm_to_report():
     posthog = MagicMock()

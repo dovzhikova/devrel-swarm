@@ -203,7 +203,7 @@ async def test_low_persona_score_returns_to_copy_edit_once(tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_persona_fails_twice_logs_and_ships_flagged(tmp_path):
+async def test_persona_fails_twice_aborts_loud(tmp_path):
     paths = _project(tmp_path)
     client = MagicMock()
     client.set_agent = MagicMock()
@@ -225,12 +225,15 @@ async def test_persona_fails_twice_logs_and_ships_flagged(tmp_path):
 
     client.generate = AsyncMock(side_effect=_generate)
 
-    result = await run_pipeline(
-        initial_draft="x", content_type="tutorial", project_paths=paths, llm_client=client
-    )
-    # Both persona passes failed; result is flagged but still produced.
-    assert result.flagged is True
-    assert result.final_text  # not empty
+    from devrel_origin.quality.editorial import AbortLoud
+
+    with pytest.raises(AbortLoud, match="Persona gate failed after repair"):
+        await run_pipeline(
+            initial_draft="x",
+            content_type="tutorial",
+            project_paths=paths,
+            llm_client=client,
+        )
 
 
 @pytest.mark.asyncio

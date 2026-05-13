@@ -17,8 +17,8 @@ def _tables(conn: sqlite3.Connection) -> set[str]:
 
 
 class TestSchemaV5:
-    def test_schema_version_is_5(self):
-        assert state.SCHEMA_VERSION == 5
+    def test_schema_version_is_current(self):
+        assert state.SCHEMA_VERSION == 6
 
     def test_init_creates_seo_keyword_metrics(self, tmp_path: Path):
         db = tmp_path / "state.db"
@@ -161,13 +161,13 @@ class TestPillarColumns:
             assert row == ("argus", "content_id")
             # Schema version bumped
             cur = conn.execute("SELECT MAX(version) FROM schema_meta")
-            assert cur.fetchone()[0] == 5
+            assert cur.fetchone()[0] == state.SCHEMA_VERSION
 
     def test_migration_is_idempotent(self, tmp_path: Path):
-        """Running init_db twice on a v5 database is a no-op, not a crash."""
+        """Running init_db twice on a current-version database is a no-op, not a crash."""
         db = tmp_path / "state.db"
         state.init_db(db)
         state.init_db(db)  # second call must not fail
         with sqlite3.connect(db) as conn:
             cur = conn.execute("SELECT MAX(version) FROM schema_meta")
-            assert cur.fetchone()[0] == 5
+            assert cur.fetchone()[0] == state.SCHEMA_VERSION

@@ -13,6 +13,7 @@ import random
 import re
 import shutil
 import subprocess
+import time
 from contextlib import nullcontext as _nullcontext, suppress
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
@@ -675,6 +676,27 @@ class Atlas:
             ],
         }
 
+    @staticmethod
+    def _build_kai_task(content_brief: dict[str, Any]) -> str:
+        """Build Kai's task without turning absent evidence into requirements."""
+        has_issues = bool(content_brief.get("github_issues"))
+        has_source_files = bool(content_brief.get("source_files"))
+        issue_instruction = (
+            "Reference real GitHub issues from Sage's triage."
+            if has_issues
+            else "Avoid GitHub issue claims unless Sage supplied real issue evidence."
+        )
+        source_instruction = (
+            "Use actual file paths, commands, and APIs from the source code."
+            if has_source_files
+            else "Avoid source-code and file-path claims unless Dex supplied source evidence."
+        )
+        return (
+            "Write a technical tutorial addressing the #1 developer pain point. "
+            "Ground the content in the knowledge base and Dex's architecture analysis. "
+            f"{issue_instruction} {source_instruction}"
+        )
+
     def _slug(self, value: str, fallback: str) -> str:
         slug = re.sub(r"[^a-z0-9]+", "-", value.lower()).strip("-")
         return slug[:80] or fallback
@@ -734,12 +756,37 @@ class Atlas:
         the last completed checkpoint instead of re-running everything.
         Produces a run report with timing, cost, and quality data.
         """
-        from devrel_origin.tools.run_report import RunReport
+        from devrel_origin.tools.run_report import AgentTiming, RunReport
 
         run_report = RunReport(
             week_of=self.context.week_of,
             started_at=datetime.now().isoformat(),
         )
+
+        async def timed_delegate(
+            stage: int,
+            agent_name: str,
+            task: str,
+            context: Optional[dict[str, Any]] = None,
+        ) -> DelegationResult:
+            started_at = datetime.now(timezone.utc)
+            t0 = time.monotonic()
+            result = await self.delegate(agent_name, task, context)
+            completed_at = datetime.now(timezone.utc)
+            run_report.agent_timings.append(
+                AgentTiming(
+                    agent=agent_name,
+                    stage=stage,
+                    started_at=started_at.isoformat(),
+                    completed_at=completed_at.isoformat(),
+                    duration_seconds=time.monotonic() - t0,
+                    success=result.success,
+                    error=result.error or "",
+                )
+            )
+            if not result.success and result.error:
+                run_report.errors.append(f"{agent_name}: {result.error}")
+            return result
 
         # Check for existing checkpoint to resume from
         checkpoint = self._load_checkpoint(self.archive_dir, self.context.week_of)
@@ -765,7 +812,8 @@ class Atlas:
 
         # Stage 0: Watchdog health check (pre-flight)
         if resume_stage <= 0 and "watchdog" not in completed_agents:
-            watchdog_result = await self.delegate(
+            watchdog_result = await timed_delegate(
+                0,
                 "watchdog",
                 "Run system health check. Verify all integrations are "
                 "reachable and check for stale agent outputs from last cycle.",
@@ -793,7 +841,7 @@ class Atlas:
                         "Produce an architecture overview and API reference."
                     ),
                 }
-                coros = [self.delegate(a, tasks_1[a]) for a in stage_1_pending]
+                coros = [timed_delegate(1, a, tasks_1[a]) for a in stage_1_pending]
                 results = await asyncio.gather(*coros)
                 for agent_name, res in zip(stage_1_pending, results, strict=True):
                     if res.success:
@@ -822,7 +870,7 @@ class Atlas:
                         "severity."
                     ),
                 }
-                coros = [self.delegate(a, tasks_2[a]) for a in stage_2_pending]
+                coros = [timed_delegate(2, a, tasks_2[a]) for a in stage_2_pending]
                 results = await asyncio.gather(*coros)
                 for agent_name, res in zip(stage_2_pending, results, strict=True):
                     if res.success:
@@ -838,21 +886,17 @@ class Atlas:
             stage_3_agents = ["nova", "kai"]
             stage_3_pending = [a for a in stage_3_agents if a not in completed_agents]
             if stage_3_pending:
+                content_brief = self._build_content_brief()
                 tasks_3 = {
                     "nova": (
                         "Design activation experiments based on the top pain points. "
                         "Include pre-registration, power analysis, and success criteria."
                     ),
-                    "kai": (
-                        "Write a technical tutorial addressing the #1 developer pain point. "
-                        "Ground the content in the knowledge base and Dex's architecture "
-                        "analysis. Reference real GitHub issues from Sage's triage. "
-                        "Use actual file paths, commands, and APIs from the source code."
-                    ),
+                    "kai": self._build_kai_task(content_brief),
                 }
-                content_brief = self._build_content_brief()
                 coros = [
-                    self.delegate(
+                    timed_delegate(
+                        3,
                         a,
                         tasks_3[a],
                         context={"content_brief": content_brief} if a == "kai" else None,
@@ -871,7 +915,8 @@ class Atlas:
 
         # Stage 4: Vox (uses Kai's content)
         if resume_stage <= 4 and "vox" not in completed_agents:
-            video_result = await self.delegate(
+            video_result = await timed_delegate(
+                4,
                 "vox",
                 "Generate a video tutorial from Kai's written content. "
                 "Record screen walkthrough with narration and overlays.",
@@ -883,7 +928,8 @@ class Atlas:
 
         # Stage 5: Sentinel brand audit — audit all generated content
         if resume_stage <= 5 and "sentinel" not in completed_agents:
-            sentinel_result = await self.delegate(
+            sentinel_result = await timed_delegate(
+                5,
                 "sentinel",
                 "Audit all generated content for brand voice consistency, "
                 "ICP alignment, messaging coherence, and technical accuracy.",

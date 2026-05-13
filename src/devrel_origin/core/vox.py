@@ -44,6 +44,40 @@ def _check_playwright() -> bool:
         return False
 
 
+def _missing_video_dependencies(
+    *,
+    has_ffmpeg: bool,
+    has_playwright: bool,
+    has_openai_key: bool,
+) -> list[dict[str, str]]:
+    missing: list[dict[str, str]] = []
+    if not has_ffmpeg:
+        missing.append(
+            {
+                "name": "ffmpeg",
+                "fix": "Install FFmpeg, for example `brew install ffmpeg` on macOS.",
+            }
+        )
+    if not has_playwright:
+        missing.append(
+            {
+                "name": "playwright",
+                "fix": (
+                    "Install video extras and browsers: "
+                    "`pip install 'devrel-origin[video]' && python -m playwright install chromium`."
+                ),
+            }
+        )
+    if not has_openai_key:
+        missing.append(
+            {
+                "name": "OPENAI_API_KEY",
+                "fix": "Set `OPENAI_API_KEY` or run `devrel auth` before rendering video.",
+            }
+        )
+    return missing
+
+
 class Vox:
     """
     Video Tutorial agent that produces screen-recorded tutorials.
@@ -94,7 +128,11 @@ Keep narration concise and developer-focused. Show, don't tell."""
         if not self._has_ffmpeg:
             logger.warning("FFmpeg not found — video rendering will be skipped")
         if not self._has_playwright:
-            logger.warning("Playwright not installed — recording will be skipped")
+            logger.warning(
+                "Playwright not installed — recording will be skipped. "
+                "Install video extras and browsers: `pip install 'devrel-origin[video]' "
+                "&& python -m playwright install chromium`."
+            )
 
     async def execute(
         self,
@@ -170,17 +208,29 @@ Keep narration concise and developer-focused. Show, don't tell."""
             "status": "script_only",
         }
 
-        can_render = self._has_ffmpeg and self._has_playwright and self.openai_api_key
+        missing_dependencies = _missing_video_dependencies(
+            has_ffmpeg=self._has_ffmpeg,
+            has_playwright=self._has_playwright,
+            has_openai_key=bool(self.openai_api_key),
+        )
+        result["video_produced"] = False
+        result["recording_skipped"] = bool(missing_dependencies)
+        result["missing_dependencies"] = missing_dependencies
+
+        can_render = not missing_dependencies
         if can_render:
             try:
                 output_path = await self._run_full_pipeline(tutorial)
                 result["status"] = "generated"
                 result["output_path"] = str(output_path)
                 result["total_duration"] = tutorial.total_duration
+                result["video_produced"] = True
+                result["recording_skipped"] = False
             except Exception as exc:
                 logger.error(f"Video pipeline failed: {exc}")
                 result["status"] = "script_only"
                 result["pipeline_error"] = str(exc)
+                result["recording_skipped"] = True
 
         return result
 

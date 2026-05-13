@@ -47,7 +47,20 @@ def make_atlas(
     tmp_path: Path,
 ) -> Atlas:
     """Create a fully-wired Atlas instance with all mocks injected."""
-    mock_llm_client.generate = AsyncMock(return_value=IRIS_THEMES_JSON)
+
+    # generate() is dispatched to either Iris theme extraction or quality-pipeline
+    # sub-stages (slop linter, persona scorer). Editorial now raises AbortLoud on
+    # second persona failure, so the persona prompt must return a passing score
+    # for the cycle to produce content end-to-end.
+    async def _generate(*args, **kwargs):
+        system_prompt = kwargs.get("system_prompt", "") or (args[0] if args else "")
+        if "skeptical senior backend developer" in system_prompt:
+            return '{"score": 8, "weak_sections": [], "feedback": "ok"}'
+        if "screening AI-written content" in system_prompt:
+            return ""
+        return IRIS_THEMES_JSON
+
+    mock_llm_client.generate = AsyncMock(side_effect=_generate)
     # Editorial pipeline stages call generate_with_revision per stage; without
     # a real return tuple, Kai's content path crashes with a tuple-unpack
     # ValueError, leaving kai_content with status="error" and content="".
