@@ -311,7 +311,8 @@ class CodeValidator:
                     "wbr",
                 }
 
-            def handle_starttag(self, tag, attrs):
+            def handle_starttag(self, tag, _attrs):
+                # _attrs is required by HTMLParser's interface but unused here.
                 if tag.lower() not in self.void_tags:
                     self.stack.append(tag.lower())
 

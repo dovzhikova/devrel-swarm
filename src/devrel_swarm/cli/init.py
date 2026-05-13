@@ -13,6 +13,8 @@ from __future__ import annotations
 
 import asyncio
 import os
+import re
+import shutil
 import stat
 import subprocess
 from pathlib import Path
@@ -25,6 +27,81 @@ from devrel_swarm.project.init import InitOptions, init_project
 from devrel_swarm.project.paths import ProjectPaths
 
 console = Console()
+
+
+def _detect_github_repo() -> str:
+    """Read `git remote get-url origin` and normalize to `owner/name`.
+
+    Returns the empty string if cwd is not a git repo, has no origin, or the
+    remote URL isn't recognizable as GitHub. Pure read — never writes.
+    """
+    try:
+        result = subprocess.run(
+            ["git", "remote", "get-url", "origin"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+            check=False,
+        )
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        return ""
+    if result.returncode != 0:
+        return ""
+    url = result.stdout.strip()
+    # Matches:
+    #   git@github.com:owner/repo.git
+    #   git@github.com:owner/repo
+    #   https://github.com/owner/repo.git
+    #   https://github.com/owner/repo
+    #   ssh://git@github.com/owner/repo.git
+    match = re.search(r"github\.com[:/]([^/\s]+/[^/\s]+?)(?:\.git)?/?$", url)
+    return match.group(1) if match else ""
+
+
+def _pick_editor() -> str:
+    """Return the editor to launch, preferring user-friendly options over vi.
+
+    Order: $VISUAL → $EDITOR → first installed of {nano, micro, code} → vi as
+    POSIX fallback. The wizard mentions the chosen editor by name so the user
+    is never surprised by a vi prompt without knowing how to escape it.
+    """
+    for env_var in ("VISUAL", "EDITOR"):
+        candidate = os.environ.get(env_var, "").strip()
+        if candidate:
+            return candidate
+    for friendly in ("nano", "micro", "code"):
+        if shutil.which(friendly):
+            return friendly
+    return "vi"
+
+
+_CONTENT_TYPES: tuple[str, ...] = (
+    "tutorial",
+    "blog_post",
+    "landing_page",
+    "cold_email",
+    "battle_card",
+)
+
+
+def _pick_content_type() -> str:
+    """Numbered picker for content type. Free-text was a typo magnet
+    ('bblog_post' got past validation in real user testing 2026-05-13)."""
+    console.print("Content type:")
+    for i, ct in enumerate(_CONTENT_TYPES, start=1):
+        console.print(f"  [bold]{i}[/bold]) {ct}")
+    while True:
+        choice = typer.prompt(f"Pick [1-{len(_CONTENT_TYPES)}]", default="1").strip()
+        # Accept either the number or the name itself (handy for muscle memory).
+        if choice in _CONTENT_TYPES:
+            return choice
+        if choice.isdigit():
+            idx = int(choice) - 1
+            if 0 <= idx < len(_CONTENT_TYPES):
+                return _CONTENT_TYPES[idx]
+        console.print(
+            f"[yellow]Pick 1-{len(_CONTENT_TYPES)} or one of: {', '.join(_CONTENT_TYPES)}.[/yellow]"
+        )
 
 
 def init_command(
@@ -43,8 +120,8 @@ def init_command(
     github_repo: str = typer.Option(
         "",
         "--github-repo",
-        prompt="GitHub repo as 'owner/name' (or empty)",
-        help="Optional. Used by Sage for issue triage.",
+        help="Optional. Used by Sage for issue triage. Auto-detected from "
+        "`git remote get-url origin` when run inside a GitHub working copy.",
     ),
     dry_run: bool = typer.Option(
         False,
@@ -82,6 +159,23 @@ def init_command(
     if non_interactive and not name:
         console.print("[red]--non-interactive requires --name.[/red]")
         raise typer.Exit(code=2)
+
+    # github_repo: prefer --github-repo flag; else auto-detect from
+    # `git remote get-url origin` and offer as a prompt default. CI shape
+    # (--non-interactive) skips both the prompt and the detection.
+    if not github_repo and not non_interactive:
+        detected = _detect_github_repo()
+        if detected:
+            github_repo = typer.prompt(
+                "GitHub repo as 'owner/name' (detected from origin)",
+                default=detected,
+            ).strip()
+        else:
+            github_repo = typer.prompt(
+                "GitHub repo as 'owner/name' (or empty)",
+                default="",
+                show_default=False,
+            ).strip()
 
     opts = InitOptions(
         name=name,
@@ -260,8 +354,9 @@ def _step_edit_voice(paths: ProjectPaths) -> None:
         "Drop 3-5 short sample passages from your best published content into "
         "[cyan]voice.md[/cyan]. The persona pass + Sentinel use them to detect drift."
     )
+    editor = _pick_editor()
     do_edit = typer.confirm(
-        f"Open .devrel/voice.md in {os.environ.get('EDITOR', 'vi')} now?",
+        f"Open .devrel/voice.md in {editor} now?",
         default=True,
     )
     if not do_edit:
@@ -271,13 +366,12 @@ def _step_edit_voice(paths: ProjectPaths) -> None:
         )
         return
 
-    editor = os.environ.get("EDITOR", "vi")
     try:
         subprocess.run([editor, str(paths.voice_file)], check=False)
     except FileNotFoundError:
         console.print(
             f"[yellow]Editor [/yellow][cyan]{editor}[/cyan][yellow] not found. "
-            f"Edit .devrel/voice.md manually later.[/yellow]"
+            f"Set $EDITOR or edit .devrel/voice.md manually later.[/yellow]"
         )
         return
     console.print(
@@ -308,13 +402,7 @@ def _step_first_draft(paths: ProjectPaths) -> None:
         _print_done_summary(paths)
         return
 
-    content_type = (
-        typer.prompt(
-            "Content type (tutorial / blog_post / landing_page / cold_email / battle_card)",
-            default="tutorial",
-        ).strip()
-        or "tutorial"
-    )
+    content_type = _pick_content_type()
 
     # Build Kai inline using the same wiring as `devrel content draft`. We
     # call into the existing draft_command via Typer's invocation mechanism

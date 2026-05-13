@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "devrel-swarm"
-version = "0.2.12"
-description = "A 13-agent CLI that runs DevRel, sales, and marketing on your repo. BYO Anthropic key."
+version = "0.2.13"
+description = "A 15-agent CLI that runs DevRel, sales, and marketing on your repo. BYO Anthropic or OpenRouter key."
 readme = "README.md"
 requires-python = ">=3.12"
 license = "MIT"
@@ -51,6 +51,9 @@ dependencies = [
     "typer>=0.12.0",
     "rich>=13.7.0",
     "tomli-w>=1.0.0",
+    # Pin urllib3 above the v2.6.x CVE pair (CVE-2026-44431, CVE-2026-44432).
+    # Otherwise pulled transitively via httpx/PyGithub at the vulnerable range.
+    "urllib3>=2.7.0",
 ]
 
 [project.optional-dependencies]

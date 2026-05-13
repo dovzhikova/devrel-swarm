@@ -1,5 +1,62 @@
 # Changelog
 
+## 0.2.13: Wizard UX fixes from real user testing + audit hygiene (2026-05-13)
+
+Real-user testing on v0.2.12 surfaced three onboarding bugs and one
+release-blocker. v0.2.13 fixes all four plus the recommendations from a
+full pre-rename audit.
+
+### Fixed
+
+- **Wizard's first-draft step crashed with `ANTHROPIC_API_KEY is required`
+  even when `OPENROUTER_API_KEY` was configured.** v0.2.12 shipped the
+  wizard before PR #3's `_build_llm_client(paths)` signature change, so
+  the wizard's call to `_build_llm_client()` (no args) hit the
+  Anthropic-only legacy code path. Fixed in PR #3 via `77cd67a`, but
+  PR #3 wasn't tagged. v0.2.13 finally ships the fix to PyPI.
+- **`devrel init` asked for `github-repo` even when run inside a git
+  working copy.** Now auto-detects from `git remote get-url origin`,
+  parses `https://github.com/...` and `git@github.com:...` URLs, and
+  offers the result as a prompt default (still empty-acceptable).
+- **Vi as the default editor for the voice-edit step was a known
+  onboarding killer.** New `_pick_editor()` helper: $VISUAL → $EDITOR →
+  first installed of {nano, micro, code} → vi as POSIX last resort. The
+  wizard names the chosen editor in the prompt so users aren't surprised.
+- **Content-type prompt accepted typos.** Real user typed `bblog_post`
+  in 2026-05-13 testing and it silently became the content type. Now a
+  numbered picker (`1) tutorial 2) blog_post 3) landing_page 4) cold_email
+  5) battle_card`) that accepts both numbers and exact names; rejects
+  typos and reprompts.
+
+### Security
+
+- **`urllib3>=2.7.0`** pinned in core deps to mitigate CVE-2026-44431
+  and CVE-2026-44432 (transitively pulled via httpx + PyGithub at the
+  vulnerable v2.6.x range).
+
+### Internal
+
+- `pyproject.toml` description: "13-agent CLI ... BYO Anthropic key" →
+  "15-agent CLI ... BYO Anthropic or OpenRouter key" (Cyra was added
+  after the original count, OpenRouter has been supported since v0.2.8).
+- `CLAUDE.md` agent count refreshed (13 → 15) and CLI verb count
+  refreshed (18 → 24, adds: auth, migrate, growth, cro, argus, analytics).
+- `tools/code_validator.py:314`: rename `attrs` → `_attrs` (HTMLParser
+  interface requires the param even when unused). Suppresses the vulture
+  100% false positive.
+- 10 new tests in `tests/cli/test_init_command.py` covering
+  `_detect_github_repo` (https/ssh/non-github/non-repo), `_pick_editor`
+  ($VISUAL precedence, friendly fallback, vi last resort), and
+  `_pick_content_type` (number, name, typo + reprompt).
+- Suite at 1018 passed, ruff + format clean.
+
+### Deferred
+
+- Promoting 3 private cross-module imports (`cli/init.py` → `cli/doctor.py`
+  + `cli/content.py`, `cli/content.py` → `cli/_common.py`) to public
+  helpers. Architecturally right but mechanical scope across 4 test files.
+  Tracked for v0.2.14.
+
 ## 0.2.12: Onboarding overhaul (2026-05-11)
 
 ### Added

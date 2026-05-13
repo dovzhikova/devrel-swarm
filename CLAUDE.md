@@ -4,7 +4,7 @@
 
 ## Identity
 
-This is **`devrel-swarm`**, a `pipx`-installable Python CLI that runs a 13-agent DevRel + Sales + Marketing system against any project repo. Operates on `cwd` like `git` / `npm` — `devrel init` scaffolds a `.devrel/` directory with config, voice/style/slop files, knowledge base, and state DB. Every CLI verb (`devrel run`, `devrel content draft`, `devrel triage`, etc.) wraps a single-agent or pipeline call.
+This is **`devrel-swarm`**, a `pipx`-installable Python CLI that runs a 15-agent DevRel + Sales + Marketing system against any project repo. Operates on `cwd` like `git` / `npm` — `devrel init` scaffolds a `.devrel/` directory with config, voice/style/slop files, knowledge base, and state DB. Every CLI verb (`devrel run`, `devrel content draft`, `devrel triage`, etc.) wraps a single-agent or pipeline call.
 
 Every piece of content flows through an 8-stage editorial quality pipeline (`quality.editorial.run_pipeline`) before being shipped: developmental edit → line edit → copy edit → anti-slop → reader-persona → readability → brand audit.
 
@@ -14,7 +14,7 @@ The system is retargetable per project: each `.devrel/config.toml` carries the p
 
 ## Architecture
 
-Hub-and-spoke with 13 agents. Atlas orchestrates, 12 specialists execute across three pipelines.
+Hub-and-spoke with 15 agents. Atlas orchestrates, 14 specialists execute across the pipelines.
 
 ```
 Atlas (Orchestrator)
@@ -144,16 +144,18 @@ src/devrel_swarm/tools/
                       Each isolates failures (returns []), Argus marks sources_ok.
   mcp_server.py     — MCP server. 14 tools via JSON-RPC over stdio transport.
 
-src/devrel_swarm/cli/      Typer app + per-command modules. 18 verb
-                           modules wired into a single Typer app.
+src/devrel_swarm/cli/      Typer app + per-command modules. 24 verb / verb-
+                           group modules wired into a single Typer app.
 src/devrel_swarm/cli/_common.py    Shared CLI helpers (find_paths_or_exit,
-                                   build_atlas_or_exit, render_result).
-src/devrel_swarm/cli/run.py + 17 more  One file per verb / verb group:
-                                   init, doctor, run, triage, listen,
-                                   synthesize, experiment, intel, cost,
-                                   content, sales, marketing, kb,
-                                   schedule, deliverables, config, docs,
-                                   video.
+                                   build_atlas_or_exit, render_result,
+                                   _build_llm_client, _load_project_env).
+src/devrel_swarm/cli/run.py + 23 more  One file per verb / verb group:
+                                   init, auth, doctor, migrate, run,
+                                   triage, listen, synthesize, experiment,
+                                   intel, cost, content, sales, marketing,
+                                   kb, schedule, deliverables, config,
+                                   docs, video, growth, cro, argus,
+                                   analytics.
 src/devrel_swarm/project/  Project bootstrap. paths.py walks cwd to find
                            .devrel/. config.py loads config.toml. state.py
                            manages SQLite state DB. init.py scaffolds

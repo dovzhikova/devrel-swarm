@@ -205,10 +205,122 @@ def test_init_chain_skip_draft_stops_before_llm_call(mock_subproc, tmp_path):
             os.chdir(cwd)
         assert result.exit_code == 0, result.output
         assert "Skipped first draft" in result.output
-        # Editor invoked.
-        mock_subproc.assert_called_once()
+        # Editor invoked. Note subprocess.run also fires for `git remote get-url`
+        # during the github_repo auto-detection in init_command, so we assert the
+        # editor call specifically rather than total call count.
+        editor_calls = [
+            c
+            for c in mock_subproc.call_args_list
+            if c.args and c.args[0] and c.args[0][-1].endswith("voice.md")
+        ]
+        assert len(editor_calls) == 1, mock_subproc.call_args_list
         # Kai never built (no LLM call).
         mock_build_kai.assert_not_called()
+
+
+# --- Helpers added in v0.2.13 (real-user-feedback fixes) ------------------
+#
+# - github_repo auto-detect from `git remote get-url origin` so the wizard
+#   doesn't ask for what it can read.
+# - editor fallback prefers nano/micro/code over vi (vi-trap is a known
+#   onboarding killer).
+# - content type is a numbered picker, not a free-text typo magnet
+#   (real user typed "bblog_post" in 2026-05-13 testing).
+
+
+def test_detect_github_repo_parses_https_url(tmp_path, monkeypatch):
+    from devrel_swarm.cli.init import _detect_github_repo
+
+    monkeypatch.chdir(tmp_path)
+    with patch("devrel_swarm.cli.init.subprocess.run") as mock_run:
+        mock_run.return_value = MagicMock(
+            returncode=0,
+            stdout="https://github.com/dovzhikova/devrel-swarm.git\n",
+        )
+        assert _detect_github_repo() == "dovzhikova/devrel-swarm"
+
+
+def test_detect_github_repo_parses_ssh_url(tmp_path, monkeypatch):
+    from devrel_swarm.cli.init import _detect_github_repo
+
+    monkeypatch.chdir(tmp_path)
+    with patch("devrel_swarm.cli.init.subprocess.run") as mock_run:
+        mock_run.return_value = MagicMock(returncode=0, stdout="git@github.com:owner/repo.git\n")
+        assert _detect_github_repo() == "owner/repo"
+
+
+def test_detect_github_repo_returns_empty_for_non_github(tmp_path, monkeypatch):
+    from devrel_swarm.cli.init import _detect_github_repo
+
+    monkeypatch.chdir(tmp_path)
+    with patch("devrel_swarm.cli.init.subprocess.run") as mock_run:
+        mock_run.return_value = MagicMock(returncode=0, stdout="git@gitlab.com:owner/repo.git\n")
+        assert _detect_github_repo() == ""
+
+
+def test_detect_github_repo_returns_empty_when_not_a_repo(tmp_path, monkeypatch):
+    from devrel_swarm.cli.init import _detect_github_repo
+
+    monkeypatch.chdir(tmp_path)
+    with patch("devrel_swarm.cli.init.subprocess.run") as mock_run:
+        mock_run.return_value = MagicMock(returncode=128, stdout="")
+        assert _detect_github_repo() == ""
+
+
+def test_pick_editor_prefers_visual_then_editor(monkeypatch):
+    from devrel_swarm.cli.init import _pick_editor
+
+    monkeypatch.setenv("VISUAL", "code")
+    monkeypatch.setenv("EDITOR", "vim")
+    assert _pick_editor() == "code"
+    monkeypatch.delenv("VISUAL")
+    assert _pick_editor() == "vim"
+
+
+def test_pick_editor_falls_back_to_friendly_when_env_unset(monkeypatch):
+    from devrel_swarm.cli.init import _pick_editor
+
+    monkeypatch.delenv("VISUAL", raising=False)
+    monkeypatch.delenv("EDITOR", raising=False)
+    # Force `nano` discoverable — common case on macOS / Debian / Ubuntu.
+    with patch(
+        "devrel_swarm.cli.init.shutil.which",
+        side_effect=lambda c: "/usr/bin/nano" if c == "nano" else None,
+    ):
+        assert _pick_editor() == "nano"
+
+
+def test_pick_editor_falls_back_to_vi_as_last_resort(monkeypatch):
+    from devrel_swarm.cli.init import _pick_editor
+
+    monkeypatch.delenv("VISUAL", raising=False)
+    monkeypatch.delenv("EDITOR", raising=False)
+    with patch("devrel_swarm.cli.init.shutil.which", return_value=None):
+        assert _pick_editor() == "vi"
+
+
+def test_pick_content_type_accepts_number():
+    import devrel_swarm.cli.init as init_mod
+
+    with patch.object(init_mod.typer, "prompt", return_value="2"):
+        assert init_mod._pick_content_type() == "blog_post"
+
+
+def test_pick_content_type_accepts_name():
+    import devrel_swarm.cli.init as init_mod
+
+    with patch.object(init_mod.typer, "prompt", return_value="cold_email"):
+        assert init_mod._pick_content_type() == "cold_email"
+
+
+def test_pick_content_type_rejects_typo_and_reprompts():
+    """Real bug from 2026-05-13 testing: 'bblog_post' typo got past free-text
+    prompt and silently flowed into Kai as the content type. Numbered picker
+    rejects bad input and re-asks until valid."""
+    import devrel_swarm.cli.init as init_mod
+
+    with patch.object(init_mod.typer, "prompt", side_effect=["bblog_post", "2"]):
+        assert init_mod._pick_content_type() == "blog_post"
 
 
 @patch("devrel_swarm.cli.init.subprocess.run")
