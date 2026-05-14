@@ -15,7 +15,7 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Iterator
 
-SCHEMA_VERSION = 5
+SCHEMA_VERSION = 6
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS schema_meta (
@@ -159,7 +159,54 @@ CREATE TABLE IF NOT EXISTS cro_funnel_metrics (
 
 CREATE INDEX IF NOT EXISTS idx_cro_funnel_period
     ON cro_funnel_metrics(funnel_id, period_end DESC);
+
+CREATE TABLE IF NOT EXISTS social_mentions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    platform TEXT NOT NULL,
+    post_id TEXT NOT NULL,
+    title TEXT,
+    url TEXT,
+    author TEXT,
+    content TEXT,
+    sentiment TEXT,
+    posted_at TEXT NOT NULL,
+    subreddit TEXT,
+    upvotes INTEGER NOT NULL DEFAULT 0,
+    comments INTEGER NOT NULL DEFAULT 0,
+    engagement_score REAL NOT NULL DEFAULT 0,
+    is_own_post INTEGER NOT NULL DEFAULT 0,
+    is_question INTEGER NOT NULL DEFAULT 0,
+    requires_response INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    UNIQUE (platform, post_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_social_mentions_posted_at
+    ON social_mentions(posted_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_social_mentions_own_period
+    ON social_mentions(is_own_post, posted_at DESC);
 """
+
+
+_SOCIAL_MENTIONS_COLUMNS: dict[str, str] = {
+    "platform": "TEXT NOT NULL DEFAULT ''",
+    "post_id": "TEXT NOT NULL DEFAULT ''",
+    "title": "TEXT",
+    "url": "TEXT",
+    "author": "TEXT",
+    "content": "TEXT",
+    "sentiment": "TEXT",
+    "posted_at": "TEXT NOT NULL DEFAULT ''",
+    "subreddit": "TEXT",
+    "upvotes": "INTEGER NOT NULL DEFAULT 0",
+    "comments": "INTEGER NOT NULL DEFAULT 0",
+    "engagement_score": "REAL NOT NULL DEFAULT 0",
+    "is_own_post": "INTEGER NOT NULL DEFAULT 0",
+    "is_question": "INTEGER NOT NULL DEFAULT 0",
+    "requires_response": "INTEGER NOT NULL DEFAULT 0",
+    "created_at": "TEXT NOT NULL DEFAULT ''",
+}
 
 
 def _migrate_to_v5(conn: sqlite3.Connection) -> None:
@@ -200,6 +247,67 @@ def _migrate_to_v5(conn: sqlite3.Connection) -> None:
     )
 
 
+def _migrate_to_v6(conn: sqlite3.Connection) -> None:
+    """Ensure Echo/Argus social mention storage exists and has v6 columns."""
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS social_mentions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            platform TEXT NOT NULL,
+            post_id TEXT NOT NULL,
+            title TEXT,
+            url TEXT,
+            author TEXT,
+            content TEXT,
+            sentiment TEXT,
+            posted_at TEXT NOT NULL,
+            subreddit TEXT,
+            upvotes INTEGER NOT NULL DEFAULT 0,
+            comments INTEGER NOT NULL DEFAULT 0,
+            engagement_score REAL NOT NULL DEFAULT 0,
+            is_own_post INTEGER NOT NULL DEFAULT 0,
+            is_question INTEGER NOT NULL DEFAULT 0,
+            requires_response INTEGER NOT NULL DEFAULT 0,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            UNIQUE (platform, post_id)
+        )
+        """
+    )
+    cur = conn.execute("PRAGMA table_info(social_mentions)")
+    cols = {row[1] for row in cur.fetchall()}
+    for col, ddl in _SOCIAL_MENTIONS_COLUMNS.items():
+        if col not in cols:
+            conn.execute(f"ALTER TABLE social_mentions ADD COLUMN {col} {ddl}")
+
+    cols = {row[1] for row in conn.execute("PRAGMA table_info(social_mentions)").fetchall()}
+    if "score" in cols:
+        conn.execute(
+            "UPDATE social_mentions "
+            "SET engagement_score = COALESCE(NULLIF(engagement_score, 0), score, 0)"
+        )
+    if "engagement" in cols:
+        conn.execute(
+            "UPDATE social_mentions "
+            "SET engagement_score = COALESCE(NULLIF(engagement_score, 0), engagement, 0), "
+            "    upvotes = COALESCE(NULLIF(upvotes, 0), engagement, 0)"
+        )
+    if "url" in cols:
+        fallback_id = "CAST(id AS TEXT)" if "id" in cols else "rowid"
+        conn.execute(
+            "UPDATE social_mentions "
+            f"SET post_id = COALESCE(NULLIF(post_id, ''), NULLIF(url, ''), {fallback_id}) "
+            "WHERE post_id IS NULL OR post_id = ''"
+        )
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_social_mentions_posted_at "
+        "ON social_mentions(posted_at DESC)"
+    )
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_social_mentions_own_period "
+        "ON social_mentions(is_own_post, posted_at DESC)"
+    )
+
+
 def init_db(db_path: Path) -> None:
     """Create the DB file and apply the schema. Idempotent: preserves
     existing data and bumps schema_meta to the current SCHEMA_VERSION."""
@@ -207,6 +315,7 @@ def init_db(db_path: Path) -> None:
     with sqlite3.connect(db_path) as conn:
         conn.executescript(SCHEMA)
         _migrate_to_v5(conn)
+        _migrate_to_v6(conn)
         conn.execute(
             "INSERT OR REPLACE INTO schema_meta (version, applied_at) VALUES (?, datetime('now'))",
             (SCHEMA_VERSION,),

@@ -316,7 +316,23 @@ class TestVideoAssembler:
 # Vox agent integration tests
 # ---------------------------------------------------------------------------
 
-from devrel_origin.core.vox import Vox
+from devrel_origin.core.vox import Vox, _missing_video_dependencies
+
+
+def test_missing_video_dependencies_lists_each_gap():
+    missing = _missing_video_dependencies(
+        has_ffmpeg=False, has_playwright=False, has_openai_key=False
+    )
+    names = [item["name"] for item in missing]
+    assert names == ["ffmpeg", "playwright", "OPENAI_API_KEY"]
+    # Each entry has a `fix` field with actionable guidance.
+    assert all(item.get("fix") for item in missing)
+
+
+def test_missing_video_dependencies_empty_when_everything_present():
+    assert (
+        _missing_video_dependencies(has_ffmpeg=True, has_playwright=True, has_openai_key=True) == []
+    )
 
 
 class TestVoxAgent:

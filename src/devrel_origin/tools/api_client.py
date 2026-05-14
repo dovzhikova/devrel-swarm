@@ -10,6 +10,7 @@ reference purposes.
 
 import logging
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from typing import Any, Optional
 
 import httpx
@@ -23,6 +24,46 @@ logger = logging.getLogger(__name__)
 DEFAULT_HOST = "https://app.posthog.com"
 API_TIMEOUT = 30.0
 MAX_RETRIES = 2
+
+
+def _format_hogql_datetime(value: datetime | str) -> str:
+    if isinstance(value, datetime):
+        if value.tzinfo is not None:
+            value = value.astimezone(timezone.utc)
+        return value.isoformat(timespec="seconds").replace("+00:00", "Z")
+    return str(value)
+
+
+def _hogql_string(value: str) -> str:
+    return "'" + value.replace("'", "''") + "'"
+
+
+def _rows_to_url_metrics(rows: list[Any]) -> list[dict[str, Any]]:
+    normalized: list[dict[str, Any]] = []
+    for row in rows:
+        if isinstance(row, dict):
+            url = row.get("url") or row.get("current_url") or ""
+            title = row.get("title") or ""
+            page_views = row.get("page_views") or row.get("count") or 0
+            unique_visitors = row.get("unique_visitors") or row.get("persons") or 0
+        elif isinstance(row, (list, tuple)) and len(row) >= 4:
+            url, title, page_views, unique_visitors = row[:4]
+        elif isinstance(row, (list, tuple)) and len(row) >= 3:
+            url, page_views, unique_visitors = row[:3]
+            title = ""
+        else:
+            continue
+        if not url:
+            continue
+        normalized.append(
+            {
+                "url": str(url),
+                "title": str(title or ""),
+                "page_views": page_views,
+                "unique_visitors": unique_visitors,
+            }
+        )
+    return normalized
 
 
 # ---------------------------------------------------------------------------
@@ -191,6 +232,50 @@ class PostHogClient:
     async def query_insights(self, query: InsightQuery) -> dict[str, Any]:
         """Run an insight query (trends, funnels, retention, etc.)."""
         return await self._request("POST", "/insights/", json=query.to_dict())
+
+    async def fetch_events_by_url(
+        self,
+        *,
+        start: datetime | str,
+        end: datetime | str,
+        limit: int = 100,
+    ) -> list[dict[str, Any]]:
+        """Return page-view counts grouped by current URL for Argus.
+
+        The Argus PostHog collector expects rows shaped as
+        ``url/title/page_views/unique_visitors``. PostHog's query API returns
+        positional rows for HogQL, so normalize that response here and keep the
+        collector independent of the wire format.
+        """
+
+        safe_limit = max(1, min(int(limit), 1000))
+        start_sql = _hogql_string(_format_hogql_datetime(start))
+        end_sql = _hogql_string(_format_hogql_datetime(end))
+        query = f"""
+SELECT
+    coalesce(
+        nullIf(toString(properties.$current_url), ''),
+        nullIf(toString(properties.$pathname), ''),
+        nullIf(toString(properties.$host), '')
+    ) AS url,
+    any(nullIf(toString(properties.$title), '')) AS title,
+    count() AS page_views,
+    count(DISTINCT person_id) AS unique_visitors
+FROM events
+WHERE event = '$pageview'
+  AND timestamp >= toDateTime({start_sql})
+  AND timestamp <= toDateTime({end_sql})
+GROUP BY url
+HAVING url != ''
+ORDER BY page_views DESC
+LIMIT {safe_limit}
+""".strip()
+        data = await self._request(
+            "POST",
+            "/query/",
+            json={"query": {"kind": "HogQLQuery", "query": query}},
+        )
+        return _rows_to_url_metrics(data.get("results", []))
 
     async def get_insight(self, insight_id: int) -> dict[str, Any]:
         """Fetch a saved insight by ID."""

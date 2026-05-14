@@ -55,6 +55,8 @@ class RunReport:
                 {
                     "agent": t.agent,
                     "stage": t.stage,
+                    "started_at": t.started_at,
+                    "completed_at": t.completed_at,
                     "duration_seconds": round(t.duration_seconds, 1),
                     "success": t.success,
                     "error": t.error,
@@ -111,6 +113,8 @@ class RunReport:
                 AgentTiming(
                     agent=t["agent"],
                     stage=t.get("stage", 0),
+                    started_at=t.get("started_at", ""),
+                    completed_at=t.get("completed_at", ""),
                     duration_seconds=t.get("duration_seconds", 0),
                     success=t.get("success", True),
                     error=t.get("error", ""),
