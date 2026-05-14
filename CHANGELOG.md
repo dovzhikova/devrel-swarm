@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.2.16: doctor video-extra hint bracket escape (2026-05-14)
+
+### Fixed
+
+- **`devrel doctor` video-extra install hint was stripped to `pip install
+  'devrel-origin'`** because Rich console interpreted `[video]` as a style
+  tag. Escaped to `'devrel-origin\[video]'` so the literal brackets reach
+  the user. Caught via fresh-install validation by the codex branch on
+  PR #8; cherry-picked onto current main.
+
 ## 0.2.15: PostHog pipeline hardening (2026-05-14)
 
 Cherry-picked the unique work from the stale `codex/posthog-output-quality`
