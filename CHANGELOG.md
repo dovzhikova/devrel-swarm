@@ -1,5 +1,56 @@
 # Changelog
 
+## 0.2.15: PostHog pipeline hardening (2026-05-14)
+
+Cherry-picked the unique work from the stale `codex/posthog-output-quality`
+branch (PR #6) onto current main as PR #7. PR #6 predated the rename and
+~50% of its diff was already merged via PR #3/#4, so a direct merge was
+impossible.
+
+### Added
+
+- **`PostHogClient.fetch_events_by_url`** (HogQL helper). The existing
+  `PostHogCollector.collect()` already called this method, but it didn't
+  exist on `PostHogClient` — every PostHog-backed Argus run was failing
+  silently. Now returns page-view + unique-visitor counts grouped by URL
+  with positional-or-dict row normalization.
+- **Schema v6 `social_mentions` table** for Echo/Argus social-mention
+  storage, plus `_migrate_to_v6` that handles legacy column variants
+  (`score`, `engagement`, `url`-fallback for missing `post_id`).
+- **`devrel doctor` video toolchain checks**: `video_ffmpeg` and
+  `video_playwright` rows with the exact install command in the
+  warning text.
+- **`last_ok` health flag on all 4 Argus collectors** (PostHog, GitHub,
+  Instantly, Social) so partial-data runs can be distinguished from
+  fully-healthy ones.
+- **Per-agent `started_at` / `completed_at`** in `RunReport` agent
+  timings JSON. Atlas's new `timed_delegate` wrapper populates the field
+  automatically for stages 0-5.
+- **`Vox.execute` result fields** `video_produced`, `recording_skipped`,
+  `missing_dependencies` so callers can distinguish "video produced" from
+  "script-only fallback" instead of guessing from `status`.
+
+### Changed
+
+- **Editorial pipeline aborts loudly on second persona failure** instead
+  of shipping content with `flagged=True`. Kai already catches
+  `AbortLoud` as a quality-gate block, so the user-facing effect is
+  "content blocked" rather than "weak content shipped".
+- **`Atlas._build_kai_task`** now emits "avoid GitHub issue claims" /
+  "avoid source-code claims" when Sage/Dex returned no evidence, instead
+  of unconditionally demanding both. Stops Kai from inventing issue
+  numbers and file paths when upstream had nothing.
+- **`Argus._coerce_str_list`** normalizes `evidence`, `source_ids`, and
+  `trend_signals` when the LLM returns a string instead of a list. Stops
+  the markdown renderer from iterating character-by-character.
+
+### Tests
+
+- 1039 passing (up from 1034 baseline). New focused coverage for
+  `_coerce_str_list`, `_build_kai_task` with/without evidence,
+  `_missing_video_dependencies`, doctor video-toolchain checks, and the
+  new persona `AbortLoud` behavior.
+
 ## 0.2.13: Wizard UX fixes from real user testing + audit hygiene (2026-05-13)
 
 Real-user testing on v0.2.12 surfaced three onboarding bugs and one

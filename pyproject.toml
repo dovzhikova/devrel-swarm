@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "devrel-origin"
-version = "0.2.14"
+version = "0.2.15"
 description = "A 15-agent CLI that runs DevRel, sales, and marketing on your repo. BYO Anthropic or OpenRouter key."
 readme = "README.md"
 requires-python = ">=3.12"
