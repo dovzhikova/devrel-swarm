@@ -148,3 +148,27 @@ def test_doctor_reports_video_toolchain_status(tmp_path):
     names = {c["name"] for c in data["checks"]}
     assert "video_ffmpeg" in names
     assert "video_playwright" in names
+
+
+def test_doctor_video_extra_hint_preserves_brackets(tmp_path, monkeypatch):
+    """Rich console swallows `[video]` as a style tag; the install hint must
+    escape the brackets so users see `devrel-origin[video]` literally."""
+    import devrel_origin.cli.doctor as doctor
+
+    cwd = os.getcwd()
+    os.chdir(tmp_path)
+    try:
+        runner.invoke(
+            app,
+            ["init", "--non-interactive", "--name", "x", "--url", "", "--github-repo", ""],
+        )
+    finally:
+        os.chdir(cwd)
+
+    monkeypatch.setattr(
+        doctor, "find_spec", lambda name: None if name == "playwright" else object()
+    )
+    result = _run_in(tmp_path, "doctor", env={"ANTHROPIC_API_KEY": "sk-ant-test"})
+
+    assert result.exit_code == 0, result.output
+    assert "devrel-origin[video]" in result.output
