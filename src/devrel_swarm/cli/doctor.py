@@ -135,7 +135,7 @@ def _run_checks(paths: ProjectPaths) -> list[CheckResult]:
             CheckResult(
                 "video_playwright",
                 "warn",
-                "not installed; run `pip install 'devrel-swarm[video]' && python -m playwright install chromium`",
+                "not installed; run `pip install 'devrel-swarm\\[video]' && python -m playwright install chromium`",
             )
         )
 

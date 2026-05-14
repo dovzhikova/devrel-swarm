@@ -130,3 +130,23 @@ def test_doctor_json_mode(tmp_path):
     assert data["status"] in ("ok", "warn", "fail")
     assert "checks" in data
     assert any(c["name"] == "llm_api_key" for c in data["checks"])
+
+
+def test_doctor_video_extra_hint_preserves_brackets(tmp_path, monkeypatch):
+    import devrel_swarm.cli.doctor as doctor
+
+    cwd = os.getcwd()
+    os.chdir(tmp_path)
+    try:
+        runner.invoke(
+            app,
+            ["init", "--non-interactive", "--name", "x", "--url", "", "--github-repo", ""],
+        )
+    finally:
+        os.chdir(cwd)
+
+    monkeypatch.setattr(doctor, "find_spec", lambda name: None if name == "playwright" else object())
+    result = _run_in(tmp_path, "doctor", env={"ANTHROPIC_API_KEY": "sk-ant-test"})
+
+    assert result.exit_code == 0, result.output
+    assert "devrel-swarm[video]" in result.output
